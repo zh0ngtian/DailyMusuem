@@ -1,0 +1,19 @@
+import Foundation
+
+struct Museum: Identifiable, Hashable, Codable {
+    let id: MuseumID
+    let displayName: String
+    let subtitle: String
+}
+
+enum MuseumID: String, Codable, CaseIterable, Identifiable {
+    case met
+
+    var id: String { rawValue }
+}
+
+enum MuseumRepository {
+    static let supportedMuseums: [Museum] = [
+        Museum(id: .met, displayName: "大都会艺术博物馆", subtitle: "美国 纽约")
+    ]
+}
