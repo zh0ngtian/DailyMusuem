@@ -14,13 +14,6 @@ struct DailyMuseumWidgetView: View {
                         .scaledToFill()
                         .frame(width: proxy.size.width, height: proxy.size.height)
                         .clipped()
-                        .overlay {
-                            LinearGradient(
-                                colors: [.black.opacity(0.08), .black.opacity(0.82)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        }
                 } else {
                     Rectangle().fill(.quaternary)
                 }
@@ -57,6 +50,13 @@ struct DailyMuseumWidgetView: View {
                                     .multilineTextAlignment(.leading)
                             }
                         }
+                        .padding(textCardPadding)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: textCardCornerRadius, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: textCardCornerRadius, style: .continuous)
+                                .stroke(.white.opacity(0.18), lineWidth: 0.75)
+                        }
+                        .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -120,6 +120,32 @@ struct DailyMuseumWidgetView: View {
             return .largeTitle
         default:
             return .title3
+        }
+    }
+
+    private var textCardPadding: CGFloat {
+        switch family {
+        case .systemSmall:
+            return 8
+        case .systemMedium:
+            return 10
+        case .systemLarge:
+            return 12
+        default:
+            return 10
+        }
+    }
+
+    private var textCardCornerRadius: CGFloat {
+        switch family {
+        case .systemSmall:
+            return 12
+        case .systemMedium:
+            return 14
+        case .systemLarge:
+            return 16
+        default:
+            return 14
         }
     }
 
