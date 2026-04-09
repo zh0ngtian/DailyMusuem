@@ -8,12 +8,14 @@ struct Museum: Identifiable, Hashable, Codable {
 
 enum MuseumID: String, Codable, CaseIterable, Identifiable {
     case met
+    case tnm
 
     var id: String { rawValue }
 }
 
 enum MuseumRepository {
     static let supportedMuseums: [Museum] = [
-        Museum(id: .met, displayName: "大都会艺术博物馆", subtitle: "美国 纽约")
+        Museum(id: .met, displayName: "大都会艺术博物馆", subtitle: "美国 纽约"),
+        Museum(id: .tnm, displayName: "东京国立博物馆", subtitle: "日本 东京")
     ]
 }

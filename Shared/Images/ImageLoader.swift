@@ -38,13 +38,16 @@ final class ImageLoader: ObservableObject {
             }
 
             if let cached = await ImageMemoryCache.shared.image(for: url) {
+                await RequestLogger.shared.logEvent(source: "App 图片", summary: "命中内存缓存，\(url.absoluteString)")
                 image = cached
                 retryCount = 0
                 return
             }
 
             while !Task.isCancelled {
+                let start = Date()
                 do {
+                    await RequestLogger.shared.logRequestStart(source: "App 图片", url: url)
                     let (data, response) = try await URLSession.shared.data(from: url)
                     guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
                         throw URLError(.badServerResponse)
@@ -52,6 +55,13 @@ final class ImageLoader: ObservableObject {
                     guard let downloaded = UIImage(data: data) else {
                         throw URLError(.cannotDecodeContentData)
                     }
+                    await RequestLogger.shared.logRequestSuccess(
+                        source: "App 图片",
+                        url: url,
+                        statusCode: http.statusCode,
+                        duration: Date().timeIntervalSince(start),
+                        responseBytes: data.count
+                    )
                     await ImageMemoryCache.shared.setImage(downloaded, for: url)
                     image = downloaded
                     error = nil
@@ -60,6 +70,12 @@ final class ImageLoader: ObservableObject {
                 } catch is CancellationError {
                     return
                 } catch {
+                    await RequestLogger.shared.logRequestFailure(
+                        source: "App 图片",
+                        url: url,
+                        duration: Date().timeIntervalSince(start),
+                        error: error
+                    )
                     self.error = error
                     retryCount += 1
 

@@ -26,7 +26,7 @@ extension MetMuseumObject {
         Artwork(
             id: "met-\(objectID)",
             museumID: .met,
-            objectID: objectID,
+            objectID: "\(objectID)",
             title: title,
             artistDisplayName: artistDisplayName,
             objectDate: objectDate,
@@ -42,4 +42,3 @@ extension MetMuseumObject {
         )
     }
 }
-

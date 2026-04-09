@@ -3,7 +3,7 @@ import Foundation
 struct Artwork: Identifiable, Hashable, Codable {
     let id: String
     let museumID: MuseumID
-    let objectID: Int
+    let objectID: String
 
     let title: String
     let artistDisplayName: String?

@@ -7,6 +7,7 @@ struct ArtworkDetailLoaderView: View {
     @State private var errorMessage: String?
 
     private let metAPI = MetMuseumAPI()
+    private let japanSearchAPI = JapanSearchAPI()
 
     var body: some View {
         Group {
@@ -35,8 +36,14 @@ struct ArtworkDetailLoaderView: View {
         do {
             switch reference.museumID {
             case .met:
-                let object = try await metAPI.fetchObject(objectID: reference.objectID)
+                guard let objectID = Int(reference.objectID) else {
+                    throw URLError(.badURL)
+                }
+                let object = try await metAPI.fetchObject(objectID: objectID)
                 artwork = object.toArtwork()
+            case .tnm:
+                let item = try await japanSearchAPI.fetchItem(itemID: reference.objectID)
+                artwork = item.toArtwork()
             }
         } catch {
             errorMessage = error.localizedDescription

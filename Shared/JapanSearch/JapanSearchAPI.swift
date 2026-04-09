@@ -1,0 +1,373 @@
+import Foundation
+
+final class JapanSearchAPI {
+    struct SearchPoolSnapshot {
+        let itemIDs: [String]
+        let hasMoreRemoteItems: Bool
+    }
+
+    private enum Constants {
+        static let databaseID = "cobas"
+        static let museumContributor = "東京国立博物館"
+        // Japan Search returns empty lists on iPhone for large `size` values like 1000.
+        // Keep pages small enough to stay stable.
+        static let pageSize = 30
+        static let requestTimeout: TimeInterval = 20
+        static let searchUserAgent = "curl/8.7.1"
+        static let searchAccept = "application/json, text/plain, */*"
+        static let searchAcceptLanguage = "ja-JP,ja;q=0.9,en-US;q=0.8,zh-CN;q=0.7"
+    }
+
+    private let baseURL = URL(string: "https://jpsearch.go.jp/api")!
+    private let session: URLSession
+    private let responseCache = JapanSearchResponseCache.shared
+    private let persistentCache = JapanSearchPersistentCache.shared
+
+    init(session: URLSession = .shared) {
+        self.session = session
+    }
+
+    func searchItemIDs(
+        preferHasImages: Bool,
+        minimumCount: Int = Constants.pageSize,
+        onLog: (@Sendable (String) async -> Void)? = nil
+    ) async throws -> SearchPoolSnapshot {
+        let logger = RequestLogger.shared
+        let cacheKey = cacheKey(preferHasImages: preferHasImages)
+        await onLog?("检查东京国立博物馆 itemIDs 内存缓存...")
+
+        var itemIDs: [String] = []
+        var summaryArtworks: [Artwork] = []
+        var nextFrom = 0
+        var hasMore = true
+        var usedContributorFilter = true
+
+        if let cached = await responseCache.searchState(forKey: cacheKey), !cached.itemIDs.isEmpty {
+            itemIDs = cached.itemIDs
+            nextFrom = cached.nextFrom
+            hasMore = cached.hasMore
+            usedContributorFilter = cached.usedContributorFilter
+            await logger.logEvent(source: "东京国立博物馆搜索", summary: "命中内存缓存，复用 \(cached.itemIDs.count) 条 itemIDs")
+            await onLog?("已命中内存缓存，直接复用 \(cached.itemIDs.count) 条 itemIDs。")
+            if cached.itemIDs.count >= minimumCount || !cached.hasMore {
+                return SearchPoolSnapshot(itemIDs: cached.itemIDs, hasMoreRemoteItems: cached.hasMore)
+            }
+            await onLog?("现有东京国立博物馆缓存不足 \(minimumCount) 条，继续拉取下一页...")
+        }
+
+        if itemIDs.isEmpty {
+            await onLog?("未命中内存缓存，检查东京国立博物馆本地缓存...")
+            if let persisted = await persistentCache.searchSnapshot(forKey: cacheKey), !persisted.itemIDs.isEmpty {
+                itemIDs = persisted.itemIDs
+                summaryArtworks = persisted.summaryArtworks
+                nextFrom = persisted.nextFrom
+                hasMore = persisted.hasMore
+                usedContributorFilter = persisted.usedContributorFilter
+                await responseCache.setSearchState(
+                    itemIDs: persisted.itemIDs,
+                    nextFrom: persisted.nextFrom,
+                    hasMore: persisted.hasMore,
+                    usedContributorFilter: persisted.usedContributorFilter,
+                    forKey: cacheKey
+                )
+                if !persisted.summaryArtworks.isEmpty {
+                    await responseCache.setSearchArtworks(persisted.summaryArtworks)
+                    await onLog?("已从本地缓存恢复 \(persisted.summaryArtworks.count) 条东京国立博物馆摘要数据。")
+                }
+                await logger.logEvent(source: "东京国立博物馆搜索", summary: "命中本地缓存，复用 \(persisted.itemIDs.count) 条 itemIDs")
+                await onLog?("已命中本地缓存，读取到 \(persisted.itemIDs.count) 条 itemIDs。")
+                if persisted.itemIDs.count >= minimumCount || !persisted.hasMore {
+                    return SearchPoolSnapshot(itemIDs: persisted.itemIDs, hasMoreRemoteItems: persisted.hasMore)
+                }
+                await onLog?("本地缓存条目不足 \(minimumCount) 条，继续拉取下一页...")
+            }
+        }
+
+        if itemIDs.isEmpty {
+            await onLog?("未命中本地缓存，开始从东京国立博物馆拉取分页 itemIDs...")
+        }
+
+        var knownIDs = Set(itemIDs)
+        while itemIDs.count < minimumCount, hasMore {
+            let response = try await searchItems(
+                preferHasImages: preferHasImages,
+                from: nextFrom,
+                size: Constants.pageSize,
+                useContributorFilter: usedContributorFilter
+            )
+
+            if response.list.isEmpty {
+                if usedContributorFilter && itemIDs.isEmpty {
+                    await onLog?("东京国立博物馆 contributor 筛选返回空结果，改为拉取 cobas 全库并在本地过滤东京馆数据...")
+                    usedContributorFilter = false
+                    nextFrom = 0
+                    hasMore = true
+                    continue
+                }
+                hasMore = false
+                break
+            }
+
+            let pageItems: [JapanSearchItem]
+            if usedContributorFilter {
+                pageItems = response.list
+            } else {
+                pageItems = response.list.filter(Self.isTokyoNationalMuseumItem)
+            }
+
+            let uniquePageItems = Self.stableUniqueItems(pageItems).filter { knownIDs.insert($0.id).inserted }
+            let orderedPageItems = uniquePageItems.sorted { lhs, rhs in lhs.sortValue < rhs.sortValue }
+            itemIDs.append(contentsOf: orderedPageItems.map(\.id))
+            let pageSummaries = orderedPageItems.map { $0.toArtwork() }
+            summaryArtworks.append(contentsOf: pageSummaries)
+            await responseCache.setSearchArtworks(pageSummaries)
+
+            nextFrom += response.list.count
+            hasMore = response.list.count >= Constants.pageSize && nextFrom < response.hit
+            await onLog?("东京国立博物馆已缓存 \(itemIDs.count) 条 itemIDs，后续按需继续拉取。")
+
+            await responseCache.setSearchState(
+                itemIDs: itemIDs,
+                nextFrom: nextFrom,
+                hasMore: hasMore,
+                usedContributorFilter: usedContributorFilter,
+                forKey: cacheKey
+            )
+            await persistentCache.setSearchSnapshot(
+                itemIDs: itemIDs,
+                summaryArtworks: summaryArtworks,
+                nextFrom: nextFrom,
+                hasMore: hasMore,
+                usedContributorFilter: usedContributorFilter,
+                forKey: cacheKey
+            )
+
+            if response.list.count < Constants.pageSize || nextFrom >= response.hit {
+                hasMore = false
+            }
+        }
+
+        guard !itemIDs.isEmpty else {
+            await logger.logEvent(source: "东京国立博物馆搜索", summary: "搜索结果为空，忽略空缓存并返回空数组")
+            await onLog?("东京国立博物馆未返回任何 itemIDs，本次不写入空缓存。")
+            return SearchPoolSnapshot(itemIDs: [], hasMoreRemoteItems: false)
+        }
+
+        await responseCache.setSearchState(
+            itemIDs: itemIDs,
+            nextFrom: nextFrom,
+            hasMore: hasMore,
+            usedContributorFilter: usedContributorFilter,
+            forKey: cacheKey
+        )
+        await persistentCache.setSearchSnapshot(
+            itemIDs: itemIDs,
+            summaryArtworks: summaryArtworks,
+            nextFrom: nextFrom,
+            hasMore: hasMore,
+            usedContributorFilter: usedContributorFilter,
+            forKey: cacheKey
+        )
+        await onLog?("东京国立博物馆 itemIDs 已就绪，当前缓存 \(itemIDs.count) 条。")
+        return SearchPoolSnapshot(itemIDs: itemIDs, hasMoreRemoteItems: hasMore)
+    }
+
+    func resetSearchCache(preferHasImages: Bool) async {
+        let key = cacheKey(preferHasImages: preferHasImages)
+        await responseCache.removeSearchState(forKey: key)
+        await persistentCache.removeSearchSnapshot(forKey: key)
+    }
+
+    func fetchItem(itemID: String) async throws -> JapanSearchItem {
+        let logger = RequestLogger.shared
+        if let cached = await responseCache.item(forID: itemID) {
+            await logger.logEvent(source: "东京国立博物馆详情", summary: "命中内存缓存，itemID=\(itemID)")
+            return cached
+        }
+
+        let url = baseURL.appending(path: "item").appending(path: itemID)
+        let start = Date()
+        await logger.logRequestStart(source: "东京国立博物馆详情", url: url)
+
+        do {
+            let (data, response) = try await session.data(from: url)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            try validate(response: response)
+            let item = try JSONDecoder().decode(JapanSearchItem.self, from: data)
+            await logger.logRequestSuccess(
+                source: "东京国立博物馆详情",
+                url: url,
+                statusCode: statusCode,
+                duration: Date().timeIntervalSince(start),
+                responseBytes: data.count
+            )
+            await responseCache.setItem(item, forID: itemID)
+            return item
+        } catch {
+            await logger.logRequestFailure(
+                source: "东京国立博物馆详情",
+                url: url,
+                duration: Date().timeIntervalSince(start),
+                error: error
+            )
+            throw error
+        }
+    }
+
+    func cachedSearchArtwork(itemID: String) async -> Artwork? {
+        await responseCache.searchArtwork(forID: itemID)
+    }
+
+    private func cacheKey(preferHasImages: Bool) -> String {
+        "\(Constants.databaseID)-\(Constants.museumContributor)-\(preferHasImages)"
+    }
+
+    private func searchItems(
+        preferHasImages: Bool,
+        from: Int,
+        size: Int,
+        useContributorFilter: Bool
+    ) async throws -> JapanSearchSearchResponse {
+        var components = URLComponents(url: baseURL.appending(path: "item/search/jps-cross"), resolvingAgainstBaseURL: false)
+        var queryItems = [
+            URLQueryItem(name: "f-db", value: Constants.databaseID),
+            URLQueryItem(name: "from", value: "\(from)"),
+            URLQueryItem(name: "size", value: "\(size)")
+        ]
+        if useContributorFilter {
+            queryItems.append(URLQueryItem(name: "q-contributor", value: Constants.museumContributor))
+        }
+        if preferHasImages {
+            queryItems.append(URLQueryItem(name: "f-contents", value: "image"))
+        }
+        components?.queryItems = queryItems
+
+        guard let url = components?.url else {
+            throw URLError(.badURL)
+        }
+
+        let request = makeSearchRequest(url: url)
+        let start = Date()
+        await RequestLogger.shared.logRequestStart(source: "东京国立博物馆搜索", url: url)
+
+        do {
+            let (data, response) = try await session.data(for: request)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            try validate(response: response)
+            let decoded = try JSONDecoder().decode(JapanSearchSearchResponse.self, from: data)
+            await RequestLogger.shared.logRequestSuccess(
+                source: "东京国立博物馆搜索",
+                url: url,
+                statusCode: statusCode,
+                duration: Date().timeIntervalSince(start),
+                responseBytes: data.count
+            )
+            return decoded
+        } catch {
+            await RequestLogger.shared.logRequestFailure(
+                source: "东京国立博物馆搜索",
+                url: url,
+                duration: Date().timeIntervalSince(start),
+                error: error
+            )
+            throw error
+        }
+    }
+
+    private func makeSearchRequest(url: URL) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = Constants.requestTimeout
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.setValue(Constants.searchUserAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue(Constants.searchAccept, forHTTPHeaderField: "Accept")
+        request.setValue(Constants.searchAcceptLanguage, forHTTPHeaderField: "Accept-Language")
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+        return request
+    }
+
+    private func validate(response: URLResponse) throws {
+        guard let http = response as? HTTPURLResponse else { return }
+        guard (200..<300).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+    }
+
+    private static func isTokyoNationalMuseumItem(_ item: JapanSearchItem) -> Bool {
+        if item.common.contributor.contains(Constants.museumContributor) {
+            return true
+        }
+        if item.fields["cobas-16-s"] == Constants.museumContributor {
+            return true
+        }
+        return item.common.provider == "tnm"
+    }
+
+    private static func stableUniqueItems(_ items: [JapanSearchItem]) -> [JapanSearchItem] {
+        var seen: Set<String> = []
+        var result: [JapanSearchItem] = []
+        result.reserveCapacity(items.count)
+
+        for item in items where seen.insert(item.id).inserted {
+            result.append(item)
+        }
+        return result
+    }
+}
+
+actor JapanSearchResponseCache {
+    static let shared = JapanSearchResponseCache()
+
+    struct SearchState {
+        let itemIDs: [String]
+        let nextFrom: Int
+        let hasMore: Bool
+        let usedContributorFilter: Bool
+    }
+
+    private var searchStateStorage: [String: SearchState] = [:]
+    private var itemStorage: [String: JapanSearchItem] = [:]
+    private var searchArtworkStorage: [String: Artwork] = [:]
+
+    func searchState(forKey key: String) -> SearchState? {
+        searchStateStorage[key]
+    }
+
+    func setSearchState(
+        itemIDs: [String],
+        nextFrom: Int,
+        hasMore: Bool,
+        usedContributorFilter: Bool,
+        forKey key: String
+    ) {
+        searchStateStorage[key] = SearchState(
+            itemIDs: itemIDs,
+            nextFrom: nextFrom,
+            hasMore: hasMore,
+            usedContributorFilter: usedContributorFilter
+        )
+    }
+
+    func removeSearchState(forKey key: String) {
+        searchStateStorage.removeValue(forKey: key)
+    }
+
+    func item(forID id: String) -> JapanSearchItem? {
+        itemStorage[id]
+    }
+
+    func setItem(_ item: JapanSearchItem, forID id: String) {
+        itemStorage[id] = item
+    }
+
+    func searchArtwork(forID id: String) -> Artwork? {
+        searchArtworkStorage[id]
+    }
+
+    func setSearchArtworks(_ artworks: [Artwork]) {
+        for artwork in artworks {
+            searchArtworkStorage[artwork.objectID] = artwork
+        }
+    }
+}

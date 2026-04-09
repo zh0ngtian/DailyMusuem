@@ -6,8 +6,8 @@ final class ArtworkFeedCache {
 
     struct Snapshot {
         let items: [ArtworkFeedItem]
-        let objectIDPool: [Int]
-        let loadedObjectIDs: Set<Int>
+        let objectIDPool: [String]
+        let loadedObjectIDs: Set<String>
         let hasMoreItems: Bool
     }
 
@@ -24,7 +24,7 @@ final class ArtworkFeedCache {
         storage[Key(museumID: museumID, randomOrder: randomOrder)]
     }
 
-    func store(museumID: MuseumID, randomOrder: Bool, items: [ArtworkFeedItem], objectIDPool: [Int], loadedObjectIDs: Set<Int>, hasMoreItems: Bool) {
+    func store(museumID: MuseumID, randomOrder: Bool, items: [ArtworkFeedItem], objectIDPool: [String], loadedObjectIDs: Set<String>, hasMoreItems: Bool) {
         storage[Key(museumID: museumID, randomOrder: randomOrder)] = Snapshot(
             items: items,
             objectIDPool: objectIDPool,

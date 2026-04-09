@@ -2,7 +2,7 @@ import Foundation
 
 struct ArtworkReference: Hashable, Codable {
     let museumID: MuseumID
-    let objectID: Int
+    let objectID: String
 }
 
 enum AppDeepLink {
@@ -21,10 +21,9 @@ enum AppDeepLink {
         guard url.scheme == scheme, url.host == artworkHost else { return nil }
         let parts = url.pathComponents.filter { $0 != "/" }
         guard parts.count == 2,
-              let museumID = MuseumID(rawValue: parts[0]),
-              let objectID = Int(parts[1]) else {
+              let museumID = MuseumID(rawValue: parts[0]) else {
             return nil
         }
-        return ArtworkReference(museumID: museumID, objectID: objectID)
+        return ArtworkReference(museumID: museumID, objectID: parts[1])
     }
 }
