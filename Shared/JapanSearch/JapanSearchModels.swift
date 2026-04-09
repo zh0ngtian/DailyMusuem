@@ -82,7 +82,7 @@ struct JapanSearchItem: Decodable {
     }
 
     func toArtwork() -> Artwork {
-        let imageURL = common.contentURLs.first ?? common.thumbnailURLs.first
+        let imageURL = common.contentURLs.first.map(Self.highResolutionImageURL(for:)) ?? common.thumbnailURLs.first.map(Self.highResolutionImageURL(for:))
         let thumbnailURL = common.thumbnailURLs.first ?? common.contentURLs.first
         let contributors = common.contributor.filter { !$0.contains("Tokyo National Museum") }
         let artist = contributors.first(where: { $0 != "東京国立博物館" })
@@ -106,6 +106,16 @@ struct JapanSearchItem: Decodable {
             primaryImageSmallURL: thumbnailURL,
             objectURL: common.linkURL
         )
+    }
+
+    private static func highResolutionImageURL(for url: URL) -> URL {
+        let original = url.absoluteString
+        let upgraded = original
+            .replacingOccurrences(of: "/slideshow_s/", with: "/slideshow/")
+            .replacingOccurrences(of: "/slideshow_l/", with: "/slideshow/")
+            .replacingOccurrences(of: "/slideshow_m/", with: "/slideshow/")
+
+        return URL(string: upgraded) ?? url
     }
 }
 

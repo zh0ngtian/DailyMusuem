@@ -23,11 +23,6 @@ struct MuseumListView: View {
         .navigationTitle("DailyMuseum")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink(value: Route.requestLogs) {
-                    Image(systemName: "doc.text.magnifyingglass")
-                }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink(value: Route.settings) {
                     Image(systemName: "gear")
                 }

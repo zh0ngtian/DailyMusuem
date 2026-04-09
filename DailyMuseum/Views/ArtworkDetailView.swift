@@ -2,6 +2,8 @@ import SwiftUI
 
 struct ArtworkDetailView: View {
     let artwork: Artwork
+    let imageReloadToken: Int
+    let onRefresh: () async -> Void
 
     var body: some View {
         ScrollView {
@@ -13,6 +15,7 @@ struct ArtworkDetailView: View {
                 } placeholder: {
                     Rectangle().fill(.quaternary)
                 }
+                .id(imageReloadToken)
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 10) {
@@ -45,6 +48,9 @@ struct ArtworkDetailView: View {
         }
         .navigationTitle("展品")
         .navigationBarTitleDisplayMode(.inline)
+        .refreshable {
+            await onRefresh()
+        }
     }
 }
 
@@ -67,4 +73,3 @@ private struct InfoRow: View {
         }
     }
 }
-

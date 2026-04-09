@@ -1,5 +1,9 @@
 import Foundation
 
+extension Notification.Name {
+    static let requestLoggerDidChange = Notification.Name("requestLoggerDidChange")
+}
+
 struct RequestLogEntry: Identifiable, Codable, Hashable {
     let id: UUID
     let timestamp: Date
@@ -113,6 +117,7 @@ actor RequestLogger {
     func clear() async {
         cachedEntries = []
         try? FileManager.default.removeItem(at: fileURL)
+        notifyDidChange()
     }
 
     private func append(_ entry: RequestLogEntry) async {
@@ -123,6 +128,7 @@ actor RequestLogger {
         }
         cachedEntries = entries
         await persist(entries: entries)
+        notifyDidChange()
     }
 
     private func cachedOrDiskEntries() async -> [RequestLogEntry] {
@@ -146,5 +152,9 @@ actor RequestLogger {
         } catch {
             // Ignore logging persistence failures to avoid affecting product behavior.
         }
+    }
+
+    private func notifyDidChange() {
+        NotificationCenter.default.post(name: .requestLoggerDidChange, object: nil)
     }
 }

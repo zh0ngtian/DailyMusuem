@@ -13,5 +13,8 @@ actor ImageMemoryCache {
     func setImage(_ image: UIImage, for url: URL) {
         cache.setObject(image, forKey: url as NSURL)
     }
-}
 
+    func removeImage(for url: URL) {
+        cache.removeObject(forKey: url as NSURL)
+    }
+}

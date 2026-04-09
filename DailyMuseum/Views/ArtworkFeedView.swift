@@ -72,9 +72,14 @@ struct ArtworkFeedView: View {
                                 columnCount: columnCount,
                                 availableWidth: proxy.size.width - horizontalPadding * 2
                             ) { item in
-                                NavigationLink {
-                                    ArtworkDetailView(artwork: item.artwork)
-                                } label: {
+                                NavigationLink(
+                                    value: Route.artwork(
+                                        ArtworkReference(
+                                            museumID: item.artwork.museumID,
+                                            objectID: item.artwork.objectID
+                                        )
+                                    )
+                                ) {
                                     ArtworkCardView(item: item) { aspectRatio in
                                         viewModel.updateAspectRatio(for: item.id, aspectRatio: aspectRatio)
                                     }
@@ -101,13 +106,6 @@ struct ArtworkFeedView: View {
             }
         }
         .navigationTitle(museum.displayName)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink(value: Route.settings) {
-                    Image(systemName: "slider.horizontal.3")
-                }
-            }
-        }
         .onChange(of: settings.feedRandomOrder) { _, _ in
             Task { await viewModel.reload() }
         }

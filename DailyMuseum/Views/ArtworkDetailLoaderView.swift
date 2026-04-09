@@ -5,6 +5,7 @@ struct ArtworkDetailLoaderView: View {
 
     @State private var artwork: Artwork?
     @State private var errorMessage: String?
+    @State private var imageReloadToken = 0
 
     private let metAPI = MetMuseumAPI()
     private let japanSearchAPI = JapanSearchAPI()
@@ -12,15 +13,32 @@ struct ArtworkDetailLoaderView: View {
     var body: some View {
         Group {
             if let artwork {
-                ArtworkDetailView(artwork: artwork)
+                ArtworkDetailView(
+                    artwork: artwork,
+                    imageReloadToken: imageReloadToken
+                ) {
+                    await refresh()
+                }
             } else if let errorMessage {
-                ContentUnavailableView(
-                    "加载失败",
-                    systemImage: "wifi.exclamationmark",
-                    description: Text(errorMessage)
-                )
+                ScrollView {
+                    ContentUnavailableView(
+                        "加载失败",
+                        systemImage: "wifi.exclamationmark",
+                        description: Text(errorMessage)
+                    )
+                    .frame(maxWidth: .infinity, minHeight: 320)
+                }
+                .refreshable {
+                    await refresh()
+                }
             } else {
-                ProgressView("正在打开展品...")
+                ScrollView {
+                    ProgressView("正在打开展品...")
+                        .frame(maxWidth: .infinity, minHeight: 320)
+                }
+                .refreshable {
+                    await refresh()
+                }
             }
         }
         .task(id: reference) {
@@ -29,8 +47,10 @@ struct ArtworkDetailLoaderView: View {
     }
 
     @MainActor
-    private func loadArtwork() async {
-        artwork = nil
+    private func loadArtwork(showLoadingState: Bool = true) async {
+        if showLoadingState {
+            artwork = nil
+        }
         errorMessage = nil
 
         do {
@@ -46,7 +66,21 @@ struct ArtworkDetailLoaderView: View {
                 artwork = item.toArtwork()
             }
         } catch {
-            errorMessage = error.localizedDescription
+            if artwork == nil {
+                errorMessage = error.localizedDescription
+            }
         }
+    }
+
+    @MainActor
+    private func refresh() async {
+        if let url = artwork?.primaryImageURL ?? artwork?.primaryImageSmallURL {
+            await ImageMemoryCache.shared.removeImage(for: url)
+        }
+        if let url = artwork?.primaryImageSmallURL {
+            await ImageMemoryCache.shared.removeImage(for: url)
+        }
+        imageReloadToken += 1
+        await loadArtwork(showLoadingState: false)
     }
 }
