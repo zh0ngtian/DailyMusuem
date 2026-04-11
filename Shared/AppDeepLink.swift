@@ -4,6 +4,15 @@ struct ArtworkReference: Hashable, Codable {
     let museumID: MuseumID
     let objectID: String
     let imageAspectRatio: Double?
+
+    static func == (lhs: ArtworkReference, rhs: ArtworkReference) -> Bool {
+        lhs.museumID == rhs.museumID && lhs.objectID == rhs.objectID
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(museumID)
+        hasher.combine(objectID)
+    }
 }
 
 enum AppDeepLink {

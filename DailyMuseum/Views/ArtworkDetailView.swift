@@ -41,8 +41,6 @@ struct ArtworkDetailView: View {
 
                     if let description = artwork.normalizedDescriptionText {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("展品介绍")
-                                .font(.headline)
                             Text(description)
                                 .font(.body)
                                 .foregroundStyle(.primary)

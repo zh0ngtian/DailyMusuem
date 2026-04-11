@@ -39,6 +39,7 @@ struct ArtworkFeedView: View {
     @State private var isBottomLoadPrimed = false
     @State private var isTrackingBottomLoadGesture = false
     @State private var displayMode: DisplayMode = .waterfall
+    @State private var selectedArtworkReference: ArtworkReference?
 
     init(museum: Museum) {
         self.museum = museum
@@ -136,6 +137,9 @@ struct ArtworkFeedView: View {
                 .accessibilityLabel(displayMode.buttonLabel)
             }
         }
+        .navigationDestination(item: $selectedArtworkReference) { reference in
+            ArtworkDetailLoaderView(reference: reference)
+        }
         .onChange(of: settings.feedRandomOrder) { _, _ in
             Task { await viewModel.reload() }
         }
@@ -179,15 +183,13 @@ struct ArtworkFeedView: View {
     }
 
     private func artworkNavigationLink<Content: View>(for item: ArtworkFeedItem, @ViewBuilder content: () -> Content) -> some View {
-        NavigationLink(
-            value: Route.artwork(
-                ArtworkReference(
-                    museumID: item.artwork.museumID,
-                    objectID: item.artwork.objectID,
-                    imageAspectRatio: item.displayImageAspectRatio
-                )
+        Button {
+            selectedArtworkReference = ArtworkReference(
+                museumID: item.artwork.museumID,
+                objectID: item.artwork.objectID,
+                imageAspectRatio: item.displayImageAspectRatio
             )
-        ) {
+        } label: {
             content()
         }
     }

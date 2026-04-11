@@ -6,11 +6,15 @@ final class NationalMuseumChinaAPI {
         static let requestTimeout: TimeInterval = 20
         static let repositoryName = "中国国家博物馆"
         static let countryName = "中国"
+        static let minimumRequestInterval: TimeInterval = 1
     }
 
     private let session: URLSession
     private let responseCache = NationalMuseumChinaResponseCache.shared
     private let persistentCache = NationalMuseumChinaPersistentCache.shared
+    private static let requestThrottle = NationalMuseumChinaRequestThrottle(
+        minimumInterval: Constants.minimumRequestInterval
+    )
 
     init(session: URLSession = .shared) {
         self.session = session
@@ -43,6 +47,14 @@ final class NationalMuseumChinaAPI {
 
         let url = try makeShareURL(exhibitID: exhibitID)
         let request = makeRequest(url: url)
+        let throttleDelay = await Self.requestThrottle.waitForTurn()
+        if throttleDelay > 0 {
+            let delayText = String(format: "%.2f", throttleDelay)
+            await logger.logEvent(
+                source: "中国国家博物馆详情",
+                summary: "触发限流保护，等待 \(delayText)s 后再请求，exhibitID=\(exhibitID)"
+            )
+        }
         let start = Date()
         await logger.logRequestStart(source: "中国国家博物馆详情", url: url)
 
@@ -116,6 +128,29 @@ final class NationalMuseumChinaAPI {
         guard (200..<300).contains(http.statusCode) else {
             throw URLError(.badServerResponse)
         }
+    }
+}
+
+private actor NationalMuseumChinaRequestThrottle {
+    private let minimumInterval: TimeInterval
+    private var nextAllowedRequestTime: Date = .distantPast
+
+    init(minimumInterval: TimeInterval) {
+        self.minimumInterval = minimumInterval
+    }
+
+    func waitForTurn(now: Date = Date()) async -> TimeInterval {
+        let scheduledTime = max(now, nextAllowedRequestTime)
+        let delay = max(0, scheduledTime.timeIntervalSince(now))
+        nextAllowedRequestTime = scheduledTime.addingTimeInterval(minimumInterval)
+
+        guard delay > 0 else {
+            return 0
+        }
+
+        let nanoseconds = UInt64(delay * 1_000_000_000)
+        try? await Task.sleep(nanoseconds: nanoseconds)
+        return delay
     }
 }
 
