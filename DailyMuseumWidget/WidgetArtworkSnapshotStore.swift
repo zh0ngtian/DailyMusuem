@@ -24,10 +24,17 @@ actor WidgetArtworkSnapshotStore {
     }
 
     func load(cycleKey: String) -> Snapshot? {
+        guard let snapshot = loadLatest(),
+              snapshot.cycleKey == cycleKey else {
+            return nil
+        }
+        return snapshot
+    }
+
+    func loadLatest() -> Snapshot? {
         let fileURL = directoryURL.appendingPathComponent("current-artwork.json")
         guard let data = try? Data(contentsOf: fileURL),
-              let snapshot = try? decoder.decode(Snapshot.self, from: data),
-              snapshot.cycleKey == cycleKey else {
+              let snapshot = try? decoder.decode(Snapshot.self, from: data) else {
             return nil
         }
         return snapshot

@@ -9,13 +9,17 @@ targets:
   DailyMuseum:
     type: application
     platform: iOS
+    attributes:
+      SystemCapabilities:
+        com.apple.ApplicationGroups.iOS:
+          enabled: 1
     sources:
       - path: DailyMuseum
       - path: Shared
     info:
       path: DailyMuseum/Info.plist
       properties:
-        CFBundleDisplayName: DailyMuseum
+        CFBundleDisplayName: 每日博物馆
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "1"
         CFBundleURLTypes:
@@ -48,6 +52,10 @@ targets:
   DailyMuseumWidgetExtension:
     type: app-extension
     platform: iOS
+    attributes:
+      SystemCapabilities:
+        com.apple.ApplicationGroups.iOS:
+          enabled: 1
     sources:
       - path: DailyMuseumWidget
       - path: Shared
@@ -58,7 +66,7 @@ targets:
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     entitlements:
-      path: DailyMuseumWidget/DailyMuseumWidget.entitlements
+      path: DailyMuseumWidget/DailyMuseumWidgetAppGroup.entitlements
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: tech.zh0ngtian.DailyMuseum.widget

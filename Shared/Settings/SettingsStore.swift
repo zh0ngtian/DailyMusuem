@@ -80,6 +80,7 @@ final class SettingsStore: ObservableObject {
 
     private init() {
         defaults = UserDefaults(suiteName: SettingsKeys.appGroupID) ?? .standard
+        migrateLegacyDefaultsIfNeeded()
         tencentTranslationConfigured = tencentTranslationCredentials() != nil
         miniMaxTranslationConfigured = miniMaxTranslationCredentials() != nil
     }
@@ -110,6 +111,23 @@ final class SettingsStore: ObservableObject {
         }
 
         return ids
+    }
+
+    private func migrateLegacyDefaultsIfNeeded() {
+        let legacyStores = [
+            UserDefaults(suiteName: SettingsKeys.legacyAppGroupID),
+            UserDefaults.standard
+        ]
+
+        for key in SettingsKeys.defaultsBackedKeys {
+            guard defaults.object(forKey: key) == nil else { continue }
+
+            for store in legacyStores {
+                guard let store, let value = store.object(forKey: key) else { continue }
+                defaults.set(value, forKey: key)
+                break
+            }
+        }
     }
 
     func translationEngine() -> TranslationEngine {

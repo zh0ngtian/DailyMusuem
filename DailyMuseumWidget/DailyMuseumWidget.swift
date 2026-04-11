@@ -11,7 +11,8 @@ struct WidgetArtworkEntry: TimelineEntry {
 }
 
 struct DailyMuseumWidget: Widget {
-    let kind: String = "DailyMuseumWidget"
+    static let kind: String = "DailyMuseumWidget"
+    let kind: String = DailyMuseumWidget.kind
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: DailyMuseumWidgetProvider()) { entry in

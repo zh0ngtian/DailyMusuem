@@ -348,6 +348,22 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					453027374B065B9697472E15 = {
+						SystemCapabilities = {
+							com.apple.ApplicationGroups.iOS = {
+								enabled = 1;
+							};
+						};
+					};
+					882A042403C606FF924702EF = {
+						SystemCapabilities = {
+							com.apple.ApplicationGroups.iOS = {
+								enabled = 1;
+							};
+						};
+					};
+				};
 			};
 			buildConfigurationList = 4A105D08982E494427ECEFE0 /* Build configuration list for PBXProject "DailyMuseum" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -548,7 +564,7 @@
 		46CAC78C6699710C80EFAB03 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = DailyMuseumWidget/DailyMuseumWidget.entitlements;
+				CODE_SIGN_ENTITLEMENTS = DailyMuseumWidget/DailyMuseumWidgetAppGroup.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = PGKB4LZW48;
 				INFOPLIST_FILE = DailyMuseumWidget/Info.plist;
@@ -589,7 +605,7 @@
 		B6E273FD34F7A60D65AD148E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = DailyMuseumWidget/DailyMuseumWidget.entitlements;
+				CODE_SIGN_ENTITLEMENTS = DailyMuseumWidget/DailyMuseumWidgetAppGroup.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = PGKB4LZW48;
 				INFOPLIST_FILE = DailyMuseumWidget/Info.plist;

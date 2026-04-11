@@ -20,12 +20,16 @@ struct WidgetArtworkService {
             )
         }
 
+        let previousReference = await snapshotStore
+            .loadLatest()?
+            .appURL
+            .flatMap(AppDeepLink.parse)
         let museum = pickMuseum()
 
         switch museum.id {
         case .met:
             let ids = try await metAPI.searchObjectIDs(hasImages: settings.preferHasImages, isOnView: false, query: "a")
-            guard let id = ids.randomElement() else {
+            guard let id = pickMetObjectID(from: ids, previousReference: previousReference, museum: museum) else {
                 throw URLError(.cannotParseResponse)
             }
             let object = try await metAPI.fetchObject(objectID: id)
@@ -33,7 +37,7 @@ struct WidgetArtworkService {
             return try await makeSnapshotEntry(for: artwork, museum: museum, date: date, cycleKey: cycleKey)
         case .tnm:
             let searchPool = try await japanSearchAPI.searchItemIDs(preferHasImages: settings.preferHasImages)
-            guard let id = searchPool.itemIDs.randomElement() else {
+            guard let id = pickObjectID(from: searchPool.itemIDs, previousReference: previousReference, museum: museum) else {
                 throw URLError(.cannotParseResponse)
             }
             let item = try await japanSearchAPI.fetchItem(itemID: id)
@@ -41,7 +45,7 @@ struct WidgetArtworkService {
             return try await makeSnapshotEntry(for: artwork, museum: museum, date: date, cycleKey: cycleKey)
         case .nmc:
             let ids = await nationalMuseumChinaAPI.allExhibitIDs()
-            guard let id = ids.randomElement() else {
+            guard let id = pickNumericObjectID(from: ids, previousReference: previousReference, museum: museum) else {
                 throw URLError(.cannotParseResponse)
             }
             let artwork = try await nationalMuseumChinaAPI.fetchExhibit(exhibitID: id)
@@ -76,6 +80,30 @@ struct WidgetArtworkService {
             imageData: snapshot.imageData,
             appURL: snapshot.appURL
         )
+    }
+
+    private func pickMetObjectID(from ids: [Int], previousReference: ArtworkReference?, museum: Museum) -> Int? {
+        pickNumericObjectID(from: ids, previousReference: previousReference, museum: museum)
+    }
+
+    private func pickNumericObjectID(from ids: [Int], previousReference: ArtworkReference?, museum: Museum) -> Int? {
+        let stringIDs = ids.map(String.init)
+        guard let objectID = pickObjectID(from: stringIDs, previousReference: previousReference, museum: museum) else {
+            return nil
+        }
+        return Int(objectID)
+    }
+
+    private func pickObjectID(from ids: [String], previousReference: ArtworkReference?, museum: Museum) -> String? {
+        guard !ids.isEmpty else { return nil }
+
+        let excludedObjectID = previousReference?.museumID == museum.id ? previousReference?.objectID : nil
+        guard let excludedObjectID else {
+            return ids.randomElement()
+        }
+
+        let filtered = ids.filter { $0 != excludedObjectID }
+        return filtered.randomElement() ?? ids.randomElement()
     }
 
     private func pickMuseum() -> Museum {
