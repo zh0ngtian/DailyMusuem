@@ -54,7 +54,7 @@ struct WidgetArtworkService {
     }
 
     private func makeSnapshotEntry(for artwork: Artwork, museum: Museum, date: Date, cycleKey: String) async throws -> WidgetArtworkEntry {
-        let imageURL = artwork.primaryImageSmallURL ?? artwork.primaryImageURL
+        let imageURL = preferredWidgetImageURL(for: artwork, museum: museum)
         let imageData = try await fetchImageData(url: imageURL)
         let reference = ArtworkReference(
             museumID: museum.id,
@@ -80,6 +80,15 @@ struct WidgetArtworkService {
             imageData: snapshot.imageData,
             appURL: snapshot.appURL
         )
+    }
+
+    private func preferredWidgetImageURL(for artwork: Artwork, museum: Museum) -> URL? {
+        switch museum.id {
+        case .tnm:
+            return artwork.primaryImageURL ?? artwork.primaryImageSmallURL
+        case .met, .nmc:
+            return artwork.primaryImageSmallURL ?? artwork.primaryImageURL
+        }
     }
 
     private func pickMetObjectID(from ids: [Int], previousReference: ArtworkReference?, museum: Museum) -> Int? {
