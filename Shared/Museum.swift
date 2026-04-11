@@ -11,6 +11,15 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable {
     case tnm
 
     var id: String { rawValue }
+
+    var defaultTranslationSourceLanguage: String {
+        switch self {
+        case .met:
+            return "en"
+        case .tnm:
+            return "ja"
+        }
+    }
 }
 
 enum MuseumRepository {

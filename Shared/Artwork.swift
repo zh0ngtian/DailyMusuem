@@ -48,4 +48,82 @@ struct Artwork: Identifiable, Hashable, Codable {
             objectURL: objectURL
         )
     }
+
+    var normalizedDescriptionText: String? {
+        guard let description = artworkDescription else {
+            return nil
+        }
+
+        let cleaned = description
+            .replacingOccurrences(of: "(?i)<br\\s*/?>", with: "\n", options: .regularExpression)
+            .replacingOccurrences(of: "(?i)</p>", with: "\n\n", options: .regularExpression)
+            .replacingOccurrences(of: "(?i)<p[^>]*>", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "&nbsp;", with: " ")
+            .replacingOccurrences(of: "&#39;", with: "'")
+            .replacingOccurrences(of: "&#x27;", with: "'")
+            .components(separatedBy: .newlines)
+            .map(Self.cleanDescriptionLine)
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+            .replacingOccurrences(of: "\\n{3,}", with: "\n\n", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !cleaned.isEmpty else {
+            return nil
+        }
+
+        return cleaned
+    }
+
+    var supportsTranslation: Bool {
+        !translationCandidates.isEmpty
+    }
+
+    private var translationCandidates: [String] {
+        [
+            title,
+            normalizedDescriptionText,
+            medium,
+            dimensions,
+            department,
+            culture,
+            country,
+            repository
+        ]
+        .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
+    }
+
+    private static func cleanDescriptionLine(_ line: String) -> String {
+        var cleaned = line.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        cleaned = cleaned.replacingOccurrences(
+            of: #"^\[\s*"?\s*"#,
+            with: "",
+            options: .regularExpression
+        )
+        cleaned = cleaned.replacingOccurrences(
+            of: #"\s*"?\s*\]$"#,
+            with: "",
+            options: .regularExpression
+        )
+        cleaned = cleaned.replacingOccurrences(
+            of: #"^[\[\]",\s]+$"#,
+            with: "",
+            options: .regularExpression
+        )
+        cleaned = cleaned.replacingOccurrences(
+            of: #"^->\s*"#,
+            with: "",
+            options: .regularExpression
+        )
+        cleaned = cleaned.replacingOccurrences(
+            of: #"^>+\s*"#,
+            with: "",
+            options: .regularExpression
+        )
+
+        return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }

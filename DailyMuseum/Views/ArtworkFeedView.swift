@@ -183,7 +183,8 @@ struct ArtworkFeedView: View {
             value: Route.artwork(
                 ArtworkReference(
                     museumID: item.artwork.museumID,
-                    objectID: item.artwork.objectID
+                    objectID: item.artwork.objectID,
+                    imageAspectRatio: item.displayImageAspectRatio
                 )
             )
         ) {

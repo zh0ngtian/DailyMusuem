@@ -4,19 +4,31 @@ struct ArtworkDetailLoaderView: View {
     let reference: ArtworkReference
 
     @State private var artwork: Artwork?
+    @State private var translatedArtwork: Artwork?
+    @State private var showsTranslatedArtwork = false
+    @State private var isTranslating = false
     @State private var errorMessage: String?
+    @State private var translationAlertMessage: String?
     @State private var imageReloadToken = 0
 
     private let metAPI = MetMuseumAPI()
     private let japanSearchAPI = JapanSearchAPI()
+    private let tencentTranslationClient = TencentTranslationClient()
+    private let miniMaxTranslationClient = MiniMaxTranslationClient()
 
     var body: some View {
         Group {
-            if let artwork {
+            if let displayedArtwork {
                 ArtworkDetailView(
-                    artwork: artwork,
-                    imageReloadToken: imageReloadToken
+                    artwork: displayedArtwork,
+                    placeholderAspectRatio: detailPlaceholderAspectRatio,
+                    imageReloadToken: imageReloadToken,
+                    showsTranslationButton: artwork?.supportsTranslation == true,
+                    translationButtonTitle: translationButtonTitle,
+                    translationButtonDisabled: isTranslating
                 ) {
+                    await handleTranslationButtonTap()
+                } onRefresh: {
                     await refresh()
                 }
             } else if let errorMessage {
@@ -44,6 +56,14 @@ struct ArtworkDetailLoaderView: View {
         .task(id: reference) {
             await loadArtwork()
         }
+        .alert("翻译提示", isPresented: Binding(
+            get: { translationAlertMessage != nil },
+            set: { if !$0 { translationAlertMessage = nil } }
+        )) {
+            Button("知道了", role: .cancel) {}
+        } message: {
+            Text(translationAlertMessage ?? "")
+        }
     }
 
     @MainActor
@@ -51,6 +71,8 @@ struct ArtworkDetailLoaderView: View {
         if showLoadingState {
             artwork = nil
         }
+        translatedArtwork = nil
+        showsTranslatedArtwork = false
         errorMessage = nil
 
         do {
@@ -90,5 +112,87 @@ struct ArtworkDetailLoaderView: View {
         }
         imageReloadToken += 1
         await loadArtwork(showLoadingState: false)
+    }
+
+    @MainActor
+    private func handleTranslationButtonTap() async {
+        guard !isTranslating else {
+            return
+        }
+
+        if translatedArtwork != nil {
+            showsTranslatedArtwork.toggle()
+            return
+        }
+
+        guard let artwork else {
+            return
+        }
+
+        isTranslating = true
+        defer { isTranslating = false }
+
+        do {
+            translatedArtwork = try await translate(artwork: artwork)
+            showsTranslatedArtwork = true
+        } catch {
+            translationAlertMessage = error.localizedDescription
+        }
+    }
+
+    private func translate(artwork: Artwork) async throws -> Artwork {
+        switch SettingsStore.shared.translationEngine() {
+        case .tencent:
+            guard let credentials = SettingsStore.shared.tencentTranslationCredentials() else {
+                throw TranslationSelectionError.missingTencentCredentials
+            }
+            return try await tencentTranslationClient.translate(artwork: artwork, credentials: credentials)
+        case .miniMax:
+            guard let credentials = SettingsStore.shared.miniMaxTranslationCredentials() else {
+                throw TranslationSelectionError.missingMiniMaxCredentials
+            }
+            return try await miniMaxTranslationClient.translate(artwork: artwork, credentials: credentials)
+        }
+    }
+
+    private var displayedArtwork: Artwork? {
+        if showsTranslatedArtwork, let translatedArtwork {
+            return translatedArtwork
+        }
+
+        return artwork
+    }
+
+    private var translationButtonTitle: String {
+        if isTranslating {
+            return "翻译中"
+        }
+        if translatedArtwork != nil {
+            return showsTranslatedArtwork ? "原文" : "译文"
+        }
+        return "翻译"
+    }
+
+    private var detailPlaceholderAspectRatio: CGFloat {
+        guard let imageAspectRatio = reference.imageAspectRatio,
+              imageAspectRatio.isFinite,
+              imageAspectRatio > 0 else {
+            return 0.8
+        }
+        return CGFloat(imageAspectRatio)
+    }
+}
+
+private enum TranslationSelectionError: LocalizedError {
+    case missingTencentCredentials
+    case missingMiniMaxCredentials
+
+    var errorDescription: String? {
+        switch self {
+        case .missingTencentCredentials:
+            return "请先在设置页填写腾讯云翻译的 SecretId 和 SecretKey。"
+        case .missingMiniMaxCredentials:
+            return "请先在设置页填写 MiniMax API Key。"
+        }
     }
 }

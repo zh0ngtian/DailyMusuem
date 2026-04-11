@@ -1,8 +1,17 @@
 import SwiftUI
 
 struct ArtworkDetailView: View {
+    private enum Constants {
+        static let placeholderAspectRatio: CGFloat = 0.8
+    }
+
     let artwork: Artwork
+    let placeholderAspectRatio: CGFloat
     let imageReloadToken: Int
+    let showsTranslationButton: Bool
+    let translationButtonTitle: String
+    let translationButtonDisabled: Bool
+    let onTranslationButtonTap: () async -> Void
     let onRefresh: () async -> Void
 
     var body: some View {
@@ -13,9 +22,11 @@ struct ArtworkDetailView: View {
                         .resizable()
                         .scaledToFit()
                 } placeholder: {
-                    Rectangle().fill(.quaternary)
+                    detailPlaceholderImage
                 }
                 .id(imageReloadToken)
+                .frame(maxWidth: .infinity)
+                .aspectRatio(effectivePlaceholderAspectRatio, contentMode: .fit)
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 10) {
@@ -28,7 +39,7 @@ struct ArtworkDetailView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    if let description = normalizedDescription {
+                    if let description = artwork.normalizedDescriptionText {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("展品介绍")
                                 .font(.headline)
@@ -49,80 +60,54 @@ struct ArtworkDetailView: View {
                     InfoRow(label: "国家", value: artwork.country)
                     InfoRow(label: "馆藏", value: artwork.repository)
 
-                    if let url = artwork.objectURL {
-                        Link("在官网查看", destination: url)
-                            .font(.headline)
-                            .padding(.top, 4)
-                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(16)
         }
-        .navigationTitle("展品")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if let url = artwork.objectURL {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Link("官网", destination: url)
+                }
+            }
+            if showsTranslationButton {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(translationButtonTitle) {
+                        Task {
+                            await onTranslationButtonTap()
+                        }
+                    }
+                    .disabled(translationButtonDisabled)
+                }
+            }
+        }
         .refreshable {
             await onRefresh()
         }
     }
 
-    private var normalizedDescription: String? {
-        guard let description = artwork.artworkDescription else {
-            return nil
+    private var detailPlaceholderImage: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(.systemGray5))
+
+            VStack(spacing: 12) {
+                Image(systemName: "photo")
+                    .font(.system(size: 30, weight: .medium))
+                Text("加载图片中")
+                    .font(.footnote)
+            }
+            .foregroundStyle(.secondary)
         }
-
-        let cleaned = description
-            .replacingOccurrences(of: "(?i)<br\\s*/?>", with: "\n", options: .regularExpression)
-            .replacingOccurrences(of: "(?i)</p>", with: "\n\n", options: .regularExpression)
-            .replacingOccurrences(of: "(?i)<p[^>]*>", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "&nbsp;", with: " ")
-            .replacingOccurrences(of: "&#39;", with: "'")
-            .replacingOccurrences(of: "&#x27;", with: "'")
-            .components(separatedBy: .newlines)
-            .map(cleanDescriptionLine)
-            .filter { !$0.isEmpty }
-            .joined(separator: "\n")
-            .replacingOccurrences(of: "\\n{3,}", with: "\n\n", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard !cleaned.isEmpty else {
-            return nil
-        }
-
-        return cleaned
     }
 
-    private func cleanDescriptionLine(_ line: String) -> String {
-        var cleaned = line.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        cleaned = cleaned.replacingOccurrences(
-            of: #"^\[\s*"?\s*"#,
-            with: "",
-            options: .regularExpression
-        )
-        cleaned = cleaned.replacingOccurrences(
-            of: #"\s*"?\s*\]$"#,
-            with: "",
-            options: .regularExpression
-        )
-        cleaned = cleaned.replacingOccurrences(
-            of: #"^[\[\]",\s]+$"#,
-            with: "",
-            options: .regularExpression
-        )
-        cleaned = cleaned.replacingOccurrences(
-            of: #"^->\s*"#,
-            with: "",
-            options: .regularExpression
-        )
-        cleaned = cleaned.replacingOccurrences(
-            of: #"^>+\s*"#,
-            with: "",
-            options: .regularExpression
-        )
-
-        return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+    private var effectivePlaceholderAspectRatio: CGFloat {
+        guard placeholderAspectRatio.isFinite, placeholderAspectRatio > 0 else {
+            return Constants.placeholderAspectRatio
+        }
+        return placeholderAspectRatio
     }
 }
 

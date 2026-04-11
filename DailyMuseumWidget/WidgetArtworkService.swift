@@ -44,7 +44,11 @@ struct WidgetArtworkService {
     private func makeSnapshotEntry(for artwork: Artwork, museum: Museum, date: Date, cycleKey: String) async throws -> WidgetArtworkEntry {
         let imageURL = artwork.primaryImageSmallURL ?? artwork.primaryImageURL
         let imageData = try await fetchImageData(url: imageURL)
-        let reference = ArtworkReference(museumID: museum.id, objectID: artwork.objectID)
+        let reference = ArtworkReference(
+            museumID: museum.id,
+            objectID: artwork.objectID,
+            imageAspectRatio: nil
+        )
 
         let snapshot = WidgetArtworkSnapshotStore.Snapshot(
             cycleKey: cycleKey,
