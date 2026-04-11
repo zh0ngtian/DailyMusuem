@@ -1,11 +1,20 @@
 import SwiftUI
 
 struct ArtworkFeedView: View {
+    private enum Constants {
+        static let loadMoreOverscrollThreshold: CGFloat = 96
+        static let loadMoreResetThreshold: CGFloat = 32
+        static let scrollCoordinateSpace = "artwork-feed-scroll"
+    }
+
     let museum: Museum
 
     @StateObject private var viewModel: ArtworkFeedViewModel
     @StateObject private var settings = SettingsStore.shared
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var isLoadMoreTriggerVisible = false
+    @State private var isBottomLoadPrimed = false
+    @State private var isTrackingBottomLoadGesture = false
 
     init(museum: Museum) {
         self.museum = museum
@@ -90,16 +99,51 @@ struct ArtworkFeedView: View {
                                 ProgressView("加载更多中...")
                                     .font(.footnote)
                             } else if viewModel.hasMoreItems {
-                                Color.clear
-                                    .frame(height: 1)
-                                    .onAppear {
-                                        Task { await viewModel.loadMoreIfNeeded() }
-                                    }
+                                VStack(spacing: 8) {
+                                    Image(systemName: "arrow.up")
+                                        .font(.footnote.weight(.semibold))
+                                    Text(isBottomLoadPrimed ? "松开加载下一批" : "继续上滑加载下一批")
+                                        .font(.footnote)
+                                }
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                                    .contentShape(Rectangle())
+                                    .background(
+                                        GeometryReader { triggerProxy in
+                                            Color.clear.preference(
+                                                key: BottomLoadTriggerFramePreferenceKey.self,
+                                                value: triggerProxy.frame(in: .named(Constants.scrollCoordinateSpace))
+                                            )
+                                        }
+                                    )
                             }
                         }
                         .padding(.horizontal, horizontalPadding)
                         .padding(.top, 12)
                         .padding(.bottom, 24)
+                    }
+                    .coordinateSpace(name: Constants.scrollCoordinateSpace)
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 12)
+                            .onChanged { _ in
+                                isTrackingBottomLoadGesture = true
+                            }
+                            .onEnded { _ in
+                                let shouldLoad = isBottomLoadPrimed && isLoadMoreTriggerVisible && !viewModel.isLoadingMore && viewModel.hasMoreItems
+                                isTrackingBottomLoadGesture = false
+                                isBottomLoadPrimed = false
+                                guard shouldLoad else { return }
+                                Task { await viewModel.loadMoreAfterExplicitSwipeIfNeeded() }
+                            }
+                    )
+                    .onPreferenceChange(BottomLoadTriggerFramePreferenceKey.self) { frame in
+                        updateBottomLoadState(triggerFrame: frame, viewportHeight: proxy.size.height)
+                    }
+                    .onChange(of: viewModel.isLoadingMore) { _, isLoading in
+                        if isLoading {
+                            isBottomLoadPrimed = false
+                        }
                     }
                     .refreshable { await viewModel.reload() }
                 }
@@ -117,4 +161,27 @@ struct ArtworkFeedView: View {
     }
 
     private var horizontalPadding: CGFloat { 12 }
+
+    private func updateBottomLoadState(triggerFrame: CGRect, viewportHeight: CGFloat) {
+        let overscroll = max(0, viewportHeight - triggerFrame.maxY)
+        isLoadMoreTriggerVisible = triggerFrame.minY < viewportHeight
+
+        guard isTrackingBottomLoadGesture, isLoadMoreTriggerVisible, !viewModel.isLoadingMore, viewModel.hasMoreItems else {
+            return
+        }
+
+        if overscroll >= Constants.loadMoreOverscrollThreshold {
+            isBottomLoadPrimed = true
+        } else if overscroll <= Constants.loadMoreResetThreshold {
+            isBottomLoadPrimed = false
+        }
+    }
+}
+
+private struct BottomLoadTriggerFramePreferenceKey: PreferenceKey {
+    static var defaultValue: CGRect = .zero
+
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        value = nextValue()
+    }
 }

@@ -63,28 +63,41 @@ struct RootView: View {
     }
 
     private func logPanel(containerHeight: CGFloat, bottomSafeAreaInset: CGFloat) -> some View {
-        let height = resolvedLogPanelHeight(
-            containerHeight: containerHeight,
-            bottomSafeAreaInset: bottomSafeAreaInset
-        )
+        let contentHeight = resolvedLogPanelHeight(containerHeight: containerHeight)
 
-        return RequestLogsView(
-            style: .panel,
-            onClose: {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isLogPanelPresented = false
+        return VStack(spacing: 0) {
+            RequestLogsView(
+                style: .panel,
+                onClose: {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isLogPanelPresented = false
+                    }
+                },
+                selectedPanelSizeOption: panelSizeOption(for: logPanelSnapPoint),
+                onSelectPanelSizeOption: { option in
+                    withAnimation(.spring(duration: 0.28, bounce: 0.18)) {
+                        logPanelSnapPoint = snapPoint(for: option)
+                    }
                 }
-            },
-            selectedPanelSizeOption: panelSizeOption(for: logPanelSnapPoint),
-            onSelectPanelSizeOption: { option in
-                withAnimation(.spring(duration: 0.28, bounce: 0.18)) {
-                    logPanelSnapPoint = snapPoint(for: option)
-                }
-            },
-        )
+            )
+            .frame(maxHeight: .infinity, alignment: .top)
+
+            Color(.systemBackground)
+                .frame(height: bottomSafeAreaInset)
+        }
         .frame(maxWidth: .infinity)
         .frame(maxHeight: .infinity, alignment: .bottom)
-        .frame(height: height, alignment: .bottom)
+        .frame(height: contentHeight + bottomSafeAreaInset, alignment: .bottom)
+        .background(Color(.systemBackground))
+        .clipShape(
+            UnevenRoundedRectangle(
+                topLeadingRadius: 24,
+                bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0,
+                topTrailingRadius: 24,
+                style: .continuous
+            )
+        )
         .shadow(color: .black.opacity(0.18), radius: 18, x: 0, y: -2)
         .transition(.move(edge: .bottom).combined(with: .opacity))
         .ignoresSafeArea(edges: .bottom)
@@ -110,8 +123,8 @@ struct RootView: View {
         .padding(.bottom, 16)
     }
 
-    private func resolvedLogPanelHeight(containerHeight: CGFloat, bottomSafeAreaInset: CGFloat) -> CGFloat {
-        containerHeight * logPanelSnapPoint.ratio + bottomSafeAreaInset
+    private func resolvedLogPanelHeight(containerHeight: CGFloat) -> CGFloat {
+        containerHeight * logPanelSnapPoint.ratio
     }
 
     private func panelSizeOption(for snapPoint: LogPanelSnapPoint) -> RequestLogsView.PanelSizeOption {

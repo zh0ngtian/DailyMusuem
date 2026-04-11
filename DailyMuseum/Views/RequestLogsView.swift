@@ -81,6 +81,7 @@ struct RequestLogsView: View {
                         systemImage: "doc.text.magnifyingglass",
                         description: Text("后台请求发生后会显示在这里。")
                     )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List(viewModel.entries) { entry in
                         VStack(alignment: .leading, spacing: 6) {
@@ -120,6 +121,7 @@ struct RequestLogsView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color(.systemBackground))
         .clipShape(
             UnevenRoundedRectangle(

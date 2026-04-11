@@ -10,8 +10,8 @@ final class JapanSearchAPI {
         static let databaseID = "cobas"
         static let museumContributor = "東京国立博物館"
         // Japan Search returns empty lists on iPhone for large `size` values like 1000.
-        // Keep pages small enough to stay stable.
-        static let pageSize = 30
+        // Keep pages small and aligned with the feed's 10-item batch loading.
+        static let pageSize = 10
         static let requestTimeout: TimeInterval = 20
         static let searchUserAgent = "curl/8.7.1"
         static let searchAccept = "application/json, text/plain, */*"

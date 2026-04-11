@@ -6,7 +6,6 @@ final class ArtworkFeedViewModel: ObservableObject {
     private enum Constants {
         static let initialBatchSize = 10
         static let loadMoreBatchSize = 10
-        static let tnmPoolPageSize = 30
     }
 
     private enum FeedLoadingError: LocalizedError {
@@ -99,6 +98,12 @@ final class ArtworkFeedViewModel: ObservableObject {
         }
     }
 
+    func loadMoreAfterExplicitSwipeIfNeeded() async {
+        guard state == .loaded, hasMoreItems, !isLoadingMore else { return }
+        appendLoadingLog("检测到底部明确上滑，开始加载下一批展品。")
+        await loadMoreIfNeeded()
+    }
+
     func updateAspectRatio(for id: String, aspectRatio: CGFloat) {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
         let clamped = max(0.2, min(3.0, Double(aspectRatio)))
@@ -128,22 +133,28 @@ final class ArtworkFeedViewModel: ObservableObject {
             }
             appendLoadingLog("objectIDs 已就绪，当前可用 \(objectIDPool.count) 条。")
         case .tnm:
-            try await ensureTokyoPool(targetCount: Constants.tnmPoolPageSize, reason: "首次进入")
+            try await ensureTokyoPool(targetCount: Constants.initialBatchSize, reason: "首次进入")
         }
     }
 
     private func loadNextBatch(count: Int) async throws {
         var candidates = objectIDPool.filter { !loadedObjectIDs.contains($0) }
         var collected: [Artwork] = []
+        var remainingRequestQuota = museum.id == .met ? count : Int.max
 
         let batchLabel = items.isEmpty ? "首批" : "下一批"
         appendLoadingLog("开始拉取\(batchLabel) \(count) 个展品详情...")
 
-        while collected.count < count, !candidates.isEmpty {
-            let chunkSize = max(count - collected.count, 10)
+        while (museum.id == .met ? remainingRequestQuota > 0 : collected.count < count), !candidates.isEmpty {
+            let chunkSize = museum.id == .met
+                ? min(remainingRequestQuota, count)
+                : max(count - collected.count, 10)
             let next = Array(candidates.prefix(chunkSize))
             candidates.removeFirst(min(chunkSize, candidates.count))
             loadedObjectIDs.formUnion(next)
+            if museum.id == .met {
+                remainingRequestQuota -= next.count
+            }
 
             switch museum.id {
             case .met:
@@ -286,7 +297,7 @@ final class ArtworkFeedViewModel: ObservableObject {
         let remainingCount = objectIDPool.filter { !loadedObjectIDs.contains($0) }.count
         guard remainingCount < minimumRemainingCount, hasMoreRemoteItemIDs else { return }
 
-        let nextTargetCount = max(objectIDPool.count + Constants.tnmPoolPageSize, loadedObjectIDs.count + minimumRemainingCount)
+        let nextTargetCount = max(objectIDPool.count, loadedObjectIDs.count + minimumRemainingCount)
         try await ensureTokyoPool(targetCount: nextTargetCount, reason: "继续浏览")
     }
 
