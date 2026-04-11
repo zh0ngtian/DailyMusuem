@@ -69,6 +69,9 @@ final class SettingsStore: ObservableObject {
     @AppStorage(SettingsKeys.feedRandomOrder, store: UserDefaults(suiteName: SettingsKeys.appGroupID))
     var feedRandomOrder: Bool = true
 
+    @AppStorage(SettingsKeys.museumDisplayOrder, store: UserDefaults(suiteName: SettingsKeys.appGroupID))
+    var museumDisplayOrderRawValue: String = ""
+
     @AppStorage(SettingsKeys.translationEngine, store: UserDefaults(suiteName: SettingsKeys.appGroupID))
     var translationEngineRawValue: String = TranslationEngine.tencent.rawValue
 
@@ -87,6 +90,26 @@ final class SettingsStore: ObservableObject {
 
     func requestWidgetReload() {
         WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    func orderedMuseums() -> [Museum] {
+        MuseumRepository.museums(inPreferredOrder: orderedMuseumIDs())
+    }
+
+    func saveMuseumOrder(_ museums: [Museum]) {
+        museumDisplayOrderRawValue = museums.map(\.id.rawValue).joined(separator: ",")
+    }
+
+    private func orderedMuseumIDs() -> [MuseumID] {
+        let ids = museumDisplayOrderRawValue
+            .split(separator: ",")
+            .compactMap { MuseumID(rawValue: String($0)) }
+
+        if ids.isEmpty {
+            return MuseumID.allCases
+        }
+
+        return ids
     }
 
     func translationEngine() -> TranslationEngine {

@@ -255,7 +255,7 @@ private struct ArtworkListRowView: View {
 
                 Spacer(minLength: 0)
 
-                Text(item.artwork.museumID == .met ? "大都会艺术博物馆" : "东京国立博物馆")
+                Text(item.artwork.museumID.displayName)
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
             }

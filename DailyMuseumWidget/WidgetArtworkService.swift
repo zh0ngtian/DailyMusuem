@@ -4,6 +4,7 @@ struct WidgetArtworkService {
     let settings: WidgetSettingsReader
     private let metAPI = MetMuseumAPI()
     private let japanSearchAPI = JapanSearchAPI()
+    private let nationalMuseumChinaAPI = NationalMuseumChinaAPI()
     private let snapshotStore = WidgetArtworkSnapshotStore.shared
 
     func fetchEntry(date: Date) async throws -> WidgetArtworkEntry {
@@ -37,6 +38,13 @@ struct WidgetArtworkService {
             }
             let item = try await japanSearchAPI.fetchItem(itemID: id)
             let artwork = item.toArtwork()
+            return try await makeSnapshotEntry(for: artwork, museum: museum, date: date, cycleKey: cycleKey)
+        case .nmc:
+            let ids = await nationalMuseumChinaAPI.allExhibitIDs()
+            guard let id = ids.randomElement() else {
+                throw URLError(.cannotParseResponse)
+            }
+            let artwork = try await nationalMuseumChinaAPI.fetchExhibit(exhibitID: id)
             return try await makeSnapshotEntry(for: artwork, museum: museum, date: date, cycleKey: cycleKey)
         }
     }

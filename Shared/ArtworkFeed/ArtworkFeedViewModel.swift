@@ -40,6 +40,7 @@ final class ArtworkFeedViewModel: ObservableObject {
     private let museum: Museum
     private let metAPI = MetMuseumAPI()
     private let japanSearchAPI = JapanSearchAPI()
+    private let nationalMuseumChinaAPI = NationalMuseumChinaAPI()
     private var objectIDPool: [String] = []
     private var loadedObjectIDs: Set<String> = []
     private var hasMoreRemoteItemIDs = false
@@ -134,25 +135,36 @@ final class ArtworkFeedViewModel: ObservableObject {
             appendLoadingLog("objectIDs 已就绪，当前可用 \(objectIDPool.count) 条。")
         case .tnm:
             try await ensureTokyoPool(targetCount: Constants.initialBatchSize, reason: "首次进入")
+        case .nmc:
+            let ids = await nationalMuseumChinaAPI.allExhibitIDs { [weak self] message in
+                await self?.appendLoadingLog(message)
+            }
+            appendLoadingLog("开始按\(isRandomOrder ? "随机" : "objectID 顺序")模式整理展品 ID...")
+            if isRandomOrder {
+                objectIDPool = Array(ids.map(String.init).shuffled())
+            } else {
+                objectIDPool = ids.sorted().map(String.init)
+            }
+            appendLoadingLog("展品 ID 已就绪，当前可用 \(objectIDPool.count) 条。")
         }
     }
 
     private func loadNextBatch(count: Int) async throws {
         var candidates = objectIDPool.filter { !loadedObjectIDs.contains($0) }
         var collected: [Artwork] = []
-        var remainingRequestQuota = museum.id == .met ? count : Int.max
+        var remainingRequestQuota = (museum.id == .met || museum.id == .nmc) ? count : Int.max
 
         let batchLabel = items.isEmpty ? "首批" : "下一批"
         appendLoadingLog("开始拉取\(batchLabel) \(count) 个展品详情...")
 
-        while (museum.id == .met ? remainingRequestQuota > 0 : collected.count < count), !candidates.isEmpty {
-            let chunkSize = museum.id == .met
+        while ((museum.id == .met || museum.id == .nmc) ? remainingRequestQuota > 0 : collected.count < count), !candidates.isEmpty {
+            let chunkSize = (museum.id == .met || museum.id == .nmc)
                 ? min(remainingRequestQuota, count)
                 : max(count - collected.count, 10)
             let next = Array(candidates.prefix(chunkSize))
             candidates.removeFirst(min(chunkSize, candidates.count))
             loadedObjectIDs.formUnion(next)
-            if museum.id == .met {
+            if museum.id == .met || museum.id == .nmc {
                 remainingRequestQuota -= next.count
             }
 
@@ -165,6 +177,33 @@ final class ArtworkFeedViewModel: ObservableObject {
                                 guard let id = Int(idString) else { return nil }
                                 let object = try await self.metAPI.fetchObject(objectID: id)
                                 let artwork = object.toArtwork()
+                                guard artwork.primaryImageSmallURL != nil || artwork.primaryImageURL != nil else {
+                                    return nil
+                                }
+                                return artwork
+                            } catch {
+                                return nil
+                            }
+                        }
+                    }
+
+                    var output: [Artwork] = []
+                    for await result in group {
+                        if let artwork = result {
+                            output.append(artwork)
+                        }
+                    }
+                    return output
+                }
+
+                collected.append(contentsOf: artworks)
+            case .nmc:
+                let artworks = await withTaskGroup(of: Artwork?.self) { group in
+                    for idString in next {
+                        group.addTask {
+                            do {
+                                guard let id = Int(idString) else { return nil }
+                                let artwork = try await self.nationalMuseumChinaAPI.fetchExhibit(exhibitID: id)
                                 guard artwork.primaryImageSmallURL != nil || artwork.primaryImageURL != nil else {
                                     return nil
                                 }

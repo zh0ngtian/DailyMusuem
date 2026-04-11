@@ -77,7 +77,7 @@ struct Artwork: Identifiable, Hashable, Codable {
     }
 
     var supportsTranslation: Bool {
-        !translationCandidates.isEmpty
+        museumID.supportsTranslation && !translationCandidates.isEmpty
     }
 
     private var translationCandidates: [String] {

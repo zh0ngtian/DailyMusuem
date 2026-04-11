@@ -27,7 +27,7 @@ struct SettingsView: View {
                 }
                 Picker("展示范围", selection: $settings.widgetMuseumScopeRawValue) {
                     Text("所有博物馆").tag(WidgetMuseumScope.all.rawValue)
-                    ForEach(MuseumRepository.supportedMuseums) { museum in
+                    ForEach(settings.orderedMuseums()) { museum in
                         Text(museum.displayName).tag(WidgetMuseumScope.single(museum.id).rawValue)
                     }
                 }

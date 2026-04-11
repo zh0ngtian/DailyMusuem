@@ -3,6 +3,7 @@ import Foundation
 enum SettingsKeys {
     static let appGroupID = "group.com.example.DailyMuseum"
     static let feedRandomOrder = "feed.randomOrder"
+    static let museumDisplayOrder = "museum.displayOrder"
     static let translationEngine = "translation.engine"
     static let widgetManualRefreshNonce = "widget.manualRefreshNonce"
     static let widgetRefreshIntervalMinutes = "widget.refreshIntervalMinutes"
