@@ -28,6 +28,19 @@ struct ArtworkDetailView: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    if let description = normalizedDescription {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("展品介绍")
+                                .font(.headline)
+                            Text(description)
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.top, 4)
+                        .padding(.bottom, 4)
+                    }
+
                     InfoRow(label: "年代", value: artwork.objectDate)
                     InfoRow(label: "材质", value: artwork.medium)
                     InfoRow(label: "尺寸", value: artwork.dimensions)
@@ -51,6 +64,65 @@ struct ArtworkDetailView: View {
         .refreshable {
             await onRefresh()
         }
+    }
+
+    private var normalizedDescription: String? {
+        guard let description = artwork.artworkDescription else {
+            return nil
+        }
+
+        let cleaned = description
+            .replacingOccurrences(of: "(?i)<br\\s*/?>", with: "\n", options: .regularExpression)
+            .replacingOccurrences(of: "(?i)</p>", with: "\n\n", options: .regularExpression)
+            .replacingOccurrences(of: "(?i)<p[^>]*>", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "&nbsp;", with: " ")
+            .replacingOccurrences(of: "&#39;", with: "'")
+            .replacingOccurrences(of: "&#x27;", with: "'")
+            .components(separatedBy: .newlines)
+            .map(cleanDescriptionLine)
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+            .replacingOccurrences(of: "\\n{3,}", with: "\n\n", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !cleaned.isEmpty else {
+            return nil
+        }
+
+        return cleaned
+    }
+
+    private func cleanDescriptionLine(_ line: String) -> String {
+        var cleaned = line.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        cleaned = cleaned.replacingOccurrences(
+            of: #"^\[\s*"?\s*"#,
+            with: "",
+            options: .regularExpression
+        )
+        cleaned = cleaned.replacingOccurrences(
+            of: #"\s*"?\s*\]$"#,
+            with: "",
+            options: .regularExpression
+        )
+        cleaned = cleaned.replacingOccurrences(
+            of: #"^[\[\]",\s]+$"#,
+            with: "",
+            options: .regularExpression
+        )
+        cleaned = cleaned.replacingOccurrences(
+            of: #"^->\s*"#,
+            with: "",
+            options: .regularExpression
+        )
+        cleaned = cleaned.replacingOccurrences(
+            of: #"^>+\s*"#,
+            with: "",
+            options: .regularExpression
+        )
+
+        return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

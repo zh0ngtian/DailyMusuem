@@ -28,6 +28,7 @@ extension MetMuseumObject {
             museumID: .met,
             objectID: "\(objectID)",
             title: title,
+            artworkDescription: nil,
             artistDisplayName: artistDisplayName,
             objectDate: objectDate,
             medium: medium,

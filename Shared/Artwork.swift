@@ -6,6 +6,7 @@ struct Artwork: Identifiable, Hashable, Codable {
     let objectID: String
 
     let title: String
+    let artworkDescription: String?
     let artistDisplayName: String?
     let objectDate: String?
     let medium: String?
@@ -25,5 +26,26 @@ struct Artwork: Identifiable, Hashable, Codable {
             .filter { !$0.isEmpty }
         if parts.isEmpty { return nil }
         return parts.joined(separator: " · ")
+    }
+
+    func withArtworkDescription(_ description: String?) -> Artwork {
+        Artwork(
+            id: id,
+            museumID: museumID,
+            objectID: objectID,
+            title: title,
+            artworkDescription: description,
+            artistDisplayName: artistDisplayName,
+            objectDate: objectDate,
+            medium: medium,
+            dimensions: dimensions,
+            department: department,
+            culture: culture,
+            country: country,
+            repository: repository,
+            primaryImageURL: primaryImageURL,
+            primaryImageSmallURL: primaryImageSmallURL,
+            objectURL: objectURL
+        )
     }
 }

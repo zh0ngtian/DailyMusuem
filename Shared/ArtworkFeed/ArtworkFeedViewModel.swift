@@ -106,7 +106,7 @@ final class ArtworkFeedViewModel: ObservableObject {
 
     func updateAspectRatio(for id: String, aspectRatio: CGFloat) {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
-        let clamped = max(0.2, min(3.0, Double(aspectRatio)))
+        let clamped = max(0.05, Double(aspectRatio))
         if items[index].imageAspectRatio != clamped {
             items[index].imageAspectRatio = clamped
             persistCache()
@@ -284,6 +284,10 @@ final class ArtworkFeedViewModel: ObservableObject {
     private func appendLoadingLog(_ message: String) {
         let timestamp = Self.logTimeFormatter.string(from: Date())
         loadingLogs.append("[\(timestamp)] \(message)")
+        let source = "\(museum.displayName) 展品流"
+        Task {
+            await RequestLogger.shared.logEvent(source: source, summary: message)
+        }
     }
 
     private static let logTimeFormatter: DateFormatter = {

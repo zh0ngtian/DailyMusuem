@@ -94,6 +94,7 @@ struct JapanSearchItem: Decodable {
             museumID: .tnm,
             objectID: id,
             title: common.title,
+            artworkDescription: common.description,
             artistDisplayName: artist,
             objectDate: date,
             medium: fields["cobas-12-s"],

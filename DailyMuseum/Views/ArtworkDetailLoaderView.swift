@@ -60,7 +60,15 @@ struct ArtworkDetailLoaderView: View {
                     throw URLError(.badURL)
                 }
                 let object = try await metAPI.fetchObject(objectID: objectID)
-                artwork = object.toArtwork()
+                var loadedArtwork = object.toArtwork()
+                if loadedArtwork.artworkDescription == nil {
+                    let webDescription = await metAPI.fetchObjectWebDescription(
+                        objectID: objectID,
+                        objectURL: loadedArtwork.objectURL
+                    )
+                    loadedArtwork = loadedArtwork.withArtworkDescription(webDescription)
+                }
+                artwork = loadedArtwork
             case .tnm:
                 let item = try await japanSearchAPI.fetchItem(itemID: reference.objectID)
                 artwork = item.toArtwork()

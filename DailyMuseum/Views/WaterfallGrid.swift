@@ -51,7 +51,7 @@ struct WaterfallGrid<Item: Identifiable, Cell: View>: View {
 
     private func estimateHeight(for item: Item, columnWidth: CGFloat) -> CGFloat {
         if let feedItem = item as? ArtworkFeedItem {
-            let ratio = feedItem.imageAspectRatio ?? 0.78
+            let ratio = feedItem.displayImageAspectRatio
             let imageHeight = columnWidth / max(0.2, ratio)
             let textHeight: CGFloat = 64
             return imageHeight + textHeight

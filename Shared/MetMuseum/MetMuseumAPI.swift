@@ -114,11 +114,230 @@ final class MetMuseumAPI {
         }
     }
 
+    func fetchObjectWebDescription(objectID: Int, objectURL: URL?) async -> String? {
+        guard let objectURL else { return nil }
+
+        let logger = RequestLogger.shared
+        if let cached = await responseCache.webDescription(forID: objectID) {
+            await logger.logEvent(source: "Met 官网", summary: "命中内存缓存，objectID=\(objectID)")
+            return cached
+        }
+
+        let start = Date()
+        await logger.logRequestStart(source: "Met 官网", url: objectURL)
+
+        do {
+            let (data, response) = try await session.data(from: objectURL)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            try validate(response: response)
+            let html = String(data: data, encoding: .utf8) ?? ""
+            let description = Self.extractWebDescription(from: html)
+            await logger.logRequestSuccess(
+                source: "Met 官网",
+                url: objectURL,
+                statusCode: statusCode,
+                duration: Date().timeIntervalSince(start),
+                responseBytes: data.count
+            )
+            if let description, !description.isEmpty {
+                await responseCache.setWebDescription(description, forID: objectID)
+            }
+            return description
+        } catch {
+            await logger.logRequestFailure(
+                source: "Met 官网",
+                url: objectURL,
+                duration: Date().timeIntervalSince(start),
+                error: error
+            )
+            return nil
+        }
+    }
+
     private func validate(response: URLResponse) throws {
         guard let http = response as? HTTPURLResponse else { return }
         guard (200..<300).contains(http.statusCode) else {
             throw URLError(.badServerResponse)
         }
+    }
+
+    private static func extractWebDescription(from html: String) -> String? {
+        let renderedHTML = renderedObjectHTML(from: html)
+        if let labelHTML = extractElementHTML(
+            from: renderedHTML,
+            marker: "class=\"object-overview-module-scss-module__bIfq1G__label\""
+        ) {
+            let cleaned = sanitizeHTMLFragment(labelHTML)
+            return cleaned.isEmpty ? nil : cleaned
+        }
+
+        let patterns = [
+            "<meta[^>]*name=[\"']description[\"'][^>]*content=[\"']([^\"']+)[\"'][^>]*>",
+            "<meta[^>]*property=[\"']og:description[\"'][^>]*content=[\"']([^\"']+)[\"'][^>]*>"
+        ]
+
+        for pattern in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+                continue
+            }
+            let range = NSRange(html.startIndex..<html.endIndex, in: html)
+            guard let match = regex.firstMatch(in: html, options: [], range: range),
+                  let descriptionRange = Range(match.range(at: 1), in: html) else {
+                continue
+            }
+
+            let cleaned = decodeHTMLEntities(String(html[descriptionRange]))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !cleaned.isEmpty {
+                return cleaned
+            }
+        }
+
+        return nil
+    }
+    private static func renderedObjectHTML(from html: String) -> String {
+        let bodyStart = html.range(of: "<body", options: [.caseInsensitive])?.lowerBound ?? html.startIndex
+        let beforeFlightScripts = html.range(of: "(self.__next_f=self.__next_f||[]).push([0])")?.lowerBound
+            ?? html.range(of: "self.__next_f.push([1,")?.lowerBound
+            ?? html.endIndex
+
+        let bodySlice = html[bodyStart..<beforeFlightScripts]
+        guard let mainStart = bodySlice.range(of: "<main", options: [.caseInsensitive])?.lowerBound,
+              let mainEnd = bodySlice.range(of: "</main>", options: [.caseInsensitive])?.upperBound else {
+            return String(bodySlice)
+        }
+
+        return String(bodySlice[mainStart..<mainEnd])
+    }
+
+    private static func sanitizeHTMLFragment(_ html: String) -> String {
+        let withLineBreaks = html
+            .replacingOccurrences(
+                of: "(?i)<br\\s*/?>",
+                with: "\n",
+                options: .regularExpression
+            )
+            .replacingOccurrences(
+                of: "(?i)</p\\s*>",
+                with: "\n\n",
+                options: .regularExpression
+            )
+            .replacingOccurrences(
+                of: "(?i)<p[^>]*>",
+                with: "",
+                options: .regularExpression
+            )
+            .replacingOccurrences(
+                of: "(?i)</div\\s*>",
+                with: "\n",
+                options: .regularExpression
+            )
+
+        let withoutTags = withLineBreaks.replacingOccurrences(
+            of: "<[^>]+>",
+            with: "",
+            options: .regularExpression
+        )
+
+        let decoded = decodeHTMLEntities(withoutTags)
+        let normalizedLines = decoded
+            .components(separatedBy: .newlines)
+            .map(cleanDescriptionLine)
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+
+        return normalizedLines.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func extractElementHTML(from html: String, marker: String) -> String? {
+        guard let markerRange = html.range(of: marker, options: [.caseInsensitive]),
+              let start = html[..<markerRange.lowerBound].lastIndex(of: "<") else {
+            return nil
+        }
+
+        let source = html[start...]
+        guard source.lowercased().hasPrefix("<div") else {
+            return nil
+        }
+
+        var searchIndex = source.startIndex
+        var depth = 0
+        var endIndex: String.Index?
+
+        while searchIndex < source.endIndex {
+            guard let nextTagStart = source[searchIndex...].firstIndex(of: "<"),
+                  let nextTagEnd = source[nextTagStart...].firstIndex(of: ">") else {
+                break
+            }
+
+            let tag = source[nextTagStart...nextTagEnd].lowercased()
+            if tag.hasPrefix("<div") {
+                depth += 1
+            } else if tag.hasPrefix("</div") {
+                depth -= 1
+                if depth == 0 {
+                    endIndex = source.index(after: nextTagEnd)
+                    break
+                }
+            }
+
+            searchIndex = source.index(after: nextTagEnd)
+        }
+
+        guard let endIndex else {
+            return nil
+        }
+
+        return String(source[..<endIndex])
+    }
+
+    private static func cleanDescriptionLine(_ line: String) -> String {
+        var cleaned = line.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        cleaned = cleaned.replacingOccurrences(
+            of: #"^\[\s*"?\s*"#,
+            with: "",
+            options: .regularExpression
+        )
+        cleaned = cleaned.replacingOccurrences(
+            of: #"\s*"?\s*\]$"#,
+            with: "",
+            options: .regularExpression
+        )
+        cleaned = cleaned.replacingOccurrences(
+            of: #"^\[\]$"#,
+            with: "",
+            options: .regularExpression
+        )
+        cleaned = cleaned.replacingOccurrences(
+            of: #"^[\[\]",\s]+$"#,
+            with: "",
+            options: .regularExpression
+        )
+        cleaned = cleaned.replacingOccurrences(
+            of: #"^->\s*"#,
+            with: "",
+            options: .regularExpression
+        )
+        cleaned = cleaned.replacingOccurrences(
+            of: #"^>+\s*"#,
+            with: "",
+            options: .regularExpression
+        )
+        cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return cleaned
+    }
+
+    private static func decodeHTMLEntities(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "&quot;", with: "\"")
+            .replacingOccurrences(of: "&#39;", with: "'")
+            .replacingOccurrences(of: "&#x27;", with: "'")
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">")
+            .replacingOccurrences(of: "&nbsp;", with: " ")
     }
 }
 
@@ -127,6 +346,7 @@ actor MetMuseumResponseCache {
 
     private var searchStorage: [String: [Int]] = [:]
     private var objectStorage: [Int: MetMuseumObject] = [:]
+    private var webDescriptionStorage: [Int: String] = [:]
 
     func searchObjectIDs(forKey key: String) -> [Int]? {
         searchStorage[key]
@@ -142,5 +362,13 @@ actor MetMuseumResponseCache {
 
     func setObject(_ object: MetMuseumObject, forID id: Int) {
         objectStorage[id] = object
+    }
+
+    func webDescription(forID id: Int) -> String? {
+        webDescriptionStorage[id]
+    }
+
+    func setWebDescription(_ description: String, forID id: Int) {
+        webDescriptionStorage[id] = description
     }
 }
