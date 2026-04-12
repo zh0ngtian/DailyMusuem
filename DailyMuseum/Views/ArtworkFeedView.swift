@@ -146,6 +146,9 @@ struct ArtworkFeedView: View {
             }
             .presentationDetents([.medium, .large])
             .interactiveDismissDisabled(isApplyingPageSettings)
+            .onAppear {
+                preparePageSettingsDraft()
+            }
             .alert(
                 "筛选提示",
                 isPresented: Binding(

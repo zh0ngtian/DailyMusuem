@@ -149,6 +149,7 @@ final class SettingsStore: ObservableObject {
 
     func saveFeedDisplayModeRawValue(_ rawValue: String, for museumID: MuseumID) {
         defaults.set(rawValue, forKey: feedDisplayModeKey(for: museumID))
+        defaults.synchronize()
     }
 
     func saveMuseumOrder(_ museums: [Museum]) {
