@@ -14,7 +14,6 @@ enum SettingsKeys {
     static let widgetManualRefreshStartedAt = "widget.manualRefreshStartedAt"
     static let widgetRefreshIntervalMinutes = "widget.refreshIntervalMinutes"
     static let widgetMuseumScope = "widget.museumScope"
-    static let widgetCategoryPrefix = "widget.category."
     static let widgetPreferHasImages = "widget.preferHasImages"
 
     static let defaultsBackedKeys: [String] = [

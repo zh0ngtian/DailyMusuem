@@ -41,11 +41,7 @@ struct ArtworkFeedView: View {
     init(museum: Museum) {
         self.museum = museum
         _viewModel = StateObject(wrappedValue: ArtworkFeedViewModel(museum: museum))
-        _displayMode = State(
-            initialValue: DisplayMode(
-                rawValue: SettingsStore.shared.feedDisplayModeRawValue(for: museum.id) ?? ""
-            ) ?? .waterfall
-        )
+        _displayMode = State(initialValue: Self.persistedDisplayMode(for: museum.id))
     }
 
     var body: some View {
@@ -166,6 +162,14 @@ struct ArtworkFeedView: View {
 
     private var horizontalPadding: CGFloat { 12 }
 
+    private var persistedDisplayMode: DisplayMode {
+        Self.persistedDisplayMode(for: museum.id)
+    }
+
+    private var persistedSelectedCategoryIDs: Set<String> {
+        Set(settings.feedCategories(for: museum.id).map(\.id))
+    }
+
     private var pageSettingsView: some View {
         Form {
             Section("显示") {
@@ -262,8 +266,8 @@ struct ArtworkFeedView: View {
     }
 
     private func preparePageSettingsDraft() {
-        draftDisplayMode = displayMode
-        draftSelectedCategoryIDs = Set(viewModel.selectedCategories.map(\.id))
+        draftDisplayMode = persistedDisplayMode
+        draftSelectedCategoryIDs = persistedSelectedCategoryIDs
         isApplyingPageSettings = false
     }
 
@@ -347,6 +351,16 @@ struct ArtworkFeedView: View {
         } else if overscroll <= Constants.loadMoreResetThreshold {
             isBottomLoadPrimed = false
         }
+    }
+
+    private static func persistedDisplayMode(for museumID: MuseumID) -> DisplayMode {
+        guard
+            let rawValue = SettingsStore.shared.feedDisplayModeRawValue(for: museumID),
+            let displayMode = DisplayMode(rawValue: rawValue)
+        else {
+            return .waterfall
+        }
+        return displayMode
     }
 }
 
