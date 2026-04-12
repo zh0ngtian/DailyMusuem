@@ -7,7 +7,7 @@ final class ShanghaiMuseumAPI {
     }
 
     private enum Constants {
-        static let baseURL = URL(string: "https://www.shanghaimuseum.net/mu")!
+        static let baseURL = URL(string: "https://www.shanghaimuseum.net/mu/")!
         static let pageSize = 10
         static let requestTimeout: TimeInterval = 20
         static let minimumRequestInterval: TimeInterval = 1
@@ -837,7 +837,21 @@ private enum ShanghaiMuseumURLBuilder {
         guard let path = path?.trimmedNonEmpty else {
             return nil
         }
-        return URL(string: path, relativeTo: baseURL)?.absoluteURL
+
+        if let absoluteURL = URL(string: path), absoluteURL.scheme != nil {
+            return absoluteURL
+        }
+
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+            return URL(string: path, relativeTo: baseURL)?.absoluteURL
+        }
+
+        if !components.path.hasSuffix("/") {
+            components.path += "/"
+        }
+
+        let directoryBaseURL = components.url ?? baseURL
+        return URL(string: path, relativeTo: directoryBaseURL)?.absoluteURL
     }
 }
 
@@ -921,7 +935,7 @@ private actor ShanghaiMuseumPersistentCache {
             ?? fileManager.temporaryDirectory
         directoryURL = baseURL
             .appendingPathComponent("DailyMuseum", isDirectory: true)
-            .appendingPathComponent("ShanghaiMuseum", isDirectory: true)
+            .appendingPathComponent("ShanghaiMuseumV2", isDirectory: true)
     }
 
     func searchSnapshot(forKey key: String) -> SearchSnapshot? {
