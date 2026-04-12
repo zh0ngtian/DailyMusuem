@@ -29,11 +29,12 @@ final class JapanSearchAPI {
 
     func searchItemIDs(
         preferHasImages: Bool,
+        categoryTypeCode: String? = nil,
         minimumCount: Int = Constants.pageSize,
         onLog: (@Sendable (String) async -> Void)? = nil
     ) async throws -> SearchPoolSnapshot {
         let logger = RequestLogger.shared
-        let cacheKey = cacheKey(preferHasImages: preferHasImages)
+        let cacheKey = cacheKey(preferHasImages: preferHasImages, categoryTypeCode: categoryTypeCode)
         await onLog?("检查东京国立博物馆 itemIDs 内存缓存...")
 
         var itemIDs: [String] = []
@@ -91,6 +92,7 @@ final class JapanSearchAPI {
         while itemIDs.count < minimumCount, hasMore {
             let response = try await searchItems(
                 preferHasImages: preferHasImages,
+                categoryTypeCode: categoryTypeCode,
                 from: nextFrom,
                 size: Constants.pageSize,
                 useContributorFilter: usedContributorFilter
@@ -172,8 +174,8 @@ final class JapanSearchAPI {
         return SearchPoolSnapshot(itemIDs: itemIDs, hasMoreRemoteItems: hasMore)
     }
 
-    func resetSearchCache(preferHasImages: Bool) async {
-        let key = cacheKey(preferHasImages: preferHasImages)
+    func resetSearchCache(preferHasImages: Bool, categoryTypeCode: String? = nil) async {
+        let key = cacheKey(preferHasImages: preferHasImages, categoryTypeCode: categoryTypeCode)
         await responseCache.removeSearchState(forKey: key)
         await persistentCache.removeSearchSnapshot(forKey: key)
     }
@@ -218,12 +220,13 @@ final class JapanSearchAPI {
         await responseCache.searchArtwork(forID: itemID)
     }
 
-    private func cacheKey(preferHasImages: Bool) -> String {
-        "\(Constants.databaseID)-\(Constants.museumContributor)-\(preferHasImages)"
+    private func cacheKey(preferHasImages: Bool, categoryTypeCode: String?) -> String {
+        "\(Constants.databaseID)-\(Constants.museumContributor)-\(preferHasImages)-\(categoryTypeCode ?? "all")"
     }
 
     private func searchItems(
         preferHasImages: Bool,
+        categoryTypeCode: String?,
         from: Int,
         size: Int,
         useContributorFilter: Bool
@@ -236,6 +239,9 @@ final class JapanSearchAPI {
         ]
         if useContributorFilter {
             queryItems.append(URLQueryItem(name: "q-contributor", value: Constants.museumContributor))
+        }
+        if let categoryTypeCode {
+            queryItems.append(URLQueryItem(name: "f-type", value: categoryTypeCode))
         }
         if preferHasImages {
             queryItems.append(URLQueryItem(name: "f-contents", value: "image"))

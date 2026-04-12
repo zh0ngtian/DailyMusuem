@@ -7,6 +7,7 @@ final class NationalMuseumChinaAPI {
         static let repositoryName = "中国国家博物馆"
         static let countryName = "中国"
         static let minimumRequestInterval: TimeInterval = 1
+        static let listPageSize = 100
     }
 
     private let session: URLSession
@@ -20,14 +21,49 @@ final class NationalMuseumChinaAPI {
         self.session = session
     }
 
-    func allExhibitIDs(onLog: (@Sendable (String) async -> Void)? = nil) async -> [Int] {
-        let ids = NationalMuseumChinaExhibitIDs.curatedIDs
-        await onLog?("检查中国国家博物馆展品 ID 池...")
-        await RequestLogger.shared.logEvent(
-            source: "中国国家博物馆展品池",
-            summary: "使用内置展品 ID 池，共 \(ids.count) 条"
+    func allExhibitIDs(
+        categoryID: Int? = nil,
+        categoryDisplayName: String = "全部",
+        onLog: (@Sendable (String) async -> Void)? = nil
+    ) async throws -> [Int] {
+        let effectiveCategoryID = categoryID ?? 0
+        let logger = RequestLogger.shared
+
+        await onLog?("检查中国国家博物馆展品 ID 池（\(categoryDisplayName)）内存缓存...")
+        if let cached = await responseCache.exhibitIDs(forCategoryID: effectiveCategoryID) {
+            await logger.logEvent(
+                source: "中国国家博物馆展品池",
+                summary: "命中内存缓存，类别=\(categoryDisplayName)，共 \(cached.count) 条"
+            )
+            await onLog?("已命中内存缓存，类别 \(categoryDisplayName)，共 \(cached.count) 条。")
+            return cached
+        }
+
+        await onLog?("未命中内存缓存，检查中国国家博物馆展品 ID 池本地缓存...")
+        if let persisted = await persistentCache.exhibitIDs(forCategoryID: effectiveCategoryID) {
+            await responseCache.setExhibitIDs(persisted, forCategoryID: effectiveCategoryID)
+            await logger.logEvent(
+                source: "中国国家博物馆展品池",
+                summary: "命中本地缓存，类别=\(categoryDisplayName)，共 \(persisted.count) 条"
+            )
+            await onLog?("已命中本地缓存，类别 \(categoryDisplayName)，共 \(persisted.count) 条。")
+            return persisted
+        }
+
+        await onLog?("开始从中国国家博物馆批量列表接口拉取展品 ID，类别 \(categoryDisplayName)...")
+
+        let ids = try await fetchAllExhibitIDsFromListAPI(
+            categoryID: effectiveCategoryID,
+            categoryDisplayName: categoryDisplayName,
+            onLog: onLog
         )
-        await onLog?("中国国家博物馆展品 ID 已就绪，当前可用 \(ids.count) 条。")
+        await responseCache.setExhibitIDs(ids, forCategoryID: effectiveCategoryID)
+        await persistentCache.setExhibitIDs(ids, forCategoryID: effectiveCategoryID)
+        await logger.logEvent(
+            source: "中国国家博物馆展品池",
+            summary: "批量接口拉取完成，类别=\(categoryDisplayName)，共 \(ids.count) 条"
+        )
+        await onLog?("中国国家博物馆展品 ID 已就绪，类别 \(categoryDisplayName)，当前可用 \(ids.count) 条。")
         return ids
     }
 
@@ -109,6 +145,22 @@ final class NationalMuseumChinaAPI {
         return url
     }
 
+    private func makeExhibitListURL(categoryID: Int, page: Int, limit: Int) throws -> URL {
+        var components = URLComponents(url: Constants.baseURL.appending(path: "api/exhibit_list"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "cate_id", value: String(categoryID)),
+            URLQueryItem(name: "limit", value: String(limit)),
+            URLQueryItem(name: "page", value: String(page)),
+            URLQueryItem(name: "p", value: "i"),
+            URLQueryItem(name: "son_cate_id", value: "0")
+        ]
+
+        guard let url = components?.url else {
+            throw URLError(.badURL)
+        }
+        return url
+    }
+
     private func makeRequest(url: URL) -> URLRequest {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -121,6 +173,87 @@ final class NationalMuseumChinaAPI {
         request.setValue("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", forHTTPHeaderField: "Accept")
         request.setValue("zh-CN,zh-Hans;q=0.9,en;q=0.8", forHTTPHeaderField: "Accept-Language")
         return request
+    }
+
+    private func makeListRequest(url: URL) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = Constants.requestTimeout
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.setValue(
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+            forHTTPHeaderField: "User-Agent"
+        )
+        request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
+        request.setValue("zh-CN,zh-Hans;q=0.9,en;q=0.8", forHTTPHeaderField: "Accept-Language")
+        request.setValue("gzip, deflate, br", forHTTPHeaderField: "Accept-Encoding")
+        return request
+    }
+
+    private func fetchAllExhibitIDsFromListAPI(
+        categoryID: Int,
+        categoryDisplayName: String,
+        onLog: (@Sendable (String) async -> Void)?
+    ) async throws -> [Int] {
+        var page = 1
+        var collectedIDs: [Int] = []
+        var totalPages = 1
+
+        repeat {
+            let response = try await fetchExhibitListPage(
+                categoryID: categoryID,
+                page: page,
+                limit: Constants.listPageSize
+            )
+
+            let pageIDs = response.data.list.map(\.exhibitID)
+            collectedIDs.append(contentsOf: pageIDs)
+            totalPages = max(1, response.data.pageCount)
+            await onLog?("中国国家博物馆批量列表接口已拉取第 \(page)/\(totalPages) 页，类别 \(categoryDisplayName)，累计 \(collectedIDs.count) 条。")
+            page += 1
+        } while page <= totalPages
+
+        return Self.stableUniqueInts(collectedIDs)
+    }
+
+    private func fetchExhibitListPage(categoryID: Int, page: Int, limit: Int) async throws -> NationalMuseumChinaExhibitListResponse {
+        let url = try makeExhibitListURL(categoryID: categoryID, page: page, limit: limit)
+        let request = makeListRequest(url: url)
+        let logger = RequestLogger.shared
+        let throttleDelay = await Self.requestThrottle.waitForTurn()
+        if throttleDelay > 0 {
+            let delayText = String(format: "%.2f", throttleDelay)
+            await logger.logEvent(
+                source: "中国国家博物馆列表",
+                summary: "触发限流保护，等待 \(delayText)s 后再请求，cate_id=\(categoryID)，page=\(page)"
+            )
+        }
+
+        let start = Date()
+        await logger.logRequestStart(source: "中国国家博物馆列表", url: url)
+
+        do {
+            let (data, response) = try await session.data(for: request)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            try validate(response: response)
+            let decoded = try JSONDecoder().decode(NationalMuseumChinaExhibitListResponse.self, from: data)
+            await logger.logRequestSuccess(
+                source: "中国国家博物馆列表",
+                url: url,
+                statusCode: statusCode,
+                duration: Date().timeIntervalSince(start),
+                responseBytes: data.count
+            )
+            return decoded
+        } catch {
+            await logger.logRequestFailure(
+                source: "中国国家博物馆列表",
+                url: url,
+                duration: Date().timeIntervalSince(start),
+                error: error
+            )
+            throw error
+        }
     }
 
     private func validate(response: URLResponse) throws {
@@ -257,10 +390,41 @@ private enum NationalMuseumChinaExhibitPageParser {
     }
 }
 
+private struct NationalMuseumChinaExhibitListResponse: Decodable {
+    let status: Int
+    let msg: String
+    let data: DataPayload
+
+    struct DataPayload: Decodable {
+        let count: Int
+        let list: [ExhibitSummary]
+        let page: Int
+        let perPage: Int
+        let pageCount: Int
+
+        enum CodingKeys: String, CodingKey {
+            case count
+            case list
+            case page
+            case perPage = "per_page"
+            case pageCount = "page_count"
+        }
+    }
+
+    struct ExhibitSummary: Decodable {
+        let exhibitID: Int
+
+        enum CodingKeys: String, CodingKey {
+            case exhibitID = "exhibit_id"
+        }
+    }
+}
+
 private actor NationalMuseumChinaResponseCache {
     static let shared = NationalMuseumChinaResponseCache()
 
     private var artworkStorage: [Int: Artwork] = [:]
+    private var exhibitIDStorage: [Int: [Int]] = [:]
 
     func artwork(forID id: Int) -> Artwork? {
         artworkStorage[id]
@@ -269,6 +433,14 @@ private actor NationalMuseumChinaResponseCache {
     func setArtwork(_ artwork: Artwork, forID id: Int) {
         artworkStorage[id] = artwork
     }
+
+    func exhibitIDs(forCategoryID categoryID: Int) -> [Int]? {
+        exhibitIDStorage[categoryID]
+    }
+
+    func setExhibitIDs(_ ids: [Int], forCategoryID categoryID: Int) {
+        exhibitIDStorage[categoryID] = ids
+    }
 }
 
 private actor NationalMuseumChinaPersistentCache {
@@ -276,6 +448,11 @@ private actor NationalMuseumChinaPersistentCache {
 
     private struct CachedArtwork: Codable {
         let artwork: Artwork
+        let createdAt: Date
+    }
+
+    private struct CachedExhibitIDs: Codable {
+        let ids: [Int]
         let createdAt: Date
     }
 
@@ -313,8 +490,34 @@ private actor NationalMuseumChinaPersistentCache {
         }
     }
 
+    func exhibitIDs(forCategoryID categoryID: Int) -> [Int]? {
+        let fileURL = exhibitIDFileURL(forCategoryID: categoryID)
+        guard let data = try? Data(contentsOf: fileURL),
+              let cached = try? decoder.decode(CachedExhibitIDs.self, from: data) else {
+            return nil
+        }
+        return cached.ids
+    }
+
+    func setExhibitIDs(_ ids: [Int], forCategoryID categoryID: Int) {
+        let cached = CachedExhibitIDs(ids: ids, createdAt: Date())
+        let fileURL = exhibitIDFileURL(forCategoryID: categoryID)
+
+        do {
+            try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+            let data = try encoder.encode(cached)
+            try data.write(to: fileURL, options: [.atomic])
+        } catch {
+            // Ignore cache write failures and keep network path as fallback.
+        }
+    }
+
     private func fileURL(forID id: Int) -> URL {
         directoryURL.appendingPathComponent("\(id).json")
+    }
+
+    private func exhibitIDFileURL(forCategoryID categoryID: Int) -> URL {
+        directoryURL.appendingPathComponent("exhibit-list-\(categoryID).json")
     }
 }
 
@@ -341,5 +544,18 @@ private extension Array where Element == String? {
     func element(at index: Int) -> String? {
         guard indices.contains(index) else { return nil }
         return self[index] ?? nil
+    }
+}
+
+private extension NationalMuseumChinaAPI {
+    static func stableUniqueInts(_ values: [Int]) -> [Int] {
+        var seen: Set<Int> = []
+        var result: [Int] = []
+        result.reserveCapacity(values.count)
+
+        for value in values where seen.insert(value).inserted {
+            result.append(value)
+        }
+        return result
     }
 }

@@ -1,25 +1,18 @@
 import SwiftUI
 
 struct ArtworkFeedView: View {
-    private enum DisplayMode {
+    private enum DisplayMode: String, CaseIterable, Identifiable {
         case waterfall
         case list
 
-        var buttonIcon: String {
-            switch self {
-            case .waterfall:
-                return "list.bullet"
-            case .list:
-                return "square.grid.2x2"
-            }
-        }
+        var id: String { rawValue }
 
-        var buttonLabel: String {
+        var displayName: String {
             switch self {
             case .waterfall:
-                return "切换到列表"
+                return "瀑布流"
             case .list:
-                return "切换到瀑布流"
+                return "列表"
             }
         }
     }
@@ -40,10 +33,19 @@ struct ArtworkFeedView: View {
     @State private var isTrackingBottomLoadGesture = false
     @State private var displayMode: DisplayMode = .waterfall
     @State private var selectedArtworkReference: ArtworkReference?
+    @State private var isShowingPageSettings = false
+    @State private var draftDisplayMode: DisplayMode = .waterfall
+    @State private var draftSelectedCategoryIDs: Set<String> = []
+    @State private var isApplyingPageSettings = false
 
     init(museum: Museum) {
         self.museum = museum
         _viewModel = StateObject(wrappedValue: ArtworkFeedViewModel(museum: museum))
+        _displayMode = State(
+            initialValue: DisplayMode(
+                rawValue: SettingsStore.shared.feedDisplayModeRawValue(for: museum.id) ?? ""
+            ) ?? .waterfall
+        )
     }
 
     var body: some View {
@@ -82,18 +84,18 @@ struct ArtworkFeedView: View {
                                     Text(isBottomLoadPrimed ? "松开加载下一批" : "继续上滑加载下一批")
                                         .font(.footnote)
                                 }
-                                    .foregroundStyle(.secondary)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 12)
-                                    .contentShape(Rectangle())
-                                    .background(
-                                        GeometryReader { triggerProxy in
-                                            Color.clear.preference(
-                                                key: BottomLoadTriggerFramePreferenceKey.self,
-                                                value: triggerProxy.frame(in: .named(Constants.scrollCoordinateSpace))
-                                            )
-                                        }
-                                    )
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .contentShape(Rectangle())
+                                .background(
+                                    GeometryReader { triggerProxy in
+                                        Color.clear.preference(
+                                            key: BottomLoadTriggerFramePreferenceKey.self,
+                                            value: triggerProxy.frame(in: .named(Constants.scrollCoordinateSpace))
+                                        )
+                                    }
+                                )
                             }
                         }
                         .padding(.horizontal, horizontalPadding)
@@ -130,19 +132,31 @@ struct ArtworkFeedView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    displayMode = displayMode == .waterfall ? .list : .waterfall
+                    preparePageSettingsDraft()
+                    isShowingPageSettings = true
                 } label: {
-                    Image(systemName: displayMode.buttonIcon)
+                    Image(systemName: "slider.horizontal.3")
                 }
-                .accessibilityLabel(displayMode.buttonLabel)
+                .accessibilityLabel("页面设置")
             }
         }
         .navigationDestination(item: $selectedArtworkReference) { reference in
             ArtworkDetailLoaderView(reference: reference)
         }
+        .sheet(isPresented: $isShowingPageSettings) {
+            NavigationStack {
+                pageSettingsView
+            }
+            .presentationDetents([.medium, .large])
+            .interactiveDismissDisabled(isApplyingPageSettings)
+        }
         .onChange(of: settings.feedRandomOrder) { _, _ in
             Task { await viewModel.reload() }
         }
+    }
+
+    private var isCategorySelectionDisabled: Bool {
+        viewModel.state == .loading || viewModel.isLoadingMore || isApplyingPageSettings
     }
 
     private var columnCount: Int {
@@ -151,6 +165,132 @@ struct ArtworkFeedView: View {
     }
 
     private var horizontalPadding: CGFloat { 12 }
+
+    private var pageSettingsView: some View {
+        Form {
+            Section("显示") {
+                Picker("当前视图", selection: $draftDisplayMode) {
+                    ForEach(DisplayMode.allCases) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .disabled(isApplyingPageSettings)
+            }
+
+            Section("筛选") {
+                Button {
+                    draftSelectedCategoryIDs = Set(viewModel.availableCategories.map(\.id))
+                } label: {
+                    categorySelectionRow(title: "全部", isSelected: draftIsAllCategoriesSelected)
+                }
+                .buttonStyle(.plain)
+                .disabled(isCategorySelectionDisabled)
+
+                ForEach(viewModel.availableCategories) { category in
+                    Button {
+                        toggleDraftCategorySelection(category)
+                    } label: {
+                        categorySelectionRow(
+                            title: category.displayName,
+                            isSelected: draftSelectedCategoryIDs.contains(category.id)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isCategorySelectionDisabled)
+                }
+
+                Text("当前选择：\(draftSelectedCategoriesSummary)")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                if isCategorySelectionDisabled {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("正在更新筛选结果…")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            Section {
+                Text("在这里的改动只有点击“完成”后才生效；直接下滑关闭不会保存本次修改。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .navigationTitle("页面设置")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("完成") {
+                    Task { await applyPageSettingsDraft() }
+                }
+                .disabled(isApplyingPageSettings)
+            }
+        }
+    }
+
+    private func categorySelectionRow(title: String, isSelected: Bool) -> some View {
+        HStack(spacing: 12) {
+            Text(title)
+                .foregroundStyle(.primary)
+            Spacer(minLength: 0)
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+        }
+        .contentShape(Rectangle())
+    }
+
+    private var draftIsAllCategoriesSelected: Bool {
+        draftSelectedCategoryIDs.count == viewModel.availableCategories.count
+    }
+
+    private var draftSelectedCategoriesSummary: String {
+        if draftIsAllCategoriesSelected {
+            return "全部"
+        }
+
+        let selectedCategories = viewModel.availableCategories.filter { draftSelectedCategoryIDs.contains($0.id) }
+        if selectedCategories.count <= 2 {
+            return selectedCategories.map(\.displayName).joined(separator: "、")
+        }
+
+        return "已选 \(selectedCategories.count) 类"
+    }
+
+    private func preparePageSettingsDraft() {
+        draftDisplayMode = displayMode
+        draftSelectedCategoryIDs = Set(viewModel.selectedCategories.map(\.id))
+        isApplyingPageSettings = false
+    }
+
+    private func toggleDraftCategorySelection(_ category: MuseumCategory) {
+        if draftSelectedCategoryIDs.contains(category.id) {
+            guard draftSelectedCategoryIDs.count > 1 else { return }
+            draftSelectedCategoryIDs.remove(category.id)
+        } else {
+            draftSelectedCategoryIDs.insert(category.id)
+        }
+    }
+
+    private func applyPageSettingsDraft() async {
+        guard !isApplyingPageSettings else { return }
+        isApplyingPageSettings = true
+        defer { isApplyingPageSettings = false }
+
+        let selectedCategories = viewModel.availableCategories.filter { draftSelectedCategoryIDs.contains($0.id) }
+
+        if draftDisplayMode != displayMode {
+            displayMode = draftDisplayMode
+            settings.saveFeedDisplayModeRawValue(draftDisplayMode.rawValue, for: museum.id)
+        }
+
+        await viewModel.applySelectedCategories(selectedCategories)
+        isShowingPageSettings = false
+    }
 
     @ViewBuilder
     private func feedContent(availableWidth: CGFloat) -> some View {
