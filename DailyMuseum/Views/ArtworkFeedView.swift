@@ -37,6 +37,7 @@ struct ArtworkFeedView: View {
     @State private var draftDisplayMode: DisplayMode = .waterfall
     @State private var draftSelectedCategoryIDs: Set<String> = []
     @State private var isApplyingPageSettings = false
+    @State private var pageSettingsAlertMessage: String?
 
     init(museum: Museum) {
         self.museum = museum
@@ -145,6 +146,25 @@ struct ArtworkFeedView: View {
             }
             .presentationDetents([.medium, .large])
             .interactiveDismissDisabled(isApplyingPageSettings)
+            .alert(
+                "筛选提示",
+                isPresented: Binding(
+                    get: { pageSettingsAlertMessage != nil },
+                    set: { isPresented in
+                        if !isPresented {
+                            pageSettingsAlertMessage = nil
+                        }
+                    }
+                ),
+                actions: {
+                    Button("知道了", role: .cancel) {
+                        pageSettingsAlertMessage = nil
+                    }
+                },
+                message: {
+                    Text(pageSettingsAlertMessage ?? "")
+                }
+            )
         }
         .onChange(of: settings.feedRandomOrder) { _, _ in
             Task { await viewModel.reload() }
@@ -184,7 +204,7 @@ struct ArtworkFeedView: View {
 
             Section("筛选") {
                 Button {
-                    draftSelectedCategoryIDs = Set(viewModel.availableCategories.map(\.id))
+                    toggleDraftSelectAll()
                 } label: {
                     categorySelectionRow(title: "全部", isSelected: draftIsAllCategoriesSelected)
                 }
@@ -258,6 +278,10 @@ struct ArtworkFeedView: View {
         }
 
         let selectedCategories = viewModel.availableCategories.filter { draftSelectedCategoryIDs.contains($0.id) }
+        if selectedCategories.isEmpty {
+            return "未选择任何类别"
+        }
+
         if selectedCategories.count <= 2 {
             return selectedCategories.map(\.displayName).joined(separator: "、")
         }
@@ -269,11 +293,19 @@ struct ArtworkFeedView: View {
         draftDisplayMode = persistedDisplayMode
         draftSelectedCategoryIDs = persistedSelectedCategoryIDs
         isApplyingPageSettings = false
+        pageSettingsAlertMessage = nil
+    }
+
+    private func toggleDraftSelectAll() {
+        if draftIsAllCategoriesSelected {
+            draftSelectedCategoryIDs = []
+        } else {
+            draftSelectedCategoryIDs = Set(viewModel.availableCategories.map(\.id))
+        }
     }
 
     private func toggleDraftCategorySelection(_ category: MuseumCategory) {
         if draftSelectedCategoryIDs.contains(category.id) {
-            guard draftSelectedCategoryIDs.count > 1 else { return }
             draftSelectedCategoryIDs.remove(category.id)
         } else {
             draftSelectedCategoryIDs.insert(category.id)
@@ -286,6 +318,10 @@ struct ArtworkFeedView: View {
         defer { isApplyingPageSettings = false }
 
         let selectedCategories = viewModel.availableCategories.filter { draftSelectedCategoryIDs.contains($0.id) }
+        guard !selectedCategories.isEmpty else {
+            pageSettingsAlertMessage = "请至少选择一个类别后再完成。"
+            return
+        }
 
         if draftDisplayMode != displayMode {
             displayMode = draftDisplayMode
