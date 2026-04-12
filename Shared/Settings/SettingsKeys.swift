@@ -9,6 +9,7 @@ enum SettingsKeys {
     static let museumDisplayOrder = "museum.displayOrder"
     static let translationEngine = "translation.engine"
     static let widgetManualRefreshNonce = "widget.manualRefreshNonce"
+    static let widgetManualRefreshInProgress = "widget.manualRefreshInProgress"
     static let widgetRefreshIntervalMinutes = "widget.refreshIntervalMinutes"
     static let widgetMuseumScope = "widget.museumScope"
     static let widgetPreferHasImages = "widget.preferHasImages"
@@ -18,6 +19,7 @@ enum SettingsKeys {
         museumDisplayOrder,
         translationEngine,
         widgetManualRefreshNonce,
+        widgetManualRefreshInProgress,
         widgetRefreshIntervalMinutes,
         widgetMuseumScope,
         widgetPreferHasImages

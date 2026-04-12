@@ -25,4 +25,8 @@ struct WidgetSettingsReader {
     var manualRefreshNonce: TimeInterval {
         defaults.double(forKey: SettingsKeys.widgetManualRefreshNonce)
     }
+
+    var manualRefreshInProgress: Bool {
+        defaults.bool(forKey: SettingsKeys.widgetManualRefreshInProgress)
+    }
 }
