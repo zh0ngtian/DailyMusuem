@@ -109,9 +109,7 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable {
 
     var supportsWidgetContent: Bool {
         switch self {
-        case .shm:
-            return false
-        case .met, .tnm, .nmc:
+        case .met, .tnm, .nmc, .shm:
             return true
         }
     }
