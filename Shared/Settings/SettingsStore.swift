@@ -97,6 +97,31 @@ final class SettingsStore: ObservableObject {
         MuseumRepository.museums(inPreferredOrder: orderedMuseumIDs())
     }
 
+    func feedCategories(for museumID: MuseumID) -> [MuseumCategory] {
+        museumID.feedCategories(withStoredValue: defaults.string(forKey: feedCategoryKey(for: museumID)))
+    }
+
+    func saveFeedCategories(_ categories: [MuseumCategory], for museumID: MuseumID) {
+        let normalized = museumID.normalizedFeedCategories(categories)
+        defaults.set(museumID.feedCategoryStorageValue(for: normalized), forKey: feedCategoryKey(for: museumID))
+    }
+
+    func feedCategory(for museumID: MuseumID) -> MuseumCategory {
+        feedCategories(for: museumID).first ?? museumID.defaultFeedCategory
+    }
+
+    func saveFeedCategory(_ category: MuseumCategory, for museumID: MuseumID) {
+        saveFeedCategories([category], for: museumID)
+    }
+
+    func feedDisplayModeRawValue(for museumID: MuseumID) -> String? {
+        defaults.string(forKey: feedDisplayModeKey(for: museumID))
+    }
+
+    func saveFeedDisplayModeRawValue(_ rawValue: String, for museumID: MuseumID) {
+        defaults.set(rawValue, forKey: feedDisplayModeKey(for: museumID))
+    }
+
     func saveMuseumOrder(_ museums: [Museum]) {
         museumDisplayOrderRawValue = museums.map(\.id.rawValue).joined(separator: ",")
     }
@@ -111,6 +136,14 @@ final class SettingsStore: ObservableObject {
         }
 
         return ids
+    }
+
+    private func feedCategoryKey(for museumID: MuseumID) -> String {
+        SettingsKeys.feedCategoryPrefix + museumID.rawValue
+    }
+
+    private func feedDisplayModeKey(for museumID: MuseumID) -> String {
+        SettingsKeys.feedDisplayModePrefix + museumID.rawValue
     }
 
     private func migrateLegacyDefaultsIfNeeded() {

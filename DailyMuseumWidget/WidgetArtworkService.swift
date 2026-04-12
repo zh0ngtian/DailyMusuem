@@ -28,7 +28,7 @@ struct WidgetArtworkService {
 
         switch museum.id {
         case .met:
-            let ids = try await metAPI.searchObjectIDs(hasImages: settings.preferHasImages, isOnView: false, query: "a")
+            let ids = try await metAPI.searchObjectIDs(hasImages: settings.preferHasImages, isOnView: false, query: "*")
             guard let id = pickMetObjectID(from: ids, previousReference: previousReference, museum: museum) else {
                 throw URLError(.cannotParseResponse)
             }
@@ -44,7 +44,7 @@ struct WidgetArtworkService {
             let artwork = item.toArtwork()
             return try await makeSnapshotEntry(for: artwork, museum: museum, date: date, cycleKey: cycleKey)
         case .nmc:
-            let ids = await nationalMuseumChinaAPI.allExhibitIDs()
+            let ids = try await nationalMuseumChinaAPI.allExhibitIDs()
             guard let id = pickNumericObjectID(from: ids, previousReference: previousReference, museum: museum) else {
                 throw URLError(.cannotParseResponse)
             }

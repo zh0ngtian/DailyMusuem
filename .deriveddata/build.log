@@ -1,0 +1,255 @@
+2026-04-11 23:04:31.871 xcodebuild[78388:21800216]  DVTFilePathFSEvents: Failed to start fs event stream.
+2026-04-11 23:04:32.163 xcodebuild[78388:21800212] [MT] DVTDeveloperPaths: Failed to get length of DARWIN_USER_CACHE_DIR from confstr(3), error = Error Domain=NSPOSIXErrorDomain Code=5 "Input/output error". Using NSCachesDirectory instead.
+2026-04-11 23:04:32.527 xcodebuild[78388:21800217] CoreSimulatorService connection became invalid.  Simulator services will no longer be available.
+2026-04-11 23:04:32.527 xcodebuild[78388:21800266] Logging connecton invalid: <OS_xpc_error: <dictionary: 0x1f664c960> { count = 1, transaction: 0, voucher = 0x0, contents =
+	"XPCErrorDescription" => <string: 0x1f664caa8> { string cache = 0x0, length = 18, contents = "Connection invalid" }
+}>
+2026-04-11 23:04:32.527 xcodebuild[78388:21800265] Error opening log file (/Users/zhongtian/Library/Logs/CoreSimulator/CoreSimulator.com.apple.dt.xcodebuild.log): Operation not permitted
+[-[SimServiceContext sendRequest:]:1743] ERROR : Unable to deliver request ({
+    "developer_dir" = "/Applications/Xcode.app/Contents/Developer";
+    request = "set_developer_dir";
+}) because we are not connected to CoreSimulatorService.
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -project /Users/zhongtian/WorkSpace/DailyMusuem/DailyMuseum.xcodeproj -scheme DailyMuseum -destination generic/platform=iOS -derivedDataPath /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata CODE_SIGNING_ALLOWED=NO build
+
+Build settings from command line:
+    CODE_SIGNING_ALLOWED = NO
+
+2026-04-11 23:04:32.584 xcodebuild[78388:21800212] [MT] DVTAssertions: Warning in DVTFrameworks/DVTFoundation/FileTypes/DVTFileDataTypeDetection.m:79
+Details:  detectedTypeIdentifier (com.apple.binary-property-list) does not conform to matchedTypeIdentifier in MagicFileDataTypeDetector extenson com.apple.property-list. When both are specified, this conformance is required unless overridden by setting allowNonInheritance. extension.identifier:Xcode.MagicFileDataTypeDetector.BinaryPlist
+Object:   <DVTFileDataTypeDetectionMagicCache: 0x749e3f1b0>
+Method:   -initWithExtension:
+Thread:   <_NSMainThread: 0x102416030>{number = 1, name = main}
+Please file a bug at https://feedbackassistant.apple.com with this warning message and any useful information you can provide.
+2026-04-11 23:04:32.586 xcodebuild[78388:21800212] [MT] DVTAssertions: Warning in DVTFrameworks/DVTFoundation/FileTypes/DVTFileDataTypeDetection.m:79
+Details:  detectedTypeIdentifier (com.apple.xml-property-list) does not conform to matchedTypeIdentifier in MagicFileDataTypeDetector extenson com.apple.property-list. When both are specified, this conformance is required unless overridden by setting allowNonInheritance. extension.identifier:Xcode.MagicFileDataTypeDetector.XMLPlist
+Object:   <DVTFileDataTypeDetectionMagicCache: 0x749e50330>
+Method:   -initWithExtension:
+Thread:   <_NSMainThread: 0x102416030>{number = 1, name = main}
+Please file a bug at https://feedbackassistant.apple.com with this warning message and any useful information you can provide.
+2026-04-11 23:04:32.654 xcodebuild[78388:21800271]  DVTProvisioningProfileManager: Failed to load profile "/Users/zhongtian/Library/Developer/Xcode/UserData/Provisioning Profiles/469e9f37-d810-4306-9900-dbf21135238e.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-04-11 23:04:32.654 xcodebuild[78388:21800265]  DVTProvisioningProfileManager: Failed to load profile "/Users/zhongtian/Library/Developer/Xcode/UserData/Provisioning Profiles/471f9430-f2f0-479e-b9a7-a427e70a1d14.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-04-11 23:04:32.654 xcodebuild[78388:21800267]  DVTProvisioningProfileManager: Failed to load profile "/Users/zhongtian/Library/Developer/Xcode/UserData/Provisioning Profiles/4f3c60ab-9739-4517-8641-7525af4020e6.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-04-11 23:04:32.654 xcodebuild[78388:21800270]  DVTProvisioningProfileManager: Failed to load profile "/Users/zhongtian/Library/Developer/Xcode/UserData/Provisioning Profiles/eb7b5dc2-756e-4a34-919d-d514c88a6a8c.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+2026-04-11 23:04:32.657 xcodebuild[78388:21800270]  DVTProvisioningProfileManager: Failed to load profile "/Users/zhongtian/Library/MobileDevice/Provisioning Profiles/c222715d-ab5c-4709-a5be-baad07fb2510.mobileprovision" (Error Domain=DVTProvisioningProfileProviderErrorDomain Code=1 "Failed to load profile." UserInfo={NSLocalizedDescription=Failed to load profile., NSLocalizedRecoverySuggestion=Profile is missing the required UUID property.})
+[-[SimServiceContext initWithDeveloperDir:connectionType:error:]:450] WARN  : Unable to discover any Simulator runtimes. Developer Directory is /Applications/Xcode.app/Contents/Developer.
+[-[SimDiskImageManager init]:175] ERROR : Could not kickstart simdiskimaged; SimDiskImageManager services will not be available: Error Domain=NSPOSIXErrorDomain Code=53 "Software caused connection abort" UserInfo={NSLocalizedDescription=Error returned in reply from CoreSimulatorService: Connection invalid}
+[-[SimDiskImageManager _onQueue_checkConnection:]:239] ERROR : simdiskimaged returned error (invalid), marking disconnected.
+[-[SimDiskImageManager _onQueue_checkConnection:]:239] ERROR : simdiskimaged returned error (invalid), marking disconnected.
+[-[SimServiceContext initWithDeveloperDir:connectionType:error:]_block_invoke:486] ERROR : Could not get list of trusted mount directories: Error Domain=com.apple.CoreSimulator.SimError Code=410 "The service used to manage runtime disk images (simdiskimaged) crashed or is not responding" UserInfo={NSLocalizedDescription=The service used to manage runtime disk images (simdiskimaged) crashed or is not responding}
+[-[SimServiceContext sendRequest:reply:error:]:1763] ERROR : Unable to deliver request ({
+    request = "notification_subscription";
+    "set_path" = "/Users/zhongtian/Library/Developer/CoreSimulator/Devices";
+}) because we are not connected to CoreSimulatorService.
+2026-04-11 23:04:32.691 xcodebuild[78388:21800217] Error Domain=NSPOSIXErrorDomain Code=61 "Connection refused" UserInfo={NSLocalizedDescription=CoreSimulatorService connection became invalid.  Simulator services will no longer be available.}
+[-[SimServiceContext sendRequest:reply:error:]:1763] ERROR : Unable to deliver request ({
+    request = "notification_subscription";
+    "set_path" = "/Users/zhongtian/Library/Developer/CoreSimulator/Devices";
+}) because we are not connected to CoreSimulatorService.
+2026-04-11 23:04:32.692 xcodebuild[78388:21800217]  iOSSimulator: [SimServiceContext defaultDeviceSetWithError:] returned nil (Error Domain=NSPOSIXErrorDomain Code=61 "Connection refused" UserInfo={NSLocalizedFailureReason=Failed to subscribe to notifications from CoreSimulatorService., NSLocalizedDescription=Failed to initialize simulator device set., NSUnderlyingError=0x749f0c810 {Error Domain=NSPOSIXErrorDomain Code=61 "Connection refused" UserInfo={NSLocalizedDescription=CoreSimulatorService connection became invalid.  Simulator services will no longer be available.}}}). Simulator device support disabled.
+2026-04-11 23:04:32.692 xcodebuild[78388:21800216] Error Domain=NSPOSIXErrorDomain Code=61 "Connection refused" UserInfo={NSLocalizedDescription=CoreSimulatorService connection became invalid.  Simulator services will no longer be available.}
+2026-04-11 23:04:32.693 xcodebuild[78388:21800216]  IDESimulatorAvailability: startObservingSimulatorUpdates() FAILED to register SimDeviceSet observer
+2026-04-11 23:04:32.865 xcodebuild[78388:21800212] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (2 targets)
+    Target 'DailyMuseum' in project 'DailyMuseum'
+        ➜ Explicit dependency on target 'DailyMuseumWidgetExtension' in project 'DailyMuseum'
+    Target 'DailyMuseumWidgetExtension' in project 'DailyMuseum' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ClangStatCache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/SDKStatCaches.noindex/iphoneos26.2-23C57-3794476bd08197c3e2abd9bb477ef7f7.sdkstatcache
+    cd /Users/zhongtian/WorkSpace/DailyMusuem/DailyMuseum.xcodeproj
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -o /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/SDKStatCaches.noindex/iphoneos26.2-23C57-3794476bd08197c3e2abd9bb477ef7f7.sdkstatcache
+Failed to create FS event stream. Considering the cache up-to-date.
+
+CompileStoryboard /Users/zhongtian/WorkSpace/DailyMusuem/DailyMuseum/LaunchScreen.storyboard (in target 'DailyMuseum' from project 'DailyMuseum')
+    cd /Users/zhongtian/WorkSpace/DailyMusuem
+    /Applications/Xcode.app/Contents/Developer/usr/bin/ibtool --errors --warnings --notices --module DailyMuseum --output-partial-info-plist /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Intermediates.noindex/DailyMuseum.build/Debug-iphoneos/DailyMuseum.build/LaunchScreen-SBPartialInfo.plist --auto-activate-custom-fonts --target-device iphone --target-device ipad --minimum-deployment-target 17.0 --output-format human-readable-text /Users/zhongtian/WorkSpace/DailyMusuem/DailyMuseum/LaunchScreen.storyboard --compilation-directory /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Intermediates.noindex/DailyMuseum.build/Debug-iphoneos/DailyMuseum.build
+2026-04-11 23:04:34.630 ibtoold[78430:21800399] CoreSimulatorService connection became invalid.  Simulator services will no longer be available.
+2026-04-11 23:04:34.631 ibtoold[78430:21800553] Logging connecton invalid: <OS_xpc_error: <dictionary: 0x1f664c960> { count = 1, transaction: 0, voucher = 0x0, contents =
+	"XPCErrorDescription" => <string: 0x1f664caa8> { string cache = 0x0, length = 18, contents = "Connection invalid" }
+}>
+2026-04-11 23:04:34.631 ibtoold[78430:21800553] Error opening log file (/Users/zhongtian/Library/Logs/CoreSimulator/CoreSimulator.com.apple.ibtool.log): Operation not permitted
+[-[SimServiceContext sendRequest:]:1743] ERROR : Unable to deliver request ({
+    "developer_dir" = "/Applications/Xcode.app/Contents/Developer";
+    request = "set_developer_dir";
+}) because we are not connected to CoreSimulatorService.
+[-[SimServiceContext initWithDeveloperDir:connectionType:error:]:450] WARN  : Unable to discover any Simulator runtimes. Developer Directory is /Applications/Xcode.app/Contents/Developer.
+[-[SimDiskImageManager init]:175] ERROR : Could not kickstart simdiskimaged; SimDiskImageManager services will not be available: Error Domain=NSPOSIXErrorDomain Code=53 "Software caused connection abort" UserInfo={NSLocalizedDescription=Error returned in reply from CoreSimulatorService: Connection invalid}
+[-[SimDiskImageManager _onQueue_checkConnection:]:239] ERROR : simdiskimaged returned error (invalid), marking disconnected.
+[-[SimDiskImageManager _onQueue_checkConnection:]:239] ERROR : simdiskimaged returned error (invalid), marking disconnected.
+[-[SimServiceContext initWithDeveloperDir:connectionType:error:]_block_invoke:486] ERROR : Could not get list of trusted mount directories: Error Domain=com.apple.CoreSimulator.SimError Code=410 "The service used to manage runtime disk images (simdiskimaged) crashed or is not responding" UserInfo={NSLocalizedDescription=The service used to manage runtime disk images (simdiskimaged) crashed or is not responding}
+[-[SimServiceContext sendRequest:reply:error:]:1763] ERROR : Unable to deliver request ({
+    request = "notification_subscription";
+    "set_path" = "/Users/zhongtian/Library/Developer/CoreSimulator/Devices";
+}) because we are not connected to CoreSimulatorService.
+2026-04-11 23:04:34.724 ibtoold[78430:21800400] Error Domain=NSPOSIXErrorDomain Code=61 "Connection refused" UserInfo={NSLocalizedDescription=CoreSimulatorService connection became invalid.  Simulator services will no longer be available.}
+2026-04-11 23:04:35.039 ibtoold[78430:21800399] CoreSimulatorService connection became invalid.  Simulator services will no longer be available.
+[-[SimServiceContext initWithDeveloperDir:connectionType:error:]:450] WARN  : Unable to discover any Simulator runtimes. Developer Directory is /Applications/Xcode.app/Contents/Developer.
+[-[SimServiceContext initWithDeveloperDir:connectionType:error:]_block_invoke:486] ERROR : Could not get list of trusted mount directories: Error Domain=com.apple.CoreSimulator.SimError Code=409 "Cannot talk to the service used to manage runtime disk images (simdiskimaged) because its launchd job is not registered or was unloaded" UserInfo={NSLocalizedDescription=Cannot talk to the service used to manage runtime disk images (simdiskimaged) because its launchd job is not registered or was unloaded}
+[-[SimDiskImageManager _onQueue_checkConnection:]:219] ERROR : simdiskimaged connection is currently unavailable because connection became invalid
+[-[SimServiceContext sendRequest:]:1743] ERROR : Unable to deliver request ({
+    path = "/Applications/Xcode.app/Contents/PlugIns/IDEInterfaceBuilderiOSIntegration.ideplugin/Contents/Resources";
+    request = "add_profiles";
+}) because we are not connected to CoreSimulatorService.
+[-[SimServiceContext sendRequest:]:1743] ERROR : Unable to deliver request ({
+    path = "/Applications/Xcode.app/Contents/Developer/Platforms/AppleTVSimulator.platform/Developer/Library/Xcode/PrivatePlugIns/IDEInterfaceBuilderAppleTVIntegration.framework/Resources";
+    request = "add_profiles";
+}) because we are not connected to CoreSimulatorService.
+/* com.apple.ibtool.errors */
+/Users/zhongtian/WorkSpace/DailyMusuem/DailyMuseum/LaunchScreen.storyboard: error: iOS 26.2 Platform Not Installed.
+
+CompileAssetCatalogVariant thinned /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Products/Debug-iphoneos/DailyMuseum.app /Users/zhongtian/WorkSpace/DailyMusuem/DailyMuseum/Assets.xcassets (in target 'DailyMuseum' from project 'DailyMuseum')
+    cd /Users/zhongtian/WorkSpace/DailyMusuem
+    /Applications/Xcode.app/Contents/Developer/usr/bin/actool /Users/zhongtian/WorkSpace/DailyMusuem/DailyMuseum/Assets.xcassets --compile /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Intermediates.noindex/DailyMuseum.build/Debug-iphoneos/DailyMuseum.build/assetcatalog_output/thinned --output-format human-readable-text --notices --warnings --export-dependency-info /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Intermediates.noindex/DailyMuseum.build/Debug-iphoneos/DailyMuseum.build/assetcatalog_dependencies_thinned --output-partial-info-plist /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Intermediates.noindex/DailyMuseum.build/Debug-iphoneos/DailyMuseum.build/assetcatalog_generated_info.plist_thinned --app-icon AppIcon --compress-pngs --enable-on-demand-resources YES --development-region en --target-device iphone --target-device ipad --minimum-deployment-target 17.0 --platform iphoneos
+2026-04-11 23:04:34.697 ibtoold[78431:21800401] CoreSimulatorService connection became invalid.  Simulator services will no longer be available.
+2026-04-11 23:04:34.698 ibtoold[78431:21800565] Logging connecton invalid: <OS_xpc_error: <dictionary: 0x1f664c960> { count = 1, transaction: 0, voucher = 0x0, contents =
+	"XPCErrorDescription" => <string: 0x1f664caa8> { string cache = 0x0, length = 18, contents = "Connection invalid" }
+}>
+2026-04-11 23:04:34.698 ibtoold[78431:21800565] Error opening log file (/Users/zhongtian/Library/Logs/CoreSimulator/CoreSimulator.com.apple.ibtool.log): Operation not permitted
+[-[SimServiceContext sendRequest:]:1743] ERROR : Unable to deliver request ({
+    "developer_dir" = "/Applications/Xcode.app/Contents/Developer";
+    request = "set_developer_dir";
+}) because we are not connected to CoreSimulatorService.
+[-[SimServiceContext initWithDeveloperDir:connectionType:error:]:450] WARN  : Unable to discover any Simulator runtimes. Developer Directory is /Applications/Xcode.app/Contents/Developer.
+[-[SimDiskImageManager init]:175] ERROR : Could not kickstart simdiskimaged; SimDiskImageManager services will not be available: Error Domain=NSPOSIXErrorDomain Code=53 "Software caused connection abort" UserInfo={NSLocalizedDescription=Error returned in reply from CoreSimulatorService: Connection invalid}
+[-[SimDiskImageManager _onQueue_checkConnection:]:239] ERROR : simdiskimaged returned error (invalid), marking disconnected.
+[-[SimDiskImageManager _onQueue_checkConnection:]:239] ERROR : simdiskimaged returned error (invalid), marking disconnected.
+[-[SimServiceContext initWithDeveloperDir:connectionType:error:]_block_invoke:486] ERROR : Could not get list of trusted mount directories: Error Domain=com.apple.CoreSimulator.SimError Code=410 "The service used to manage runtime disk images (simdiskimaged) crashed or is not responding" UserInfo={NSLocalizedDescription=The service used to manage runtime disk images (simdiskimaged) crashed or is not responding}
+[-[SimServiceContext sendRequest:reply:error:]:1763] ERROR : Unable to deliver request ({
+    request = "notification_subscription";
+    "set_path" = "/Users/zhongtian/Library/Developer/CoreSimulator/Devices";
+}) because we are not connected to CoreSimulatorService.
+2026-04-11 23:04:34.768 ibtoold[78431:21800398] Error Domain=NSPOSIXErrorDomain Code=61 "Connection refused" UserInfo={NSLocalizedDescription=CoreSimulatorService connection became invalid.  Simulator services will no longer be available.}
+2026-04-11 23:04:35.038 ibtoold[78431:21800590] CoreSimulatorService connection became invalid.  Simulator services will no longer be available.
+[-[SimServiceContext sendRequest:]:1743] ERROR : Unable to deliver request ({
+    "developer_dir" = "/Applications/Xcode.app/Contents/Developer";
+    request = "set_developer_dir";
+}) because we are not connected to CoreSimulatorService.
+[-[SimServiceContext initWithDeveloperDir:connectionType:error:]:450] WARN  : Unable to discover any Simulator runtimes. Developer Directory is /Applications/Xcode.app/Contents/Developer.
+[-[SimDiskImageManager _onQueue_checkConnection:]:219] ERROR : simdiskimaged connection is currently unavailable because connection became invalid
+[-[SimServiceContext initWithDeveloperDir:connectionType:error:]_block_invoke:486] ERROR : Could not get list of trusted mount directories: Error Domain=com.apple.CoreSimulator.SimError Code=409 "Cannot talk to the service used to manage runtime disk images (simdiskimaged) because its launchd job is not registered or was unloaded" UserInfo={NSLocalizedDescription=Cannot talk to the service used to manage runtime disk images (simdiskimaged) because its launchd job is not registered or was unloaded}
+[-[SimServiceContext sendRequest:]:1743] ERROR : Unable to deliver request ({
+    path = "/Applications/Xcode.app/Contents/Developer/Platforms/AppleTVSimulator.platform/Developer/Library/Xcode/PrivatePlugIns/IDEInterfaceBuilderAppleTVIntegration.framework/Resources";
+    request = "add_profiles";
+}) because we are not connected to CoreSimulatorService.
+[-[SimServiceContext sendRequest:]:1743] ERROR : Unable to deliver request ({
+    path = "/Applications/Xcode.app/Contents/PlugIns/IDEInterfaceBuilderiOSIntegration.ideplugin/Contents/Resources";
+    request = "add_profiles";
+}) because we are not connected to CoreSimulatorService.
+/* com.apple.actool.errors */
+/Users/zhongtian/WorkSpace/DailyMusuem/DailyMuseum/Assets.xcassets: error: No available simulator runtimes for platform iphonesimulator. SimServiceContext supportedRuntimes=[]
+/* com.apple.actool.document.notices */
+/Users/zhongtian/WorkSpace/DailyMusuem/DailyMuseum/Assets.xcassets:./AppIcon.appiconset/[][ipad][76x76][][][1x][][][][]: notice: 76x76@1x app icons only apply to iPad apps targeting releases of iOS prior to 10.0.
+/* com.apple.actool.compilation-results */
+/Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Intermediates.noindex/DailyMuseum.build/Debug-iphoneos/DailyMuseum.build/assetcatalog_generated_info.plist_thinned
+/Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Intermediates.noindex/DailyMuseum.build/Debug-iphoneos/DailyMuseum.build/assetcatalog_output/thinned/AppIcon60x60@2x.png
+/Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Intermediates.noindex/DailyMuseum.build/Debug-iphoneos/DailyMuseum.build/assetcatalog_output/thinned/AppIcon76x76@2x~ipad.png
+
+
+SwiftDriver DailyMuseum normal arm64 com.apple.xcode.tools.swift.compiler (in target 'DailyMuseum' from project 'DailyMuseum')
+    cd /Users/zhongtian/WorkSpace/DailyMusuem
+    builtin-SwiftDriver -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name DailyMuseum -Onone -enforce-exclusivity\=checked @/Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Intermediates.noindex/DailyMuseum.build/Debug-iphoneos/DailyMuseum.build/Objects-normal/arm64/DailyMuseum.SwiftFileList -DDEBUG -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk -target arm64-apple-ios17.0 -g -module-cache-path /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Products/Debug-iphoneos -F /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Products/Debug-iphoneos -c -j10 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/SDKStatCaches.noindex/iphoneos26.2-23C57-3794476bd08197c3e2abd9bb477ef7f7.sdkstatcache -output-file-map /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Intermediates.noindex/DailyMuseum.build/Debug-iphoneos/DailyMuseum.build/Objects-normal/arm64/DailyMuseum-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex -sdk-module-cache-path /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Intermediates.noindex/DailyMuseum.build/Debug-iphoneos/DailyMuseum.build/Objects-normal/arm64/DailyMuseum.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Intermediates.noindex/DailyMuseum.build/Debug-iphoneos/DailyMuseum.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Intermediates.noindex/DailyMuseum.build/Debug-iphoneos/DailyMuseum.build/Objects-normal/arm64/DailyMuseum_const_extract_protocols.json -Xcc -iquote -Xcc /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Intermediates.noindex/DailyMuseum.build/Debug-iphoneos/DailyMuseum.build/DailyMuseum-generated-files.hmap -Xcc -I/Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Intermediates.noindex/DailyMuseum.build/Debug-iphoneos/DailyMuseum.build/DailyMuseum-own-target-headers.hmap -Xcc -I/Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Intermediates.noindex/DailyMuseum.build/Debug-iphoneos/DailyMuseum.build/DailyMuseum-all-target-headers.hmap -Xcc -iquote -Xcc /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Intermediates.noindex/DailyMuseum.build/Debug-iphoneos/DailyMuseum.build/DailyMuseum-project-headers.hmap -Xcc -I/Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Products/Debug-iphoneos/include -Xcc -I/Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Intermediates.noindex/DailyMuseum.build/Debug-iphoneos/DailyMuseum.build/DerivedSources-normal/arm64 -Xcc -I/Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Intermediates.noindex/DailyMuseum.build/Debug-iphoneos/DailyMuseum.build/DerivedSources/arm64 -Xcc -I/Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Intermediates.noindex/DailyMuseum.build/Debug-iphoneos/DailyMuseum.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Intermediates.noindex/DailyMuseum.build/Debug-iphoneos/DailyMuseum.build/Objects-normal/arm64/DailyMuseum-Swift.h -working-directory /Users/zhongtian/WorkSpace/DailyMusuem -experimental-emit-module-separately -disable-cmo
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/_AvailabilityInternal-4PUMN5JFYQRZ5057K0LZZ299N.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/DeveloperToolsSupport-7WQV5RD989PJN10G0O6V7SVJ1.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/ptrcheck-579BW48DDTZAN76YLXDXW26O0.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/ptrauth-7R8QY5MCWB2KVH651AG1YPNF6.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/_Builtin_stdbool-46P5JCHKEIFUW4H04T24NOCK8.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/_Builtin_stddef-C062QNARCMCS2Q0M2I4A1EPN2.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/_Builtin_float-1YXL6UHBQ0UOAN7J94BSEQGUI.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/ActivityKit-41WW1NETK9J442BL98KS35D6B.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/_SwiftConcurrencyShims-CQUE76G2AI3GJAAKQC2FDUG0G.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/_Builtin_stdarg-CO13RX5YJ59JIOM4WITT7J980.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/SwiftShims-E0NESEJDZ2TAHYP2LNGEZRLNM.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/_DarwinFoundation1-1VXSNL6I0LIOYH6CNHPAC9TB.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/_DarwinFoundation2-3X24CPEL84RA0NI911P5SM4EC.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/ExtensionFoundation-980FBAUZXSEYTSRRRQK2JQKD1.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/_Builtin_limits-92X2X4MN801ZGUVYTNUFXW6MX.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/_Builtin_tgmath-C5MV4J0XY2P1S0M936RTRV9ZQ.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/sys_types-DH96FVCRNO8UR6P48U5Z49WU6.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/_Builtin_stdint-3OUZQ4YUI4BQJB5G2W1THWORY.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/_Builtin_stdatomic-1UMOGA2YH6SSS5J9DU0KTFHRQ.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/_DarwinFoundation3-DJ4C7WRFCOGQGV6CAPPOZWOG5.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/_Builtin_intrinsics-3DLSB71D267HEPKNL4UONV4S4.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/_Builtin_inttypes-EVRZ5LCLN19AEWLAMVRJS6RGF.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/Darwin-AA0TDK9XNY79YNV9SNUG8KUM2.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/simd-8EOZRXPJEK77BH4M1G5LG5806.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/ObjectiveC-D685GGRVMSOHWUO6080DAOL7H.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/MachO-3M5TDM19CJCGHRFS2HPH4P0EC.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/os_object-3ZY990P11V83D9192MGXIGJD3.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/Spatial-79H7DODKASXGYMZW4575WVHGD.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/os_workgroup-4K2LDEZZCKJRIWI4Q1AJV1JP9.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/Dispatch-AREYFVH4W45HYVERCG6Z767E0.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/dnssd-5FTZB7YRQ6SCQ3AJJZ299YYOH.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/CoreFoundation-6OQ0UPKDDKKHBSEQ44L2H9245.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/XPC-EM2XEPPHVT5IXCFKVC16QYRRR.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/os-7FS2DIJ4I869JSR8P6TJ1J96K.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/CoreGraphics-EIWL1JEMDOHIMD3A1KPAR4M3C.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/CFNetwork-C9B0KKYIDJNR2Q20TD2SZC3KL.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/Security-9CTSCFS8CSYOSHULZDCFP2YGP.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/Foundation-MNZ9VRD5HFT8GQOWZZRQ85XE.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/CoreText-DQGG7253VPVOPWPL2EAW2TZ3R.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/ModuleCache.noindex/ImageIO-BQQDN3PSJ89WXS1DSB822MCBH.pcm
+
+** BUILD FAILED **
+
+
+The following build commands failed:
+	CompileStoryboard /Users/zhongtian/WorkSpace/DailyMusuem/DailyMuseum/LaunchScreen.storyboard (in target 'DailyMuseum' from project 'DailyMuseum')
+	CompileAssetCatalogVariant thinned /Users/zhongtian/WorkSpace/DailyMusuem/.deriveddata/Build/Products/Debug-iphoneos/DailyMuseum.app /Users/zhongtian/WorkSpace/DailyMusuem/DailyMuseum/Assets.xcassets (in target 'DailyMuseum' from project 'DailyMuseum')
+	Building project DailyMuseum with scheme DailyMuseum
+(3 failures)

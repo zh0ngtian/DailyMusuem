@@ -36,6 +36,7 @@ final class ArtworkFeedViewModel: ObservableObject {
     @Published private(set) var isLoadingMore = false
     @Published private(set) var hasMoreItems = true
     @Published private(set) var loadingLogs: [String] = []
+    @Published private(set) var selectedCategories: [MuseumCategory]
 
     private let museum: Museum
     private let metAPI = MetMuseumAPI()
@@ -47,6 +48,11 @@ final class ArtworkFeedViewModel: ObservableObject {
 
     init(museum: Museum) {
         self.museum = museum
+        self.selectedCategories = SettingsStore.shared.feedCategories(for: museum.id)
+    }
+
+    var availableCategories: [MuseumCategory] {
+        museum.id.selectableFeedCategories
     }
 
     func loadInitialIfNeeded() async {
@@ -55,10 +61,66 @@ final class ArtworkFeedViewModel: ObservableObject {
         await reload()
     }
 
+    var isAllCategoriesSelected: Bool {
+        museum.id.areAllFeedCategoriesSelected(selectedCategories)
+    }
+
+    var selectedCategoriesSummary: String {
+        if isAllCategoriesSelected {
+            return "全部"
+        }
+
+        if selectedCategories.count <= 2 {
+            return selectedCategories.map(\.displayName).joined(separator: "、")
+        }
+
+        return "已选 \(selectedCategories.count) 类"
+    }
+
+    func selectAllCategories() async {
+        await updateSelectedCategories(museum.id.defaultFeedCategories)
+    }
+
+    func applySelectedCategories(_ categories: [MuseumCategory]) async {
+        await updateSelectedCategories(categories)
+    }
+
+    func toggleCategorySelection(_ category: MuseumCategory) async {
+        guard category.museumID == museum.id else { return }
+        guard state != .loading, !isLoadingMore else { return }
+
+        var nextCategoryIDs = Set(selectedCategories.map(\.id))
+        if nextCategoryIDs.contains(category.id) {
+            guard selectedCategories.count > 1 else { return }
+            nextCategoryIDs.remove(category.id)
+        } else {
+            nextCategoryIDs.insert(category.id)
+        }
+
+        let nextCategories = availableCategories.filter { nextCategoryIDs.contains($0.id) }
+        await updateSelectedCategories(nextCategories)
+    }
+
     func reload() async {
-        ArtworkFeedCache.shared.clear(museumID: museum.id, randomOrder: isRandomOrder)
+        ArtworkFeedCache.shared.clear(
+            museumID: museum.id,
+            randomOrder: isRandomOrder,
+            categorySelectionKey: categorySelectionKey
+        )
         if museum.id == .tnm {
-            await japanSearchAPI.resetSearchCache(preferHasImages: true)
+            if let typeCodes = selectedJapanSearchTypeCodes {
+                for typeCode in typeCodes {
+                    await japanSearchAPI.resetSearchCache(
+                        preferHasImages: true,
+                        categoryTypeCode: typeCode
+                    )
+                }
+            } else {
+                await japanSearchAPI.resetSearchCache(
+                    preferHasImages: true,
+                    categoryTypeCode: nil
+                )
+            }
         }
         state = .loading
         items = []
@@ -68,7 +130,7 @@ final class ArtworkFeedViewModel: ObservableObject {
         hasMoreRemoteItemIDs = museum.id == .tnm
         isLoadingMore = false
         loadingLogs = []
-        appendLoadingLog("开始加载 \(museum.displayName) 展品...")
+        appendLoadingLog("开始加载 \(museum.displayName) 展品，当前类别：\(selectedCategoriesLogLabel)。")
 
         do {
             try await warmPoolIfNeeded()
@@ -119,12 +181,30 @@ final class ArtworkFeedViewModel: ObservableObject {
 
         switch museum.id {
         case .met:
-            let ids = try await metAPI.searchObjectIDs(
-                hasImages: true,
-                isOnView: false,
-                query: "a"
-            ) { [weak self] message in
-                await self?.appendLoadingLog(message)
+            let ids: [Int]
+            if let departmentIDs = selectedMetDepartmentIDs {
+                var mergedIDs: [Int] = []
+                for (category, departmentID) in zip(selectedCategories, departmentIDs) {
+                    let categoryIDs = try await metAPI.searchObjectIDs(
+                        hasImages: true,
+                        isOnView: false,
+                        query: "*",
+                        departmentID: departmentID
+                    ) { [weak self] message in
+                        await self?.appendLoadingLog("\(category.displayName)：\(message)")
+                    }
+                    mergedIDs.append(contentsOf: categoryIDs)
+                }
+                ids = Self.stableUniqueInts(mergedIDs)
+                appendLoadingLog("已合并 \(selectedCategories.count) 个类别，共 \(ids.count) 条 objectIDs。")
+            } else {
+                ids = try await metAPI.searchObjectIDs(
+                    hasImages: true,
+                    isOnView: false,
+                    query: "*"
+                ) { [weak self] message in
+                    await self?.appendLoadingLog(message)
+                }
             }
             appendLoadingLog("开始按\(isRandomOrder ? "随机" : "objectID 顺序")模式整理 objectIDs...")
             if isRandomOrder {
@@ -136,8 +216,26 @@ final class ArtworkFeedViewModel: ObservableObject {
         case .tnm:
             try await ensureTokyoPool(targetCount: Constants.initialBatchSize, reason: "首次进入")
         case .nmc:
-            let ids = await nationalMuseumChinaAPI.allExhibitIDs { [weak self] message in
-                await self?.appendLoadingLog(message)
+            let ids: [Int]
+            if let categoryIDs = selectedNationalMuseumChinaCategoryIDs {
+                var mergedIDs: [Int] = []
+                for (category, categoryID) in zip(selectedCategories, categoryIDs) {
+                    let categoryItemIDs = try await nationalMuseumChinaAPI.allExhibitIDs(
+                        categoryID: categoryID,
+                        categoryDisplayName: category.displayName
+                    ) { [weak self] message in
+                        await self?.appendLoadingLog(message)
+                    }
+                    mergedIDs.append(contentsOf: categoryItemIDs)
+                }
+                ids = Self.stableUniqueInts(mergedIDs)
+                appendLoadingLog("已合并 \(selectedCategories.count) 个类别，共 \(ids.count) 条展品 ID。")
+            } else {
+                ids = try await nationalMuseumChinaAPI.allExhibitIDs(
+                    categoryDisplayName: selectedCategoriesLogLabel
+                ) { [weak self] message in
+                    await self?.appendLoadingLog(message)
+                }
             }
             appendLoadingLog("开始按\(isRandomOrder ? "随机" : "objectID 顺序")模式整理展品 ID...")
             if isRandomOrder {
@@ -290,8 +388,44 @@ final class ArtworkFeedViewModel: ObservableObject {
         SettingsStore.shared.feedRandomOrder
     }
 
+    private var categorySelectionKey: String {
+        museum.id.feedCategoryStorageValue(for: selectedCategories)
+    }
+
+    private var selectedCategoriesLogLabel: String {
+        isAllCategoriesSelected ? "全部" : selectedCategories.map(\.displayName).joined(separator: "、")
+    }
+
+    private var selectedMetDepartmentIDs: [Int]? {
+        guard !isAllCategoriesSelected else { return nil }
+        return selectedCategories.compactMap(\.metDepartmentID)
+    }
+
+    private var selectedJapanSearchTypeCodes: [String]? {
+        guard !isAllCategoriesSelected else { return nil }
+        return selectedCategories.compactMap(\.japanSearchTypeCode)
+    }
+
+    private var selectedNationalMuseumChinaCategoryIDs: [Int]? {
+        guard !isAllCategoriesSelected else { return nil }
+        return selectedCategories.compactMap(\.nationalMuseumChinaCategoryID)
+    }
+
+    private func updateSelectedCategories(_ categories: [MuseumCategory]) async {
+        let normalized = museum.id.normalizedFeedCategories(categories)
+        guard normalized.map(\.id) != selectedCategories.map(\.id) else { return }
+
+        selectedCategories = normalized
+        SettingsStore.shared.saveFeedCategories(normalized, for: museum.id)
+        await reload()
+    }
+
     private func restoreCachedFeedIfAvailable() -> Bool {
-        guard let snapshot = ArtworkFeedCache.shared.snapshot(for: museum.id, randomOrder: isRandomOrder) else {
+        guard let snapshot = ArtworkFeedCache.shared.snapshot(
+            for: museum.id,
+            randomOrder: isRandomOrder,
+            categorySelectionKey: categorySelectionKey
+        ) else {
             return false
         }
         guard !snapshot.items.isEmpty else {
@@ -302,7 +436,7 @@ final class ArtworkFeedViewModel: ObservableObject {
         objectIDPool = Self.stableUniqueStrings(snapshot.objectIDPool)
         loadedObjectIDs = snapshot.loadedObjectIDs
         hasMoreItems = snapshot.hasMoreItems
-        hasMoreRemoteItemIDs = museum.id == .tnm
+        hasMoreRemoteItemIDs = snapshot.hasMoreRemoteItemIDs
         isLoadingMore = false
         state = .loaded
         return true
@@ -313,10 +447,12 @@ final class ArtworkFeedViewModel: ObservableObject {
         ArtworkFeedCache.shared.store(
             museumID: museum.id,
             randomOrder: isRandomOrder,
+            categorySelectionKey: categorySelectionKey,
             items: items,
             objectIDPool: objectIDPool,
             loadedObjectIDs: loadedObjectIDs,
-            hasMoreItems: hasMoreItems
+            hasMoreItems: hasMoreItems,
+            hasMoreRemoteItemIDs: hasMoreRemoteItemIDs
         )
     }
 
@@ -345,36 +481,71 @@ final class ArtworkFeedViewModel: ObservableObject {
     }
 
     private func ensureTokyoPool(targetCount: Int, reason: String) async throws {
-        let result = try await japanSearchAPI.searchItemIDs(
-            preferHasImages: true,
-            minimumCount: targetCount
-        ) { [weak self] message in
-            await self?.appendLoadingLog(message)
+        let mergedResult: JapanSearchAPI.SearchPoolSnapshot
+        if let typeCodes = selectedJapanSearchTypeCodes {
+            var mergedItemIDs: [String] = []
+            var hasMoreRemoteItems = false
+
+            for (category, typeCode) in zip(selectedCategories, typeCodes) {
+                let categoryResult = try await japanSearchAPI.searchItemIDs(
+                    preferHasImages: true,
+                    categoryTypeCode: typeCode,
+                    minimumCount: targetCount
+                ) { [weak self] message in
+                    await self?.appendLoadingLog("\(category.displayName)：\(message)")
+                }
+                mergedItemIDs.append(contentsOf: categoryResult.itemIDs)
+                hasMoreRemoteItems = hasMoreRemoteItems || categoryResult.hasMoreRemoteItems
+            }
+
+            mergedResult = JapanSearchAPI.SearchPoolSnapshot(
+                itemIDs: Self.stableUniqueStrings(mergedItemIDs),
+                hasMoreRemoteItems: hasMoreRemoteItems
+            )
+        } else {
+            mergedResult = try await japanSearchAPI.searchItemIDs(
+                preferHasImages: true,
+                categoryTypeCode: nil,
+                minimumCount: targetCount
+            ) { [weak self] message in
+                await self?.appendLoadingLog(message)
+            }
         }
 
-        appendLoadingLog("\(reason)时按\(isRandomOrder ? "随机" : "ID 顺序")模式整理 itemIDs...")
-        let uniqueIDs = Self.stableUniqueStrings(result.itemIDs)
-        if uniqueIDs.count != result.itemIDs.count {
-            appendLoadingLog("东京国立博物馆搜索结果存在重复 itemID，已去重 \(result.itemIDs.count - uniqueIDs.count) 条。")
+        appendLoadingLog("\(reason)时按\(isRandomOrder ? "随机" : "ID 顺序")模式整理 itemIDs，类别：\(selectedCategoriesLogLabel)。")
+        let uniqueIDs = Self.stableUniqueStrings(mergedResult.itemIDs)
+        if uniqueIDs.count != mergedResult.itemIDs.count {
+            appendLoadingLog("东京国立博物馆搜索结果存在重复 itemID，已去重 \(mergedResult.itemIDs.count - uniqueIDs.count) 条。")
         }
 
         if objectIDPool.isEmpty {
-            objectIDPool = isRandomOrder ? Array(uniqueIDs.shuffled()) : uniqueIDs
+            objectIDPool = isRandomOrder ? Array(uniqueIDs.shuffled()) : uniqueIDs.sorted()
         } else if isRandomOrder {
             let existing = Set(objectIDPool)
             let appended = uniqueIDs.filter { !existing.contains($0) }.shuffled()
             objectIDPool.append(contentsOf: appended)
         } else {
-            objectIDPool = uniqueIDs
+            objectIDPool = uniqueIDs.sorted()
         }
 
-        hasMoreRemoteItemIDs = result.hasMoreRemoteItems
+        hasMoreRemoteItemIDs = mergedResult.hasMoreRemoteItems
         appendLoadingLog("itemIDs 已就绪，当前缓存 \(objectIDPool.count) 条，\(hasMoreRemoteItemIDs ? "后续可继续拉取" : "已无更多远端数据")。")
     }
 
     private static func stableUniqueStrings(_ values: [String]) -> [String] {
         var seen: Set<String> = []
         var result: [String] = []
+        result.reserveCapacity(values.count)
+
+        for value in values where seen.insert(value).inserted {
+            result.append(value)
+        }
+        return result
+    }
+
+    private static func stableUniqueInts(_ values: [Int]) -> [Int] {
+        var seen: Set<Int> = []
+        var result: [Int] = []
         result.reserveCapacity(values.count)
 
         for value in values where seen.insert(value).inserted {

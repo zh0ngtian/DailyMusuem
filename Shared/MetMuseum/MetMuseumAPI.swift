@@ -14,10 +14,11 @@ final class MetMuseumAPI {
         hasImages: Bool,
         isOnView: Bool,
         query: String,
+        departmentID: Int? = nil,
         onLog: (@Sendable (String) async -> Void)? = nil
     ) async throws -> [Int] {
         let logger = RequestLogger.shared
-        let cacheKey = "\(hasImages)-\(isOnView)-\(query)"
+        let cacheKey = "\(hasImages)-\(isOnView)-\(query)-\(departmentID.map(String.init) ?? "all")"
         await onLog?("检查 objectIDs 内存缓存...")
         if let cached = await responseCache.searchObjectIDs(forKey: cacheKey) {
             await logger.logEvent(source: "Met 搜索", summary: "命中内存缓存，复用 \(cached.count) 条 objectIDs")
@@ -36,11 +37,15 @@ final class MetMuseumAPI {
         await onLog?("未命中本地缓存，开始从大都会艺术博物馆拉取全量 objectIDs，首次可能较慢...")
 
         var components = URLComponents(url: baseURL.appending(path: "search"), resolvingAgainstBaseURL: false)
-        components?.queryItems = [
+        var queryItems = [
             URLQueryItem(name: "hasImages", value: hasImages ? "true" : "false"),
             URLQueryItem(name: "isOnView", value: isOnView ? "true" : "false"),
             URLQueryItem(name: "q", value: query)
         ]
+        if let departmentID {
+            queryItems.append(URLQueryItem(name: "departmentId", value: "\(departmentID)"))
+        }
+        components?.queryItems = queryItems
 
         guard let url = components?.url else {
             throw URLError(.badURL)
