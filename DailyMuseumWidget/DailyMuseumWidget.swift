@@ -27,6 +27,10 @@ struct DailyMuseumWidget: Widget {
 }
 
 struct DailyMuseumWidgetProvider: TimelineProvider {
+    private enum Constants {
+        static let loadingStateRetryInterval: TimeInterval = 5
+    }
+
     func placeholder(in context: Context) -> WidgetArtworkEntry {
         WidgetArtworkEntry(
             date: .now,
@@ -57,12 +61,13 @@ struct DailyMuseumWidgetProvider: TimelineProvider {
             let nextRefresh = now.addingTimeInterval(refresh.seconds)
 
             if settings.manualRefreshInProgress {
+                let retryDate = now.addingTimeInterval(Constants.loadingStateRetryInterval)
                 await RequestLogger.shared.logEvent(
                     source: "Widget 刷新",
-                    summary: "检测到手动刷新进行中，先展示加载态"
+                    summary: "检测到手动刷新进行中，先展示加载态，并在 \(Self.logTimestampFormatter.string(from: retryDate)) 重试"
                 )
                 let loadingEntry = await WidgetArtworkService(settings: settings).makeLoadingEntry(date: now)
-                completion(Timeline(entries: [loadingEntry], policy: .after(nextRefresh)))
+                completion(Timeline(entries: [loadingEntry], policy: .after(retryDate)))
                 return
             }
 

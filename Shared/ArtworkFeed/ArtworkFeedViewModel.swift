@@ -42,6 +42,7 @@ final class ArtworkFeedViewModel: ObservableObject {
     private let metAPI = MetMuseumAPI()
     private let japanSearchAPI = JapanSearchAPI()
     private let nationalMuseumChinaAPI = NationalMuseumChinaAPI()
+    private let shanghaiMuseumAPI = ShanghaiMuseumAPI()
     private var objectIDPool: [String] = []
     private var loadedObjectIDs: Set<String> = []
     private var hasMoreRemoteItemIDs = false
@@ -121,13 +122,15 @@ final class ArtworkFeedViewModel: ObservableObject {
                     categoryTypeCode: nil
                 )
             }
+        } else if museum.id == .shm {
+            await shanghaiMuseumAPI.resetSearchCache(subtypes: selectedShanghaiMuseumSubtypes)
         }
         state = .loading
         items = []
         objectIDPool = []
         loadedObjectIDs = []
         hasMoreItems = true
-        hasMoreRemoteItemIDs = museum.id == .tnm
+        hasMoreRemoteItemIDs = museum.id == .tnm || museum.id == .shm
         isLoadingMore = false
         loadingLogs = []
         appendLoadingLog("开始加载 \(museum.displayName) 展品，当前类别：\(selectedCategoriesLogLabel)。")
@@ -155,6 +158,7 @@ final class ArtworkFeedViewModel: ObservableObject {
         do {
             try await warmPoolIfNeeded()
             try await ensureTokyoPoolIfNeeded(minimumRemainingCount: Constants.loadMoreBatchSize)
+            try await ensureShanghaiPoolIfNeeded(minimumRemainingCount: Constants.loadMoreBatchSize)
             try await loadNextBatch(count: Constants.loadMoreBatchSize)
         } catch {
             appendLoadingLog("加载更多失败：\(error.localizedDescription)")
@@ -244,25 +248,27 @@ final class ArtworkFeedViewModel: ObservableObject {
                 objectIDPool = ids.sorted().map(String.init)
             }
             appendLoadingLog("展品 ID 已就绪，当前可用 \(objectIDPool.count) 条。")
+        case .shm:
+            try await ensureShanghaiPool(targetCount: Constants.initialBatchSize, reason: "首次进入")
         }
     }
 
     private func loadNextBatch(count: Int) async throws {
         var candidates = objectIDPool.filter { !loadedObjectIDs.contains($0) }
         var collected: [Artwork] = []
-        var remainingRequestQuota = (museum.id == .met || museum.id == .nmc) ? count : Int.max
+        var remainingRequestQuota = (museum.id == .met || museum.id == .nmc || museum.id == .shm) ? count : Int.max
 
         let batchLabel = items.isEmpty ? "首批" : "下一批"
         appendLoadingLog("开始拉取\(batchLabel) \(count) 个展品详情...")
 
-        while ((museum.id == .met || museum.id == .nmc) ? remainingRequestQuota > 0 : collected.count < count), !candidates.isEmpty {
-            let chunkSize = (museum.id == .met || museum.id == .nmc)
+        while ((museum.id == .met || museum.id == .nmc || museum.id == .shm) ? remainingRequestQuota > 0 : collected.count < count), !candidates.isEmpty {
+            let chunkSize = (museum.id == .met || museum.id == .nmc || museum.id == .shm)
                 ? min(remainingRequestQuota, count)
                 : max(count - collected.count, 10)
             let next = Array(candidates.prefix(chunkSize))
             candidates.removeFirst(min(chunkSize, candidates.count))
             loadedObjectIDs.formUnion(next)
-            if museum.id == .met || museum.id == .nmc {
+            if museum.id == .met || museum.id == .nmc || museum.id == .shm {
                 remainingRequestQuota -= next.count
             }
 
@@ -322,6 +328,44 @@ final class ArtworkFeedViewModel: ObservableObject {
                 }
 
                 collected.append(contentsOf: artworks)
+            case .shm:
+                let batchResults = await withTaskGroup(of: BatchLoadResult.self) { group in
+                    for objectCode in next {
+                        group.addTask {
+                            if let summaryArtwork = await self.shanghaiMuseumAPI.cachedSearchArtwork(objectCode: objectCode) {
+                                return .artwork(summaryArtwork)
+                            }
+
+                            do {
+                                let artwork = try await self.shanghaiMuseumAPI.fetchArtwork(objectCode: objectCode)
+                                return .artwork(artwork)
+                            } catch {
+                                return .failure("code=\(objectCode) 详情获取失败：\(error.localizedDescription)")
+                            }
+                        }
+                    }
+
+                    var output: [BatchLoadResult] = []
+                    for await result in group {
+                        output.append(result)
+                    }
+                    return output
+                }
+                let artworks = batchResults.compactMap { result -> Artwork? in
+                    guard case .artwork(let artwork) = result else { return nil }
+                    return artwork
+                }
+                let failures = batchResults.compactMap { result -> String? in
+                    guard case .failure(let message) = result else { return nil }
+                    return message
+                }
+                collected.append(contentsOf: artworks)
+                if !failures.isEmpty {
+                    appendLoadingLog("上海博物馆本批详情失败 \(failures.count) 条。")
+                    for message in failures.prefix(3) {
+                        appendLoadingLog(message)
+                    }
+                }
             case .tnm:
                 let batchResults = await withTaskGroup(of: BatchLoadResult.self) { group in
                     for itemID in next {
@@ -363,7 +407,7 @@ final class ArtworkFeedViewModel: ObservableObject {
         }
 
         let hasLocalMoreItems = objectIDPool.contains { !loadedObjectIDs.contains($0) }
-        hasMoreItems = hasLocalMoreItems || (museum.id == .tnm && hasMoreRemoteItemIDs)
+        hasMoreItems = hasLocalMoreItems || ((museum.id == .tnm || museum.id == .shm) && hasMoreRemoteItemIDs)
 
         let orderIndex = Dictionary(
             objectIDPool.enumerated().map { ($0.element, $0.offset) },
@@ -409,6 +453,11 @@ final class ArtworkFeedViewModel: ObservableObject {
     private var selectedNationalMuseumChinaCategoryIDs: [Int]? {
         guard !isAllCategoriesSelected else { return nil }
         return selectedCategories.compactMap(\.nationalMuseumChinaCategoryID)
+    }
+
+    private var selectedShanghaiMuseumSubtypes: [String]? {
+        guard !isAllCategoriesSelected else { return nil }
+        return selectedCategories.compactMap(\.shanghaiMuseumSubtype)
     }
 
     private func updateSelectedCategories(_ categories: [MuseumCategory]) async {
@@ -530,6 +579,43 @@ final class ArtworkFeedViewModel: ObservableObject {
 
         hasMoreRemoteItemIDs = mergedResult.hasMoreRemoteItems
         appendLoadingLog("itemIDs 已就绪，当前缓存 \(objectIDPool.count) 条，\(hasMoreRemoteItemIDs ? "后续可继续拉取" : "已无更多远端数据")。")
+    }
+
+    private func ensureShanghaiPoolIfNeeded(minimumRemainingCount: Int) async throws {
+        guard museum.id == .shm else { return }
+        let remainingCount = objectIDPool.filter { !loadedObjectIDs.contains($0) }.count
+        guard remainingCount < minimumRemainingCount, hasMoreRemoteItemIDs else { return }
+
+        let nextTargetCount = max(objectIDPool.count, loadedObjectIDs.count + minimumRemainingCount)
+        try await ensureShanghaiPool(targetCount: nextTargetCount, reason: "继续浏览")
+    }
+
+    private func ensureShanghaiPool(targetCount: Int, reason: String) async throws {
+        let result = try await shanghaiMuseumAPI.searchArtworkCodes(
+            subtypes: selectedShanghaiMuseumSubtypes,
+            minimumCount: targetCount
+        ) { [weak self] message in
+            await self?.appendLoadingLog(message)
+        }
+
+        appendLoadingLog("\(reason)时按\(isRandomOrder ? "随机" : "编码顺序")模式整理上海博物馆展品，类别：\(selectedCategoriesLogLabel)。")
+        let uniqueIDs = Self.stableUniqueStrings(result.artworkCodes)
+        if uniqueIDs.count != result.artworkCodes.count {
+            appendLoadingLog("上海博物馆搜索结果存在重复编码，已去重 \(result.artworkCodes.count - uniqueIDs.count) 条。")
+        }
+
+        if objectIDPool.isEmpty {
+            objectIDPool = isRandomOrder ? Array(uniqueIDs.shuffled()) : uniqueIDs.sorted()
+        } else if isRandomOrder {
+            let existing = Set(objectIDPool)
+            let appended = uniqueIDs.filter { !existing.contains($0) }.shuffled()
+            objectIDPool.append(contentsOf: appended)
+        } else {
+            objectIDPool = uniqueIDs.sorted()
+        }
+
+        hasMoreRemoteItemIDs = result.hasMoreRemoteItems
+        appendLoadingLog("上海博物馆展品编码已就绪，当前缓存 \(objectIDPool.count) 条，\(hasMoreRemoteItemIDs ? "后续可继续拉取" : "已无更多远端数据")。")
     }
 
     private static func stableUniqueStrings(_ values: [String]) -> [String] {

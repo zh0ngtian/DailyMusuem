@@ -14,6 +14,7 @@ struct ArtworkDetailLoaderView: View {
     private let metAPI = MetMuseumAPI()
     private let japanSearchAPI = JapanSearchAPI()
     private let nationalMuseumChinaAPI = NationalMuseumChinaAPI()
+    private let shanghaiMuseumAPI = ShanghaiMuseumAPI()
     private let tencentTranslationClient = TencentTranslationClient()
     private let miniMaxTranslationClient = MiniMaxTranslationClient()
 
@@ -100,6 +101,8 @@ struct ArtworkDetailLoaderView: View {
                     throw URLError(.badURL)
                 }
                 artwork = try await nationalMuseumChinaAPI.fetchExhibit(exhibitID: exhibitID)
+            case .shm:
+                artwork = try await shanghaiMuseumAPI.fetchArtwork(objectCode: reference.objectID)
             }
         } catch {
             if artwork == nil {

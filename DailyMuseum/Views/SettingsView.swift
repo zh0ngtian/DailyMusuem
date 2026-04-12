@@ -27,7 +27,7 @@ struct SettingsView: View {
                 }
                 Picker("展示范围", selection: $settings.widgetMuseumScopeRawValue) {
                     Text("所有博物馆").tag(WidgetMuseumScope.all.rawValue)
-                    ForEach(settings.orderedMuseums()) { museum in
+                    ForEach(settings.orderedWidgetMuseums()) { museum in
                         Text(museum.displayName).tag(WidgetMuseumScope.single(museum.id).rawValue)
                     }
                 }
@@ -176,7 +176,7 @@ struct SettingsView: View {
     private var widgetCategoryMuseums: [Museum] {
         switch settings.widgetMuseumScope() {
         case .all:
-            return settings.orderedMuseums()
+            return settings.orderedWidgetMuseums()
         case .single(let museumID):
             return [MuseumRepository.museum(for: museumID)]
         }
