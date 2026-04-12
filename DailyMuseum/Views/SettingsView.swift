@@ -19,7 +19,7 @@ struct SettingsView: View {
             Section("展品列表") {
                 Toggle("随机展示展品", isOn: $settings.feedRandomOrder)
             }
-            Section("小组件") {
+            Section {
                 Picker("刷新间隔", selection: $settings.widgetRefreshIntervalMinutes) {
                     ForEach(WidgetRefreshInterval.allCases) { interval in
                         Text(interval.displayName).tag(interval.rawValue)
@@ -32,35 +32,10 @@ struct SettingsView: View {
                     }
                 }
                 Toggle("优先只展示有图片的展品", isOn: $settings.widgetPreferHasImages)
-            }
-            ForEach(widgetCategoryMuseums) { museum in
-                Section(widgetCategorySectionTitle(for: museum)) {
-                    Button {
-                        updateWidgetCategories(museum.id.defaultFeedCategories, for: museum.id)
-                    } label: {
-                        categorySelectionRow(
-                            title: "全部",
-                            isSelected: isAllWidgetCategoriesSelected(for: museum.id)
-                        )
-                    }
-                    .buttonStyle(.plain)
-
-                    ForEach(museum.id.selectableFeedCategories) { category in
-                        Button {
-                            toggleWidgetCategorySelection(category, for: museum.id)
-                        } label: {
-                            categorySelectionRow(
-                                title: category.displayName,
-                                isSelected: widgetCategoryIDs(for: museum.id).contains(category.id)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    Text("当前选择：\(widgetCategoriesSummary(for: museum.id))")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+            } header: {
+                Text("小组件")
+            } footer: {
+                Text("展示类别会直接跟随各博物馆二级页中的页面设置。")
             }
             Section {
                 Text("提示：WidgetKit 不保证按设定精确刷新，系统会根据电量和使用情况进行调整。")
@@ -171,78 +146,6 @@ struct SettingsView: View {
         } message: {
             Text(settingsAlert ?? "")
         }
-    }
-
-    private var widgetCategoryMuseums: [Museum] {
-        switch settings.widgetMuseumScope() {
-        case .all:
-            return settings.orderedWidgetMuseums()
-        case .single(let museumID):
-            return [MuseumRepository.museum(for: museumID)]
-        }
-    }
-
-    private func widgetCategorySectionTitle(for museum: Museum) -> String {
-        if widgetCategoryMuseums.count == 1 {
-            return "小组件类别"
-        }
-        return "\(museum.displayName) 类别"
-    }
-
-    private func widgetCategories(for museumID: MuseumID) -> [MuseumCategory] {
-        settings.widgetCategories(for: museumID)
-    }
-
-    private func widgetCategoryIDs(for museumID: MuseumID) -> Set<String> {
-        Set(widgetCategories(for: museumID).map(\.id))
-    }
-
-    private func isAllWidgetCategoriesSelected(for museumID: MuseumID) -> Bool {
-        museumID.areAllFeedCategoriesSelected(widgetCategories(for: museumID))
-    }
-
-    private func widgetCategoriesSummary(for museumID: MuseumID) -> String {
-        let categories = widgetCategories(for: museumID)
-        if museumID.areAllFeedCategoriesSelected(categories) {
-            return "全部"
-        }
-
-        if categories.count <= 2 {
-            return categories.map(\.displayName).joined(separator: "、")
-        }
-
-        return "已选 \(categories.count) 类"
-    }
-
-    private func categorySelectionRow(title: String, isSelected: Bool) -> some View {
-        HStack(spacing: 12) {
-            Text(title)
-                .foregroundStyle(.primary)
-            Spacer(minLength: 0)
-            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-        }
-        .contentShape(Rectangle())
-    }
-
-    private func updateWidgetCategories(_ categories: [MuseumCategory], for museumID: MuseumID) {
-        settings.saveWidgetCategories(categories, for: museumID)
-        settings.requestWidgetReload(invalidateContent: true)
-    }
-
-    private func toggleWidgetCategorySelection(_ category: MuseumCategory, for museumID: MuseumID) {
-        guard category.museumID == museumID else { return }
-
-        var nextCategoryIDs = widgetCategoryIDs(for: museumID)
-        if nextCategoryIDs.contains(category.id) {
-            guard nextCategoryIDs.count > 1 else { return }
-            nextCategoryIDs.remove(category.id)
-        } else {
-            nextCategoryIDs.insert(category.id)
-        }
-
-        let nextCategories = museumID.selectableFeedCategories.filter { nextCategoryIDs.contains($0.id) }
-        updateWidgetCategories(nextCategories, for: museumID)
     }
 
     private func loadTranslationCredentials() {
