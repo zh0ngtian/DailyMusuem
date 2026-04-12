@@ -11,6 +11,7 @@ enum SettingsKeys {
     static let translationEngine = "translation.engine"
     static let widgetManualRefreshNonce = "widget.manualRefreshNonce"
     static let widgetManualRefreshInProgress = "widget.manualRefreshInProgress"
+    static let widgetManualRefreshStartedAt = "widget.manualRefreshStartedAt"
     static let widgetRefreshIntervalMinutes = "widget.refreshIntervalMinutes"
     static let widgetMuseumScope = "widget.museumScope"
     static let widgetCategoryPrefix = "widget.category."
@@ -22,6 +23,7 @@ enum SettingsKeys {
         translationEngine,
         widgetManualRefreshNonce,
         widgetManualRefreshInProgress,
+        widgetManualRefreshStartedAt,
         widgetRefreshIntervalMinutes,
         widgetMuseumScope,
         widgetPreferHasImages

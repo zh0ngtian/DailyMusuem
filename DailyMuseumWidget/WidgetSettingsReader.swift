@@ -1,6 +1,10 @@
 import Foundation
 
 struct WidgetSettingsReader {
+    private enum Constants {
+        static let manualRefreshStaleTimeout: TimeInterval = 30
+    }
+
     private let defaults: UserDefaults
 
     init() {
@@ -14,7 +18,12 @@ struct WidgetSettingsReader {
 
     var museumScope: WidgetMuseumScope {
         let raw = defaults.string(forKey: SettingsKeys.widgetMuseumScope) ?? WidgetMuseumScope.all.rawValue
-        return WidgetMuseumScope(rawValue: raw) ?? .all
+        let scope = WidgetMuseumScope(rawValue: raw) ?? .all
+        if scope.isSupportedForWidget {
+            return scope
+        }
+        persistWidgetMuseumScope(.all)
+        return .all
     }
 
     var preferHasImages: Bool {
@@ -27,7 +36,22 @@ struct WidgetSettingsReader {
     }
 
     var manualRefreshInProgress: Bool {
-        defaults.bool(forKey: SettingsKeys.widgetManualRefreshInProgress)
+        guard defaults.bool(forKey: SettingsKeys.widgetManualRefreshInProgress) else {
+            return false
+        }
+
+        let startedAt = defaults.double(forKey: SettingsKeys.widgetManualRefreshStartedAt)
+        guard startedAt > 0 else {
+            clearManualRefreshState()
+            return false
+        }
+
+        if Date().timeIntervalSince1970 - startedAt >= Constants.manualRefreshStaleTimeout {
+            clearManualRefreshState()
+            return false
+        }
+
+        return true
     }
 
     func categories(for museumID: MuseumID) -> [MuseumCategory] {
@@ -37,7 +61,7 @@ struct WidgetSettingsReader {
     var categorySelectionKey: String {
         switch museumScope {
         case .all:
-            return MuseumID.allCases
+            return MuseumRepository.widgetSupportedMuseums.map(\.id)
                 .map { "\($0.rawValue):\(categorySelectionKey(for: $0))" }
                 .joined(separator: ";")
         case .single(let museumID):
@@ -64,5 +88,27 @@ struct WidgetSettingsReader {
         }
 
         return defaults.string(forKey: feedCategoryKey(for: museumID))
+    }
+
+    private func clearManualRefreshState() {
+        defaults.set(false, forKey: SettingsKeys.widgetManualRefreshInProgress)
+        defaults.removeObject(forKey: SettingsKeys.widgetManualRefreshStartedAt)
+        defaults.synchronize()
+    }
+
+    private func persistWidgetMuseumScope(_ scope: WidgetMuseumScope) {
+        defaults.set(scope.rawValue, forKey: SettingsKeys.widgetMuseumScope)
+        defaults.synchronize()
+    }
+}
+
+private extension WidgetMuseumScope {
+    var isSupportedForWidget: Bool {
+        switch self {
+        case .all:
+            return true
+        case .single(let museumID):
+            return museumID.supportsWidgetContent
+        }
     }
 }

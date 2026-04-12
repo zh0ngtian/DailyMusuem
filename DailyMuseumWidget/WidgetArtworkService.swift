@@ -3,6 +3,7 @@ import Foundation
 struct WidgetArtworkService {
     private enum Constants {
         static let imageDownloadMaxAttempts = 3
+        static let imageRequestTimeout: TimeInterval = 8
         static let imageRetryBaseDelayNanoseconds: UInt64 = 400_000_000
     }
 
@@ -10,6 +11,7 @@ struct WidgetArtworkService {
     private let metAPI = MetMuseumAPI()
     private let japanSearchAPI = JapanSearchAPI()
     private let nationalMuseumChinaAPI = NationalMuseumChinaAPI()
+    private let shanghaiMuseumAPI = ShanghaiMuseumAPI()
     private let snapshotStore = WidgetArtworkSnapshotStore.shared
 
     func makeLoadingEntry(date: Date) async -> WidgetArtworkEntry {
@@ -88,6 +90,17 @@ struct WidgetArtworkService {
             }
             let artwork = try await nationalMuseumChinaAPI.fetchExhibit(exhibitID: id)
             return try await makeSnapshotEntry(for: artwork, museum: museum, date: date, cycleKey: cycleKey)
+        case .shm:
+            let codes = try await shmArtworkCodes()
+            guard let code = pickObjectID(from: codes, previousReference: previousReference, museum: museum) else {
+                throw URLError(.cannotParseResponse)
+            }
+            let artwork = if let cached = await shanghaiMuseumAPI.cachedSearchArtwork(objectCode: code) {
+                cached
+            } else {
+                try await shanghaiMuseumAPI.fetchArtwork(objectCode: code)
+            }
+            return try await makeSnapshotEntry(for: artwork, museum: museum, date: date, cycleKey: cycleKey)
         }
     }
 
@@ -129,7 +142,7 @@ struct WidgetArtworkService {
         switch museum.id {
         case .tnm:
             return artwork.primaryImageURL ?? artwork.primaryImageSmallURL
-        case .met, .nmc:
+        case .met, .nmc, .shm:
             return artwork.primaryImageSmallURL ?? artwork.primaryImageURL
         }
     }
@@ -195,6 +208,16 @@ struct WidgetArtworkService {
         return Self.stableUniqueInts(mergedIDs)
     }
 
+    private func shmArtworkCodes() async throws -> [String] {
+        let selectedCategories = settings.categories(for: .shm)
+        let selectedSubtypes: [String]? = if MuseumID.shm.areAllFeedCategoriesSelected(selectedCategories) {
+            nil
+        } else {
+            selectedCategories.compactMap(\.shanghaiMuseumSubtype)
+        }
+        return try await shanghaiMuseumAPI.allArtworkCodes(subtypes: selectedSubtypes)
+    }
+
     private func categorySummary(for museumID: MuseumID) -> String {
         let categories = settings.categories(for: museumID)
         if museumID.areAllFeedCategoriesSelected(categories) {
@@ -230,9 +253,9 @@ struct WidgetArtworkService {
     private func pickMuseum() -> Museum {
         switch settings.museumScope {
         case .all:
-            return MuseumRepository.supportedMuseums.randomElement() ?? MuseumRepository.supportedMuseums[0]
+            return MuseumRepository.widgetSupportedMuseums.randomElement() ?? MuseumRepository.widgetSupportedMuseums[0]
         case .single(let id):
-            return MuseumRepository.supportedMuseums.first(where: { $0.id == id }) ?? MuseumRepository.supportedMuseums[0]
+            return MuseumRepository.widgetSupportedMuseums.first(where: { $0.id == id }) ?? MuseumRepository.widgetSupportedMuseums[0]
         }
     }
 
@@ -240,10 +263,11 @@ struct WidgetArtworkService {
         guard let url else { return nil }
         for attempt in 1...Constants.imageDownloadMaxAttempts {
             let start = Date()
+            let request = URLRequest(url: url, timeoutInterval: Constants.imageRequestTimeout)
             await RequestLogger.shared.logRequestStart(source: "Widget 图片", url: url)
 
             do {
-                let (data, response) = try await URLSession.shared.data(from: url)
+                let (data, response) = try await URLSession.shared.data(for: request)
                 guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
                     throw URLError(.badServerResponse)
                 }

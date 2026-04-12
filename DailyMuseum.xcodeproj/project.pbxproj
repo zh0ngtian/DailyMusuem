@@ -10,6 +10,8 @@
 		010B92CC939F14CA27C2A0FB /* JapanSearchPersistentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81AF35BA5DF051D95514488B /* JapanSearchPersistentCache.swift */; };
 		0B60E7E46431A00100000001 /* NationalMuseumChinaAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B60E7E46431A00100000005 /* NationalMuseumChinaAPI.swift */; };
 		0B60E7E46431A00100000002 /* NationalMuseumChinaAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B60E7E46431A00100000005 /* NationalMuseumChinaAPI.swift */; };
+		A13F0E36D4A24301B00C1001 /* ShanghaiMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13F0E36D4A24301B00C1003 /* ShanghaiMuseumAPI.swift */; };
+		A13F0E36D4A24301B00C1002 /* ShanghaiMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13F0E36D4A24301B00C1003 /* ShanghaiMuseumAPI.swift */; };
 		048A14DA9BBF5DC796231307 /* MuseumListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB101B5E24D3739851DC6A22 /* MuseumListView.swift */; };
 		076F9714F7BD5FF4BB3C9548 /* DailyMuseumWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 677E368A7DD1F542B480E2C3 /* DailyMuseumWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		07D7736A77F39CB6028E891B /* ArtworkFeedItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71CBDD45FB2452D4E907C758 /* ArtworkFeedItem.swift */; };
@@ -142,6 +144,7 @@
 		DA2C496990992A4623A8A9C9 /* DailyMuseumWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyMuseumWidgetBundle.swift; sourceTree = "<group>"; };
 		DB101B5E24D3739851DC6A22 /* MuseumListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuseumListView.swift; sourceTree = "<group>"; };
 		DFDCEFCEFAE0A60F402972CF /* JapanSearchAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JapanSearchAPI.swift; sourceTree = "<group>"; };
+		A13F0E36D4A24301B00C1003 /* ShanghaiMuseumAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShanghaiMuseumAPI.swift; sourceTree = "<group>"; };
 		F45F7D1EF6D115D013098444 /* ArtworkDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkDetailView.swift; sourceTree = "<group>"; };
 		FABED403F7CD2A9A4E6D1FEB /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -181,6 +184,14 @@
 				0B60E7E46431A00100000005 /* NationalMuseumChinaAPI.swift */,
 			);
 			path = NationalMuseumChina;
+			sourceTree = "<group>";
+		};
+		A13F0E36D4A24301B00C1004 /* ShanghaiMuseum */ = {
+			isa = PBXGroup;
+			children = (
+				A13F0E36D4A24301B00C1003 /* ShanghaiMuseumAPI.swift */,
+			);
+			path = ShanghaiMuseum;
 			sourceTree = "<group>";
 		};
 		41BF8271109E2C2D713CC4AF /* Products */ = {
@@ -229,6 +240,7 @@
 				2D9E1AB212E9EA83BCC2C332 /* Logging */,
 				24F54B3AB67BE88EFFFE3CE4 /* MetMuseum */,
 				0B60E7E46431A00100000007 /* NationalMuseumChina */,
+				A13F0E36D4A24301B00C1004 /* ShanghaiMuseum */,
 				B3F7EF00803CBE83E17F964E /* Settings */,
 			);
 			path = Shared;
@@ -416,6 +428,7 @@
 				09B43AA4EB71B869B66F2569 /* MetMuseumPersistentCache.swift in Sources */,
 				EC1E9A6F5E8D8396F9E74410 /* Museum.swift in Sources */,
 				0B60E7E46431A00100000001 /* NationalMuseumChinaAPI.swift in Sources */,
+				A13F0E36D4A24301B00C1001 /* ShanghaiMuseumAPI.swift in Sources */,
 				5CC00FF6639BCA691EC911D4 /* RefreshWidgetIntent.swift in Sources */,
 				39EF46DCBA1A93ADAB139396 /* RequestLogger.swift in Sources */,
 				25F50C06099559E4DBB10D2C /* SettingsKeys.swift in Sources */,
@@ -455,6 +468,7 @@
 				752579CACD31E606674EED80 /* Museum.swift in Sources */,
 				048A14DA9BBF5DC796231307 /* MuseumListView.swift in Sources */,
 				0B60E7E46431A00100000002 /* NationalMuseumChinaAPI.swift in Sources */,
+				A13F0E36D4A24301B00C1002 /* ShanghaiMuseumAPI.swift in Sources */,
 				626A4F3FABA4F40BF4F5B669 /* RequestLogger.swift in Sources */,
 				2580F721762415DE7E4269A9 /* RequestLogsView.swift in Sources */,
 				47875A95039007E1D161ABF1 /* RootView.swift in Sources */,

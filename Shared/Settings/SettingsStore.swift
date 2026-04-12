@@ -81,12 +81,17 @@ final class SettingsStore: ObservableObject {
     private init() {
         defaults = UserDefaults(suiteName: SettingsKeys.appGroupID) ?? .standard
         migrateLegacyDefaultsIfNeeded()
+        normalizeWidgetSettingsIfNeeded()
         tencentTranslationConfigured = tencentTranslationCredentials() != nil
         miniMaxTranslationConfigured = miniMaxTranslationCredentials() != nil
     }
 
     func widgetMuseumScope() -> WidgetMuseumScope {
-        WidgetMuseumScope(rawValue: widgetMuseumScopeRawValue) ?? .all
+        let scope = WidgetMuseumScope(rawValue: widgetMuseumScopeRawValue) ?? .all
+        if scope.isSupportedForWidget {
+            return scope
+        }
+        return .all
     }
 
     func requestWidgetReload(invalidateContent: Bool = false) {
@@ -101,6 +106,10 @@ final class SettingsStore: ObservableObject {
 
     func orderedMuseums() -> [Museum] {
         MuseumRepository.museums(inPreferredOrder: orderedMuseumIDs())
+    }
+
+    func orderedWidgetMuseums() -> [Museum] {
+        MuseumRepository.widgetMuseums(inPreferredOrder: orderedMuseumIDs())
     }
 
     func feedCategories(for museumID: MuseumID) -> [MuseumCategory] {
@@ -196,6 +205,13 @@ final class SettingsStore: ObservableObject {
                 break
             }
         }
+    }
+
+    private func normalizeWidgetSettingsIfNeeded() {
+        let scope = WidgetMuseumScope(rawValue: defaults.string(forKey: SettingsKeys.widgetMuseumScope) ?? "") ?? .all
+        guard !scope.isSupportedForWidget else { return }
+        defaults.set(WidgetMuseumScope.all.rawValue, forKey: SettingsKeys.widgetMuseumScope)
+        defaults.synchronize()
     }
 
     func translationEngine() -> TranslationEngine {
@@ -357,6 +373,17 @@ final class SettingsStore: ObservableObject {
 
     private func normalizedCredentialValue(_ value: String) -> String {
         value.replacingOccurrences(of: "\\s+", with: "", options: .regularExpression)
+    }
+}
+
+private extension WidgetMuseumScope {
+    var isSupportedForWidget: Bool {
+        switch self {
+        case .all:
+            return true
+        case .single(let museumID):
+            return museumID.supportsWidgetContent
+        }
     }
 }
 

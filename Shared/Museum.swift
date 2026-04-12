@@ -12,6 +12,7 @@ struct MuseumCategory: Identifiable, Hashable {
         case metDepartment
         case japanSearchType
         case nationalMuseumChinaBucket
+        case shanghaiMuseumSubtype
     }
 
     let museumID: MuseumID
@@ -40,6 +41,11 @@ struct MuseumCategory: Identifiable, Hashable {
         return remoteValue.flatMap(Int.init)
     }
 
+    var shanghaiMuseumSubtype: String? {
+        guard kind == .shanghaiMuseumSubtype else { return nil }
+        return remoteValue
+    }
+
     var isAll: Bool {
         kind == .all
     }
@@ -49,6 +55,7 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable {
     case met
     case tnm
     case nmc
+    case shm
 
     var id: String { rawValue }
 
@@ -60,6 +67,8 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable {
             return "东京国立博物馆"
         case .nmc:
             return "中国国家博物馆"
+        case .shm:
+            return "上海博物馆"
         }
     }
 
@@ -71,6 +80,8 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable {
             return "日本 东京"
         case .nmc:
             return "中国 北京"
+        case .shm:
+            return "中国 上海"
         }
     }
 
@@ -82,6 +93,8 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable {
             return "ja"
         case .nmc:
             return "zh"
+        case .shm:
+            return "zh"
         }
     }
 
@@ -89,8 +102,17 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .met, .tnm:
             return true
-        case .nmc:
+        case .nmc, .shm:
             return false
+        }
+    }
+
+    var supportsWidgetContent: Bool {
+        switch self {
+        case .shm:
+            return false
+        case .met, .tnm, .nmc:
+            return true
         }
     }
 
@@ -145,6 +167,14 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable {
                 .nationalMuseumChinaBucket(museumID: self, id: "rubbings", displayName: "文献拓本", categoryID: 24),
                 .nationalMuseumChinaBucket(museumID: self, id: "arts", displayName: "艺术品", categoryID: 26)
             ]
+        case .shm:
+            return [.all(museumID: self)] + [
+                "礼器", "明器", "法器", "道具", "模具/模版", "丧葬用具", "陈设/观赏品", "日用品", "文具", "农具",
+                "工具", "兵器", "饪食器", "酒器", "水器", "车马器", "度量衡", "古钱", "铸币", "打制币",
+                "机制币", "纸币", "金银锭", "非法定钱币", "雕塑", "造像", "碑刻/墓志", "俑像", "画像石", "画像砖",
+                "封泥", "符节（牌）", "印玺", "建筑配件", "器物配件", "织物", "绣品", "服装", "饰品", "文献",
+                "书籍图谱", "拓本", "玩具", "乐器"
+            ].map { .shanghaiMuseumSubtype(museumID: self, name: $0) }
         }
     }
 
@@ -215,6 +245,8 @@ enum MuseumRepository {
         Museum(id: $0, displayName: $0.displayName, subtitle: $0.subtitle)
     }
 
+    static let widgetSupportedMuseums: [Museum] = supportedMuseums.filter { $0.id.supportsWidgetContent }
+
     static func museum(for id: MuseumID) -> Museum {
         supportedMuseums.first(where: { $0.id == id }) ?? Museum(id: id, displayName: id.displayName, subtitle: id.subtitle)
     }
@@ -228,6 +260,21 @@ enum MuseumRepository {
         }
 
         for museum in supportedMuseums where seen.insert(museum.id).inserted {
+            ordered.append(museum)
+        }
+
+        return ordered
+    }
+
+    static func widgetMuseums(inPreferredOrder ids: [MuseumID]) -> [Museum] {
+        var seen: Set<MuseumID> = []
+        var ordered: [Museum] = []
+
+        for id in ids where id.supportsWidgetContent && seen.insert(id).inserted {
+            ordered.append(museum(for: id))
+        }
+
+        for museum in widgetSupportedMuseums where seen.insert(museum.id).inserted {
             ordered.append(museum)
         }
 
@@ -273,6 +320,16 @@ private extension MuseumCategory {
             displayName: displayName,
             kind: .nationalMuseumChinaBucket,
             remoteValue: String(categoryID)
+        )
+    }
+
+    static func shanghaiMuseumSubtype(museumID: MuseumID, name: String) -> MuseumCategory {
+        MuseumCategory(
+            museumID: museumID,
+            id: name,
+            displayName: name,
+            kind: .shanghaiMuseumSubtype,
+            remoteValue: name
         )
     }
 }
