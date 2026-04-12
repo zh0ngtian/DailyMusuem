@@ -21,13 +21,22 @@ struct DailyMuseumWidgetView: View {
                 VStack {
                     HStack {
                         Spacer()
-                        Button(intent: RefreshWidgetIntent()) {
-                            Image(systemName: "arrow.clockwise.circle.fill")
-                                .font(refreshIconFont)
-                                .foregroundStyle(.white)
-                                .shadow(color: .black.opacity(0.35), radius: 6, x: 0, y: 2)
+                        Group {
+                            if entry.isRefreshing {
+                                ProgressView()
+                                    .progressViewStyle(.circular)
+                                    .tint(.white)
+                            } else {
+                                Button(intent: RefreshWidgetIntent()) {
+                                    Image(systemName: "arrow.clockwise.circle.fill")
+                                        .font(refreshIconFont)
+                                        .foregroundStyle(.white)
+                                        .shadow(color: .black.opacity(0.35), radius: 6, x: 0, y: 2)
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
-                        .buttonStyle(.plain)
+                        .frame(width: refreshControlSize, height: refreshControlSize)
                     }
 
                     Spacer(minLength: 0)
@@ -159,6 +168,19 @@ struct DailyMuseumWidgetView: View {
             return 14
         default:
             return 12
+        }
+    }
+
+    private var refreshControlSize: CGFloat {
+        switch family {
+        case .systemSmall:
+            return 24
+        case .systemMedium:
+            return 28
+        case .systemLarge:
+            return 34
+        default:
+            return 24
         }
     }
 }

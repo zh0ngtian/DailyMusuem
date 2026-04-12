@@ -1,22 +1,56 @@
 import Foundation
 
 struct WidgetArtworkService {
+    private enum Constants {
+        static let imageDownloadMaxAttempts = 3
+        static let imageRetryBaseDelayNanoseconds: UInt64 = 400_000_000
+    }
+
     let settings: WidgetSettingsReader
     private let metAPI = MetMuseumAPI()
     private let japanSearchAPI = JapanSearchAPI()
     private let nationalMuseumChinaAPI = NationalMuseumChinaAPI()
     private let snapshotStore = WidgetArtworkSnapshotStore.shared
 
-    func fetchEntry(date: Date) async throws -> WidgetArtworkEntry {
-        let cycleKey = makeCycleKey(date: date)
-        if let snapshot = await snapshotStore.load(cycleKey: cycleKey) {
+    func makeLoadingEntry(date: Date) async -> WidgetArtworkEntry {
+        if let snapshot = await snapshotStore.loadLatest() {
             return WidgetArtworkEntry(
                 date: date,
                 museumName: snapshot.museumName,
                 title: snapshot.title,
                 subtitle: snapshot.subtitle,
                 imageData: snapshot.imageData,
-                appURL: snapshot.appURL
+                appURL: snapshot.appURL,
+                isRefreshing: true
+            )
+        }
+
+        return WidgetArtworkEntry(
+            date: date,
+            museumName: "DailyMuseum",
+            title: "刷新中",
+            subtitle: "正在拉取最新展品",
+            imageData: nil,
+            appURL: nil,
+            isRefreshing: true
+        )
+    }
+
+    func fetchEntry(date: Date) async throws -> WidgetArtworkEntry {
+        let cycleKey = makeCycleKey(date: date)
+        if let snapshot = await snapshotStore.load(cycleKey: cycleKey) {
+            await RequestLogger.shared.logEvent(
+                source: "Widget 刷新",
+                summary: "命中当前刷新周期快照缓存，直接复用 \(snapshot.museumName) / \(snapshot.title)"
+            )
+            return WidgetArtworkEntry(
+                date: date,
+                museumName: snapshot.museumName,
+                title: snapshot.title,
+                subtitle: snapshot.subtitle,
+                imageData: snapshot.imageData,
+                appURL: snapshot.appURL,
+                isRefreshing: false
             )
         }
 
@@ -25,6 +59,10 @@ struct WidgetArtworkService {
             .appURL
             .flatMap(AppDeepLink.parse)
         let museum = pickMuseum()
+        await RequestLogger.shared.logEvent(
+            source: "Widget 刷新",
+            summary: "开始生成新条目，博物馆=\(museum.displayName)"
+        )
 
         switch museum.id {
         case .met:
@@ -71,6 +109,10 @@ struct WidgetArtworkService {
             appURL: AppDeepLink.artworkURL(reference: reference)
         )
         await snapshotStore.store(snapshot)
+        await RequestLogger.shared.logEvent(
+            source: "Widget 刷新",
+            summary: "刷新完成，已缓存 \(museum.displayName) / \(artwork.title)"
+        )
 
         return WidgetArtworkEntry(
             date: date,
@@ -78,7 +120,8 @@ struct WidgetArtworkService {
             title: snapshot.title,
             subtitle: snapshot.subtitle,
             imageData: snapshot.imageData,
-            appURL: snapshot.appURL
+            appURL: snapshot.appURL,
+            isRefreshing: false
         )
     }
 
@@ -126,31 +169,56 @@ struct WidgetArtworkService {
 
     private func fetchImageData(url: URL?) async throws -> Data? {
         guard let url else { return nil }
-        let start = Date()
-        await RequestLogger.shared.logRequestStart(source: "Widget 图片", url: url)
+        for attempt in 1...Constants.imageDownloadMaxAttempts {
+            let start = Date()
+            await RequestLogger.shared.logRequestStart(source: "Widget 图片", url: url)
 
-        do {
-            let (data, response) = try await URLSession.shared.data(from: url)
-            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-                throw URLError(.badServerResponse)
+            do {
+                let (data, response) = try await URLSession.shared.data(from: url)
+                guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                    throw URLError(.badServerResponse)
+                }
+                await RequestLogger.shared.logRequestSuccess(
+                    source: "Widget 图片",
+                    url: url,
+                    statusCode: http.statusCode,
+                    duration: Date().timeIntervalSince(start),
+                    responseBytes: data.count
+                )
+                if attempt > 1 {
+                    await RequestLogger.shared.logEvent(
+                        source: "Widget 图片",
+                        summary: "第 \(attempt) 次尝试成功，结束重试"
+                    )
+                }
+                return data
+            } catch {
+                await RequestLogger.shared.logRequestFailure(
+                    source: "Widget 图片",
+                    url: url,
+                    duration: Date().timeIntervalSince(start),
+                    error: error
+                )
+
+                guard attempt < Constants.imageDownloadMaxAttempts else {
+                    await RequestLogger.shared.logEvent(
+                        source: "Widget 图片",
+                        summary: "图片请求已达到最大重试次数 \(Constants.imageDownloadMaxAttempts)"
+                    )
+                    return nil
+                }
+
+                let nextAttempt = attempt + 1
+                await RequestLogger.shared.logEvent(
+                    source: "Widget 图片",
+                    summary: "准备第 \(nextAttempt) 次重试"
+                )
+                let delay = Constants.imageRetryBaseDelayNanoseconds * UInt64(attempt)
+                try? await Task.sleep(nanoseconds: delay)
             }
-            await RequestLogger.shared.logRequestSuccess(
-                source: "Widget 图片",
-                url: url,
-                statusCode: http.statusCode,
-                duration: Date().timeIntervalSince(start),
-                responseBytes: data.count
-            )
-            return data
-        } catch {
-            await RequestLogger.shared.logRequestFailure(
-                source: "Widget 图片",
-                url: url,
-                duration: Date().timeIntervalSince(start),
-                error: error
-            )
-            return nil
         }
+
+        return nil
     }
 
     private func makeCycleKey(date: Date) -> String {

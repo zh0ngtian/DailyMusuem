@@ -352,6 +352,19 @@
 - 当前默认验证设备：
   - 真机名称：`Yao iPhone 17 Pro`
   - 真机设备 ID：`00008150-000E4010362B401C`
+- 当前命令行真机调试约束：
+  - `xcrun devicectl list devices` 能正确发现真机，不代表当前沙箱内的 `xcodebuild` 一定能正确识别真机 destination
+  - 在当前环境中，沙箱内执行 `xcodebuild` 时，可能只看到 `Any iOS Device`，看不到真实设备 `Yao iPhone 17 Pro`
+  - 如需进行真机构建、安装、启动验证，应优先使用脱离沙箱的 Xcode CLI 路径执行
+  - 已验证可工作的命令包括：
+    - `xcodebuild -project DailyMuseum.xcodeproj -scheme DailyMuseum -showdestinations`
+    - `xcodebuild -project DailyMuseum.xcodeproj -scheme DailyMuseum -destination 'id=00008150-000E4010362B401C' -derivedDataPath .deriveddata build`
+    - `xcrun devicectl device install app --device 00008150-000E4010362B401C .deriveddata/Build/Products/Debug-iphoneos/DailyMuseum.app`
+    - `xcrun devicectl device process launch --device 00008150-000E4010362B401C tech.zh0ngtian.DailyMuseum`
+  - 上述链路已经验证通过：
+    - 真机构建成功
+    - 真机安装成功
+    - 真机启动成功
 
 ## 当前阶段范围说明
 

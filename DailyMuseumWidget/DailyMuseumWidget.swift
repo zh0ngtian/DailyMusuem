@@ -8,6 +8,7 @@ struct WidgetArtworkEntry: TimelineEntry {
     let subtitle: String?
     let imageData: Data?
     let appURL: URL?
+    let isRefreshing: Bool
 }
 
 struct DailyMuseumWidget: Widget {
@@ -33,11 +34,18 @@ struct DailyMuseumWidgetProvider: TimelineProvider {
             title: "The Harvesters",
             subtitle: "1565",
             imageData: nil,
-            appURL: nil
+            appURL: nil,
+            isRefreshing: false
         )
     }
 
     func getSnapshot(in context: Context, completion: @escaping (WidgetArtworkEntry) -> Void) {
+        Task {
+            await RequestLogger.shared.logEvent(
+                source: "Widget 刷新",
+                summary: context.isPreview ? "请求快照预览" : "请求临时快照"
+            )
+        }
         completion(placeholder(in: context))
     }
 
@@ -45,23 +53,54 @@ struct DailyMuseumWidgetProvider: TimelineProvider {
         Task {
             let settings = WidgetSettingsReader()
             let refresh = settings.refreshInterval
-            let nextRefresh = Date().addingTimeInterval(refresh.seconds)
+            let now = Date()
+            let nextRefresh = now.addingTimeInterval(refresh.seconds)
+
+            if settings.manualRefreshInProgress {
+                await RequestLogger.shared.logEvent(
+                    source: "Widget 刷新",
+                    summary: "检测到手动刷新进行中，先展示加载态"
+                )
+                let loadingEntry = await WidgetArtworkService(settings: settings).makeLoadingEntry(date: now)
+                completion(Timeline(entries: [loadingEntry], policy: .after(nextRefresh)))
+                return
+            }
+
+            await RequestLogger.shared.logEvent(
+                source: "Widget 刷新",
+                summary: "开始刷新 timeline，范围=\(settings.museumScope.rawValue)，仅图片=\(settings.preferHasImages ? "是" : "否")"
+            )
 
             let entry: WidgetArtworkEntry
             do {
-                entry = try await WidgetArtworkService(settings: settings).fetchEntry(date: .now)
+                entry = try await WidgetArtworkService(settings: settings).fetchEntry(date: now)
+                await RequestLogger.shared.logEvent(
+                    source: "Widget 刷新",
+                    summary: "timeline 刷新成功，下次系统刷新时间约为 \(Self.logTimestampFormatter.string(from: nextRefresh))"
+                )
             } catch {
+                await RequestLogger.shared.logEvent(
+                    source: "Widget 刷新",
+                    summary: "timeline 刷新失败：\(error.localizedDescription)"
+                )
                 entry = WidgetArtworkEntry(
-                    date: .now,
+                    date: now,
                     museumName: "大都会艺术博物馆",
                     title: "加载失败",
                     subtitle: error.localizedDescription,
                     imageData: nil,
-                    appURL: nil
+                    appURL: nil,
+                    isRefreshing: false
                 )
             }
 
             completion(Timeline(entries: [entry], policy: .after(nextRefresh)))
         }
     }
+
+    private static let logTimestampFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM-dd HH:mm:ss"
+        return formatter
+    }()
 }
