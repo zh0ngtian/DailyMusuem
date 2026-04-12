@@ -89,8 +89,14 @@ final class SettingsStore: ObservableObject {
         WidgetMuseumScope(rawValue: widgetMuseumScopeRawValue) ?? .all
     }
 
-    func requestWidgetReload() {
-        WidgetCenter.shared.reloadAllTimelines()
+    func requestWidgetReload(invalidateContent: Bool = false) {
+        defaults.synchronize()
+        if invalidateContent {
+            let nextNonce = defaults.double(forKey: SettingsKeys.widgetManualRefreshNonce) + 1
+            defaults.set(nextNonce, forKey: SettingsKeys.widgetManualRefreshNonce)
+            defaults.synchronize()
+        }
+        WidgetCenter.shared.reloadTimelines(ofKind: SettingsKeys.widgetKind)
     }
 
     func orderedMuseums() -> [Museum] {
@@ -104,6 +110,22 @@ final class SettingsStore: ObservableObject {
     func saveFeedCategories(_ categories: [MuseumCategory], for museumID: MuseumID) {
         let normalized = museumID.normalizedFeedCategories(categories)
         defaults.set(museumID.feedCategoryStorageValue(for: normalized), forKey: feedCategoryKey(for: museumID))
+        defaults.synchronize()
+
+        if defaults.string(forKey: widgetCategoryKey(for: museumID))?.isEmpty != false {
+            requestWidgetReload(invalidateContent: true)
+        }
+    }
+
+    func widgetCategories(for museumID: MuseumID) -> [MuseumCategory] {
+        museumID.feedCategories(withStoredValue: effectiveWidgetCategoryStoredValue(for: museumID))
+    }
+
+    func saveWidgetCategories(_ categories: [MuseumCategory], for museumID: MuseumID) {
+        let normalized = museumID.normalizedFeedCategories(categories)
+        defaults.set(museumID.feedCategoryStorageValue(for: normalized), forKey: widgetCategoryKey(for: museumID))
+        defaults.synchronize()
+        objectWillChange.send()
     }
 
     func feedCategory(for museumID: MuseumID) -> MuseumCategory {
@@ -144,6 +166,19 @@ final class SettingsStore: ObservableObject {
 
     private func feedDisplayModeKey(for museumID: MuseumID) -> String {
         SettingsKeys.feedDisplayModePrefix + museumID.rawValue
+    }
+
+    private func widgetCategoryKey(for museumID: MuseumID) -> String {
+        SettingsKeys.widgetCategoryPrefix + museumID.rawValue
+    }
+
+    private func effectiveWidgetCategoryStoredValue(for museumID: MuseumID) -> String? {
+        if let widgetValue = defaults.string(forKey: widgetCategoryKey(for: museumID)),
+           !widgetValue.isEmpty {
+            return widgetValue
+        }
+
+        return defaults.string(forKey: feedCategoryKey(for: museumID))
     }
 
     private func migrateLegacyDefaultsIfNeeded() {

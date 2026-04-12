@@ -29,4 +29,40 @@ struct WidgetSettingsReader {
     var manualRefreshInProgress: Bool {
         defaults.bool(forKey: SettingsKeys.widgetManualRefreshInProgress)
     }
+
+    func categories(for museumID: MuseumID) -> [MuseumCategory] {
+        museumID.feedCategories(withStoredValue: effectiveWidgetCategoryStoredValue(for: museumID))
+    }
+
+    var categorySelectionKey: String {
+        switch museumScope {
+        case .all:
+            return MuseumID.allCases
+                .map { "\($0.rawValue):\(categorySelectionKey(for: $0))" }
+                .joined(separator: ";")
+        case .single(let museumID):
+            return "\(museumID.rawValue):\(categorySelectionKey(for: museumID))"
+        }
+    }
+
+    private func categorySelectionKey(for museumID: MuseumID) -> String {
+        museumID.feedCategoryStorageValue(for: categories(for: museumID))
+    }
+
+    private func widgetCategoryKey(for museumID: MuseumID) -> String {
+        SettingsKeys.widgetCategoryPrefix + museumID.rawValue
+    }
+
+    private func feedCategoryKey(for museumID: MuseumID) -> String {
+        SettingsKeys.feedCategoryPrefix + museumID.rawValue
+    }
+
+    private func effectiveWidgetCategoryStoredValue(for museumID: MuseumID) -> String? {
+        if let widgetValue = defaults.string(forKey: widgetCategoryKey(for: museumID)),
+           !widgetValue.isEmpty {
+            return widgetValue
+        }
+
+        return defaults.string(forKey: feedCategoryKey(for: museumID))
+    }
 }
