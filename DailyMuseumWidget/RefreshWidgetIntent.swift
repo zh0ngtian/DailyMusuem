@@ -3,10 +3,6 @@ import Foundation
 import WidgetKit
 
 struct RefreshWidgetIntent: AppIntent {
-    private enum Constants {
-        static let widgetKind = "DailyMuseumWidget"
-    }
-
     static var title: LocalizedStringResource = "刷新展品"
     static var openAppWhenRun: Bool = false
 
@@ -15,8 +11,9 @@ struct RefreshWidgetIntent: AppIntent {
         let nextNonce = defaults.double(forKey: SettingsKeys.widgetManualRefreshNonce) + 1
         defaults.set(true, forKey: SettingsKeys.widgetManualRefreshInProgress)
         defaults.set(nextNonce, forKey: SettingsKeys.widgetManualRefreshNonce)
+        defaults.synchronize()
         await RequestLogger.shared.logEvent(source: "Widget 刷新按钮", summary: "触发手动刷新，进入加载态，nonce=\(Int(nextNonce))")
-        WidgetCenter.shared.reloadTimelines(ofKind: Constants.widgetKind)
+        WidgetCenter.shared.reloadTimelines(ofKind: SettingsKeys.widgetKind)
 
         do {
             let settings = WidgetSettingsReader()
@@ -27,7 +24,8 @@ struct RefreshWidgetIntent: AppIntent {
         }
 
         defaults.set(false, forKey: SettingsKeys.widgetManualRefreshInProgress)
-        WidgetCenter.shared.reloadTimelines(ofKind: Constants.widgetKind)
+        defaults.synchronize()
+        WidgetCenter.shared.reloadTimelines(ofKind: SettingsKeys.widgetKind)
         return .result()
     }
 }

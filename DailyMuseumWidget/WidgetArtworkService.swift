@@ -61,12 +61,12 @@ struct WidgetArtworkService {
         let museum = pickMuseum()
         await RequestLogger.shared.logEvent(
             source: "Widget 刷新",
-            summary: "开始生成新条目，博物馆=\(museum.displayName)"
+            summary: "开始生成新条目，博物馆=\(museum.displayName)，类别=\(categorySummary(for: museum.id))"
         )
 
         switch museum.id {
         case .met:
-            let ids = try await metAPI.searchObjectIDs(hasImages: settings.preferHasImages, isOnView: false, query: "*")
+            let ids = try await metObjectIDs()
             guard let id = pickMetObjectID(from: ids, previousReference: previousReference, museum: museum) else {
                 throw URLError(.cannotParseResponse)
             }
@@ -74,15 +74,15 @@ struct WidgetArtworkService {
             let artwork = object.toArtwork()
             return try await makeSnapshotEntry(for: artwork, museum: museum, date: date, cycleKey: cycleKey)
         case .tnm:
-            let searchPool = try await japanSearchAPI.searchItemIDs(preferHasImages: settings.preferHasImages)
-            guard let id = pickObjectID(from: searchPool.itemIDs, previousReference: previousReference, museum: museum) else {
+            let searchPool = try await tnmItemIDs()
+            guard let id = pickObjectID(from: searchPool, previousReference: previousReference, museum: museum) else {
                 throw URLError(.cannotParseResponse)
             }
             let item = try await japanSearchAPI.fetchItem(itemID: id)
             let artwork = item.toArtwork()
             return try await makeSnapshotEntry(for: artwork, museum: museum, date: date, cycleKey: cycleKey)
         case .nmc:
-            let ids = try await nationalMuseumChinaAPI.allExhibitIDs()
+            let ids = try await nmcExhibitIDs()
             guard let id = pickNumericObjectID(from: ids, previousReference: previousReference, museum: museum) else {
                 throw URLError(.cannotParseResponse)
             }
@@ -132,6 +132,75 @@ struct WidgetArtworkService {
         case .met, .nmc:
             return artwork.primaryImageSmallURL ?? artwork.primaryImageURL
         }
+    }
+
+    private func metObjectIDs() async throws -> [Int] {
+        let selectedCategories = settings.categories(for: .met)
+        guard !MuseumID.met.areAllFeedCategoriesSelected(selectedCategories) else {
+            return try await metAPI.searchObjectIDs(
+                hasImages: settings.preferHasImages,
+                isOnView: false,
+                query: "*"
+            )
+        }
+
+        var mergedIDs: [Int] = []
+        for category in selectedCategories {
+            guard let departmentID = category.metDepartmentID else { continue }
+            let categoryIDs = try await metAPI.searchObjectIDs(
+                hasImages: settings.preferHasImages,
+                isOnView: false,
+                query: "*",
+                departmentID: departmentID
+            )
+            mergedIDs.append(contentsOf: categoryIDs)
+        }
+        return Self.stableUniqueInts(mergedIDs)
+    }
+
+    private func tnmItemIDs() async throws -> [String] {
+        let selectedCategories = settings.categories(for: .tnm)
+        guard !MuseumID.tnm.areAllFeedCategoriesSelected(selectedCategories) else {
+            let searchPool = try await japanSearchAPI.searchItemIDs(preferHasImages: settings.preferHasImages)
+            return searchPool.itemIDs
+        }
+
+        var mergedIDs: [String] = []
+        for category in selectedCategories {
+            guard let typeCode = category.japanSearchTypeCode else { continue }
+            let categoryResult = try await japanSearchAPI.searchItemIDs(
+                preferHasImages: settings.preferHasImages,
+                categoryTypeCode: typeCode
+            )
+            mergedIDs.append(contentsOf: categoryResult.itemIDs)
+        }
+        return Self.stableUniqueStrings(mergedIDs)
+    }
+
+    private func nmcExhibitIDs() async throws -> [Int] {
+        let selectedCategories = settings.categories(for: .nmc)
+        guard !MuseumID.nmc.areAllFeedCategoriesSelected(selectedCategories) else {
+            return try await nationalMuseumChinaAPI.allExhibitIDs()
+        }
+
+        var mergedIDs: [Int] = []
+        for category in selectedCategories {
+            guard let categoryID = category.nationalMuseumChinaCategoryID else { continue }
+            let categoryItemIDs = try await nationalMuseumChinaAPI.allExhibitIDs(
+                categoryID: categoryID,
+                categoryDisplayName: category.displayName
+            )
+            mergedIDs.append(contentsOf: categoryItemIDs)
+        }
+        return Self.stableUniqueInts(mergedIDs)
+    }
+
+    private func categorySummary(for museumID: MuseumID) -> String {
+        let categories = settings.categories(for: museumID)
+        if museumID.areAllFeedCategoriesSelected(categories) {
+            return "全部"
+        }
+        return categories.map(\.displayName).joined(separator: "、")
     }
 
     private func pickMetObjectID(from ids: [Int], previousReference: ArtworkReference?, museum: Museum) -> Int? {
@@ -225,9 +294,32 @@ struct WidgetArtworkService {
         let refreshBucket = Int(date.timeIntervalSince1970 / settings.refreshInterval.seconds)
         return [
             settings.museumScope.rawValue,
+            settings.categorySelectionKey,
             settings.preferHasImages ? "images" : "all",
             String(settings.manualRefreshNonce),
             String(refreshBucket)
         ].joined(separator: "|")
+    }
+
+    private static func stableUniqueStrings(_ values: [String]) -> [String] {
+        var seen: Set<String> = []
+        var result: [String] = []
+        result.reserveCapacity(values.count)
+
+        for value in values where seen.insert(value).inserted {
+            result.append(value)
+        }
+        return result
+    }
+
+    private static func stableUniqueInts(_ values: [Int]) -> [Int] {
+        var seen: Set<Int> = []
+        var result: [Int] = []
+        result.reserveCapacity(values.count)
+
+        for value in values where seen.insert(value).inserted {
+            result.append(value)
+        }
+        return result
     }
 }

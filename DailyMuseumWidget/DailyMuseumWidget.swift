@@ -12,7 +12,7 @@ struct WidgetArtworkEntry: TimelineEntry {
 }
 
 struct DailyMuseumWidget: Widget {
-    static let kind: String = "DailyMuseumWidget"
+    static let kind: String = SettingsKeys.widgetKind
     let kind: String = DailyMuseumWidget.kind
 
     var body: some WidgetConfiguration {
