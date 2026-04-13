@@ -35,6 +35,10 @@ struct WidgetSettingsReader {
         defaults.double(forKey: SettingsKeys.widgetManualRefreshNonce)
     }
 
+    var manualRefreshNonceValue: Int {
+        Int(manualRefreshNonce.rounded())
+    }
+
     var manualRefreshInProgress: Bool {
         guard defaults.bool(forKey: SettingsKeys.widgetManualRefreshInProgress) else {
             return false
@@ -56,6 +60,19 @@ struct WidgetSettingsReader {
 
     func categories(for museumID: MuseumID) -> [MuseumCategory] {
         museumID.feedCategories(withStoredValue: defaults.string(forKey: feedCategoryKey(for: museumID)))
+    }
+
+    func activeManualRefreshDeliveryState(now: Date = .now) async -> WidgetRefreshDeliveryTracker.State? {
+        guard manualRefreshInProgress else {
+            return nil
+        }
+
+        let nonce = manualRefreshNonceValue
+        guard nonce > 0 else {
+            return nil
+        }
+
+        return await WidgetRefreshDeliveryTracker.shared.activeState(expectedNonce: nonce, now: now)
     }
 
     var categorySelectionKey: String {

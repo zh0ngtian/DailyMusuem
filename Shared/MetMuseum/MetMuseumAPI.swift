@@ -18,7 +18,7 @@ final class MetMuseumAPI {
         onLog: (@Sendable (String) async -> Void)? = nil
     ) async throws -> [Int] {
         let logger = RequestLogger.shared
-        let cacheKey = "\(hasImages)-\(isOnView)-\(query)-\(departmentID.map(String.init) ?? "all")"
+        let cacheKey = "\(hasImages ? "images-only" : "all-images")-\(isOnView)-\(query)-\(departmentID.map(String.init) ?? "all")"
         await onLog?("检查 objectIDs 内存缓存...")
         if let cached = await responseCache.searchObjectIDs(forKey: cacheKey) {
             await logger.logEvent(source: "Met 搜索", summary: "命中内存缓存，复用 \(cached.count) 条 objectIDs")
@@ -38,10 +38,12 @@ final class MetMuseumAPI {
 
         var components = URLComponents(url: baseURL.appending(path: "search"), resolvingAgainstBaseURL: false)
         var queryItems = [
-            URLQueryItem(name: "hasImages", value: hasImages ? "true" : "false"),
             URLQueryItem(name: "isOnView", value: isOnView ? "true" : "false"),
             URLQueryItem(name: "q", value: query)
         ]
+        if hasImages {
+            queryItems.append(URLQueryItem(name: "hasImages", value: "true"))
+        }
         if let departmentID {
             queryItems.append(URLQueryItem(name: "departmentId", value: "\(departmentID)"))
         }

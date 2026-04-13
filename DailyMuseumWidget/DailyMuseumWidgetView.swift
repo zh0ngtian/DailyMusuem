@@ -6,9 +6,10 @@ struct DailyMuseumWidgetView: View {
     @Environment(\.widgetFamily) private var family
 
     var body: some View {
+        let _ = WidgetRenderProbe.markRendered(entry, family: family)
         GeometryReader { proxy in
             ZStack {
-                if let data = entry.imageData, let uiImage = UIImage(data: data) {
+                if let uiImage = WidgetImageLoader.image(fileName: entry.imageFileName) {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
@@ -77,6 +78,7 @@ struct DailyMuseumWidgetView: View {
         .containerBackground(for: .widget) {
             Color.black
         }
+        .id(entry.familyScopedRenderID)
         .widgetURL(entry.appURL)
     }
 
@@ -182,5 +184,43 @@ struct DailyMuseumWidgetView: View {
         default:
             return 24
         }
+    }
+}
+
+private enum WidgetImageLoader {
+    static func image(fileName: String?) -> UIImage? {
+        guard let fileName,
+              let imageURL = WidgetArtworkSnapshotStore.imageURL(for: fileName) else {
+            return nil
+        }
+        return UIImage(contentsOfFile: imageURL.path)
+    }
+}
+
+private enum WidgetRenderProbe {
+    static func markRendered(_ entry: WidgetArtworkEntry, family: WidgetFamily) {
+        Task {
+            await WidgetRenderState.shared.logIfNeeded(entry: entry, family: family)
+        }
+    }
+}
+
+private actor WidgetRenderState {
+    static let shared = WidgetRenderState()
+
+    private var loggedRenderIDs: Set<String> = []
+
+    func logIfNeeded(entry: WidgetArtworkEntry, family: WidgetFamily) async {
+        let renderLogKey = entry.familyScopedRenderID
+        guard loggedRenderIDs.insert(renderLogKey).inserted else {
+            return
+        }
+        let imageState = entry.imageFileName.flatMap { WidgetArtworkSnapshotStore.imageURL(for: $0) }
+            .map { FileManager.default.fileExists(atPath: $0.path) ? "存在" : "缺失" }
+            ?? "无图"
+        await RequestLogger.shared.logEvent(
+            source: "Widget 渲染",
+            summary: "开始渲染 \(entry.museumName) / \(entry.title)，family=\(family.logLabel)，deliveryID=\(entry.deliveryID.isEmpty ? "-" : entry.deliveryID)，renderID=\(entry.familyScopedRenderID)，图片文件=\(imageState)"
+        )
     }
 }

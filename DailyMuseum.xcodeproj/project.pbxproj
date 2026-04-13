@@ -46,8 +46,10 @@
 		87F6CECE8690A90AE55AC7B8 /* JapanSearchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9000674963F093B5BC9FE7 /* JapanSearchModels.swift */; };
 		8CC0195C8ECB3BBE91FA8E12 /* ArtworkFeedViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27983725A26AC36A5EA28756 /* ArtworkFeedViewModel.swift */; };
 		9DA9630412EDAEFDE3EAC41E /* AppRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D49DEAE0ACDF038EE933986B /* AppRouter.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* AppShortcutHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5D /* AppShortcutHandler.swift */; };
 		A9A3F24657BDD51957EA848B /* DailyMuseumWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41E30B7CB5F9A6C88D27C0C2 /* DailyMuseumWidgetView.swift */; };
 		A9EFC7883E19EBC1EF52F69D /* ArtworkDetailLoaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B2A7EA64F8C40563153939F /* ArtworkDetailLoaderView.swift */; };
+		B5C2D137F4A14D27A0010001 /* WidgetRefreshDeliveryTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5C2D137F4A14D27A0010002 /* WidgetRefreshDeliveryTracker.swift */; };
 		AC4FDD416DF8E33F134AD066 /* ImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BA863EC7AE41653AA5A9382 /* ImageLoader.swift */; };
 		ACA3EEF08B67CEBD295D3A96 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FABED403F7CD2A9A4E6D1FEB /* LaunchScreen.storyboard */; };
 		BA503B583A43593254FC7A8E /* ArtworkFeedItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71CBDD45FB2452D4E907C758 /* ArtworkFeedItem.swift */; };
@@ -129,8 +131,10 @@
 		9F3052397EB170BF0730F5B4 /* RequestLogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestLogsView.swift; sourceTree = "<group>"; };
 		0B60E7E46431A00100000005 /* NationalMuseumChinaAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NationalMuseumChinaAPI.swift; sourceTree = "<group>"; };
 		A49931525A891BFC0604633C /* DailyMuseum.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DailyMuseum.entitlements; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5D /* AppShortcutHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShortcutHandler.swift; sourceTree = "<group>"; };
 		AFEC49CE4C55DCDEA5364224 /* WidgetSettingsReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSettingsReader.swift; sourceTree = "<group>"; };
 		B3069A0CBA34322E131468A6 /* ArtworkCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkCardView.swift; sourceTree = "<group>"; };
+		B5C2D137F4A14D27A0010002 /* WidgetRefreshDeliveryTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetRefreshDeliveryTracker.swift; sourceTree = "<group>"; };
 		B767DED860727F7B1D106D3E /* MetMuseumPersistentCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetMuseumPersistentCache.swift; sourceTree = "<group>"; };
 		B7C1FAD7D063813D4D6C9F2A /* CachedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedAsyncImage.swift; sourceTree = "<group>"; };
 		BDB91ABFDF5059FE1FCE0687 /* WidgetArtworkService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetArtworkService.swift; sourceTree = "<group>"; };
@@ -216,6 +220,7 @@
 		540C4352AA99A790037E6727 /* DailyMuseum */ = {
 			isa = PBXGroup;
 			children = (
+				A1B2C3D4E5F60718293A4B5D /* AppShortcutHandler.swift */,
 				D49DEAE0ACDF038EE933986B /* AppRouter.swift */,
 				D2E9FEFE6D6787330AAA0104 /* Assets.xcassets */,
 				A49931525A891BFC0604633C /* DailyMuseum.entitlements */,
@@ -303,6 +308,7 @@
 				9DB226201B7F579BFCF07E7A /* RefreshWidgetIntent.swift */,
 				BDB91ABFDF5059FE1FCE0687 /* WidgetArtworkService.swift */,
 				7C479641DC62C47615D086EE /* WidgetArtworkSnapshotStore.swift */,
+				B5C2D137F4A14D27A0010002 /* WidgetRefreshDeliveryTracker.swift */,
 				AFEC49CE4C55DCDEA5364224 /* WidgetSettingsReader.swift */,
 			);
 			path = DailyMuseumWidget;
@@ -435,6 +441,7 @@
 				7D7B4261C7FDB3E5EF55DC31 /* SettingsStore.swift in Sources */,
 				EDB9E6F8888D36C995A222B3 /* WidgetArtworkService.swift in Sources */,
 				E6F45083BBEDF96C8635C070 /* WidgetArtworkSnapshotStore.swift in Sources */,
+				B5C2D137F4A14D27A0010001 /* WidgetRefreshDeliveryTracker.swift in Sources */,
 				BE339BFB1CB1E63EA1C63F84 /* WidgetMuseumScope.swift in Sources */,
 				1BD2FBB8BFA745AAA7D9D310 /* WidgetRefreshInterval.swift in Sources */,
 				FA61C66FE799EE5EE5329728 /* WidgetSettingsReader.swift in Sources */,
@@ -446,6 +453,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				EC267A915D0BAB50AE179CE6 /* AppDeepLink.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* AppShortcutHandler.swift in Sources */,
 				9DA9630412EDAEFDE3EAC41E /* AppRouter.swift in Sources */,
 				768CB71B07681723D487B0E7 /* Artwork.swift in Sources */,
 				0C29EBB7118BA7DA8620B6F1 /* ArtworkCardView.swift in Sources */,

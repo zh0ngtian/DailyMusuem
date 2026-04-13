@@ -2,6 +2,7 @@ import Foundation
 
 struct WidgetArtworkService {
     private enum Constants {
+        static let candidateSelectionMaxAttempts = 12
         static let imageDownloadMaxAttempts = 3
         static let imageRequestTimeout: TimeInterval = 8
         static let imageRetryBaseDelayNanoseconds: UInt64 = 400_000_000
@@ -18,10 +19,11 @@ struct WidgetArtworkService {
         if let snapshot = await snapshotStore.loadLatest() {
             return WidgetArtworkEntry(
                 date: date,
+                renderID: "loading-\(snapshot.cycleKey)",
                 museumName: snapshot.museumName,
                 title: snapshot.title,
                 subtitle: snapshot.subtitle,
-                imageData: snapshot.imageData,
+                imageFileName: snapshot.imageFileName,
                 appURL: snapshot.appURL,
                 isRefreshing: true
             )
@@ -29,10 +31,11 @@ struct WidgetArtworkService {
 
         return WidgetArtworkEntry(
             date: date,
+            renderID: "loading-\(date.timeIntervalSince1970)",
             museumName: "DailyMuseum",
             title: "刷新中",
             subtitle: "正在拉取最新展品",
-            imageData: nil,
+            imageFileName: nil,
             appURL: nil,
             isRefreshing: true
         )
@@ -47,66 +50,187 @@ struct WidgetArtworkService {
             )
             return WidgetArtworkEntry(
                 date: date,
+                renderID: snapshot.cycleKey,
                 museumName: snapshot.museumName,
                 title: snapshot.title,
                 subtitle: snapshot.subtitle,
-                imageData: snapshot.imageData,
+                imageFileName: snapshot.imageFileName,
                 appURL: snapshot.appURL,
                 isRefreshing: false
             )
         }
 
-        let previousReference = await snapshotStore
-            .loadLatest()?
-            .appURL
-            .flatMap(AppDeepLink.parse)
-        let museum = pickMuseum()
-        await RequestLogger.shared.logEvent(
-            source: "Widget 刷新",
-            summary: "开始生成新条目，博物馆=\(museum.displayName)，类别=\(categorySummary(for: museum.id))"
-        )
+        let snapshot = try await snapshotStore.snapshot(for: cycleKey) { latestSnapshot in
+            let previousReference = latestSnapshot?.appURL.flatMap(AppDeepLink.parse)
+            let museum = pickMuseum()
+            await RequestLogger.shared.logEvent(
+                source: "Widget 刷新",
+                summary: "开始生成新条目，博物馆=\(museum.displayName)，类别=\(categorySummary(for: museum.id))"
+            )
 
-        switch museum.id {
-        case .met:
-            let ids = try await metObjectIDs()
-            guard let id = pickMetObjectID(from: ids, previousReference: previousReference, museum: museum) else {
-                throw URLError(.cannotParseResponse)
+            switch museum.id {
+            case .met:
+                let ids = try await metObjectIDs()
+                return try await resolveSnapshot(
+                    from: ids.map(String.init),
+                    museum: museum,
+                    previousReference: previousReference,
+                    cycleKey: cycleKey
+                ) { id in
+                    guard let objectID = Int(id) else {
+                        throw URLError(.cannotParseResponse)
+                    }
+                    let object = try await metAPI.fetchObject(objectID: objectID)
+                    return object.toArtwork()
+                }
+            case .tnm:
+                let searchPool = try await tnmItemIDs()
+                return try await resolveSnapshot(
+                    from: searchPool,
+                    museum: museum,
+                    previousReference: previousReference,
+                    cycleKey: cycleKey
+                ) { id in
+                    let item = try await japanSearchAPI.fetchItem(itemID: id)
+                    return item.toArtwork()
+                }
+            case .nmc:
+                let ids = try await nmcExhibitIDs()
+                return try await resolveSnapshot(
+                    from: ids.map(String.init),
+                    museum: museum,
+                    previousReference: previousReference,
+                    cycleKey: cycleKey
+                ) { id in
+                    guard let exhibitID = Int(id) else {
+                        throw URLError(.cannotParseResponse)
+                    }
+                    return try await nationalMuseumChinaAPI.fetchExhibit(exhibitID: exhibitID)
+                }
+            case .shm:
+                let codes = try await shmArtworkCodes()
+                return try await resolveSnapshot(
+                    from: codes,
+                    museum: museum,
+                    previousReference: previousReference,
+                    cycleKey: cycleKey
+                ) { code in
+                    if let cached = await shanghaiMuseumAPI.cachedSearchArtwork(objectCode: code) {
+                        return cached
+                    }
+                    return try await shanghaiMuseumAPI.fetchArtwork(objectCode: code)
+                }
             }
-            let object = try await metAPI.fetchObject(objectID: id)
-            let artwork = object.toArtwork()
-            return try await makeSnapshotEntry(for: artwork, museum: museum, date: date, cycleKey: cycleKey)
-        case .tnm:
-            let searchPool = try await tnmItemIDs()
-            guard let id = pickObjectID(from: searchPool, previousReference: previousReference, museum: museum) else {
-                throw URLError(.cannotParseResponse)
-            }
-            let item = try await japanSearchAPI.fetchItem(itemID: id)
-            let artwork = item.toArtwork()
-            return try await makeSnapshotEntry(for: artwork, museum: museum, date: date, cycleKey: cycleKey)
-        case .nmc:
-            let ids = try await nmcExhibitIDs()
-            guard let id = pickNumericObjectID(from: ids, previousReference: previousReference, museum: museum) else {
-                throw URLError(.cannotParseResponse)
-            }
-            let artwork = try await nationalMuseumChinaAPI.fetchExhibit(exhibitID: id)
-            return try await makeSnapshotEntry(for: artwork, museum: museum, date: date, cycleKey: cycleKey)
-        case .shm:
-            let codes = try await shmArtworkCodes()
-            guard let code = pickObjectID(from: codes, previousReference: previousReference, museum: museum) else {
-                throw URLError(.cannotParseResponse)
-            }
-            let artwork = if let cached = await shanghaiMuseumAPI.cachedSearchArtwork(objectCode: code) {
-                cached
-            } else {
-                try await shanghaiMuseumAPI.fetchArtwork(objectCode: code)
-            }
-            return try await makeSnapshotEntry(for: artwork, museum: museum, date: date, cycleKey: cycleKey)
         }
+
+        return WidgetArtworkEntry(
+            date: date,
+            renderID: snapshot.cycleKey,
+            museumName: snapshot.museumName,
+            title: snapshot.title,
+            subtitle: snapshot.subtitle,
+            imageFileName: snapshot.imageFileName,
+            appURL: snapshot.appURL,
+            isRefreshing: false
+        )
     }
 
-    private func makeSnapshotEntry(for artwork: Artwork, museum: Museum, date: Date, cycleKey: String) async throws -> WidgetArtworkEntry {
-        let imageURL = preferredWidgetImageURL(for: artwork, museum: museum)
-        let imageData = try await fetchImageData(url: imageURL)
+    private func resolveSnapshot(
+        from candidateIDs: [String],
+        museum: Museum,
+        previousReference: ArtworkReference?,
+        cycleKey: String,
+        loadArtwork: @escaping @Sendable (String) async throws -> Artwork
+    ) async throws -> WidgetArtworkSnapshotStore.Snapshot {
+        let orderedCandidateIDs = prioritizedCandidateIDs(
+            from: candidateIDs,
+            previousReference: previousReference,
+            museum: museum
+        )
+        guard !orderedCandidateIDs.isEmpty else {
+            throw URLError(.cannotParseResponse)
+        }
+
+        var fallbackArtwork: Artwork?
+        var lastError: Error?
+
+        for candidateID in orderedCandidateIDs {
+            do {
+                let artwork = try await loadArtwork(candidateID)
+                if let snapshot = try await makeValidatedSnapshot(
+                    for: artwork,
+                    museum: museum,
+                    cycleKey: cycleKey
+                ) {
+                    return snapshot
+                }
+                if fallbackArtwork == nil {
+                    fallbackArtwork = artwork
+                }
+            } catch {
+                lastError = error
+                await RequestLogger.shared.logEvent(
+                    source: "Widget 刷新",
+                    summary: "候选展品拉取失败，继续尝试 \(museum.displayName) / \(candidateID)：\(error.localizedDescription)"
+                )
+            }
+        }
+
+        if let fallbackArtwork {
+            await RequestLogger.shared.logEvent(
+                source: "Widget 刷新",
+                summary: "未找到可用图片，回退为无图条目 \(museum.displayName) / \(fallbackArtwork.title)"
+            )
+            return await snapshot(
+                for: fallbackArtwork,
+                museum: museum,
+                cycleKey: cycleKey,
+                imageData: nil
+            )
+        }
+
+        if let lastError {
+            throw lastError
+        }
+
+        throw URLError(.cannotParseResponse)
+    }
+
+    private func makeValidatedSnapshot(
+        for artwork: Artwork,
+        museum: Museum,
+        cycleKey: String
+    ) async throws -> WidgetArtworkSnapshotStore.Snapshot? {
+        guard let imageURL = preferredWidgetImageURL(for: artwork, museum: museum) else {
+            await RequestLogger.shared.logEvent(
+                source: "Widget 刷新",
+                summary: "候选展品缺少图片，继续尝试 \(museum.displayName) / \(artwork.title)"
+            )
+            return nil
+        }
+
+        guard let imageData = try await fetchImageData(url: imageURL) else {
+            await RequestLogger.shared.logEvent(
+                source: "Widget 刷新",
+                summary: "候选展品图片拉取失败，继续尝试 \(museum.displayName) / \(artwork.title)"
+            )
+            return nil
+        }
+
+        return await snapshot(
+            for: artwork,
+            museum: museum,
+            cycleKey: cycleKey,
+            imageData: imageData
+        )
+    }
+
+    private func snapshot(
+        for artwork: Artwork,
+        museum: Museum,
+        cycleKey: String,
+        imageData: Data?
+    ) async -> WidgetArtworkSnapshotStore.Snapshot {
         let reference = ArtworkReference(
             museumID: museum.id,
             objectID: artwork.objectID,
@@ -118,24 +242,15 @@ struct WidgetArtworkService {
             museumName: museum.displayName,
             title: artwork.title,
             subtitle: artwork.objectDate,
-            imageData: imageData,
+            imageFileName: nil,
             appURL: AppDeepLink.artworkURL(reference: reference)
         )
-        await snapshotStore.store(snapshot)
+        let storedSnapshot = await snapshotStore.store(snapshot, imageData: imageData)
         await RequestLogger.shared.logEvent(
             source: "Widget 刷新",
             summary: "刷新完成，已缓存 \(museum.displayName) / \(artwork.title)"
         )
-
-        return WidgetArtworkEntry(
-            date: date,
-            museumName: snapshot.museumName,
-            title: snapshot.title,
-            subtitle: snapshot.subtitle,
-            imageData: snapshot.imageData,
-            appURL: snapshot.appURL,
-            isRefreshing: false
-        )
+        return storedSnapshot
     }
 
     private func preferredWidgetImageURL(for artwork: Artwork, museum: Museum) -> URL? {
@@ -226,28 +341,33 @@ struct WidgetArtworkService {
         return categories.map(\.displayName).joined(separator: "、")
     }
 
-    private func pickMetObjectID(from ids: [Int], previousReference: ArtworkReference?, museum: Museum) -> Int? {
-        pickNumericObjectID(from: ids, previousReference: previousReference, museum: museum)
-    }
-
-    private func pickNumericObjectID(from ids: [Int], previousReference: ArtworkReference?, museum: Museum) -> Int? {
-        let stringIDs = ids.map(String.init)
-        guard let objectID = pickObjectID(from: stringIDs, previousReference: previousReference, museum: museum) else {
-            return nil
-        }
-        return Int(objectID)
-    }
-
-    private func pickObjectID(from ids: [String], previousReference: ArtworkReference?, museum: Museum) -> String? {
-        guard !ids.isEmpty else { return nil }
+    private func prioritizedCandidateIDs(
+        from ids: [String],
+        previousReference: ArtworkReference?,
+        museum: Museum
+    ) -> [String] {
+        guard !ids.isEmpty else { return [] }
 
         let excludedObjectID = previousReference?.museumID == museum.id ? previousReference?.objectID : nil
-        guard let excludedObjectID else {
-            return ids.randomElement()
+        let candidatePool: [String]
+        if let excludedObjectID {
+            let filtered = ids.filter { $0 != excludedObjectID }
+            candidatePool = filtered.isEmpty ? ids : filtered
+        } else {
+            candidatePool = ids
         }
 
-        let filtered = ids.filter { $0 != excludedObjectID }
-        return filtered.randomElement() ?? ids.randomElement()
+        guard candidatePool.count > Constants.candidateSelectionMaxAttempts else {
+            return candidatePool.shuffled()
+        }
+
+        var sampledIndices: Set<Int> = []
+        sampledIndices.reserveCapacity(Constants.candidateSelectionMaxAttempts)
+        while sampledIndices.count < Constants.candidateSelectionMaxAttempts {
+            sampledIndices.insert(Int.random(in: 0..<candidatePool.count))
+        }
+
+        return sampledIndices.map { candidatePool[$0] }.shuffled()
     }
 
     private func pickMuseum() -> Museum {
