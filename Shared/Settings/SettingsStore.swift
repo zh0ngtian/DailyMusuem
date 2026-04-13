@@ -104,6 +104,24 @@ final class SettingsStore: ObservableObject {
         WidgetCenter.shared.reloadTimelines(ofKind: SettingsKeys.widgetKind)
     }
 
+    func forceRefreshAllWidgets(logSource: String = "App 快捷操作") {
+        defaults.set(false, forKey: SettingsKeys.widgetManualRefreshInProgress)
+        defaults.removeObject(forKey: SettingsKeys.widgetManualRefreshStartedAt)
+
+        let nextNonce = defaults.double(forKey: SettingsKeys.widgetManualRefreshNonce) + 1
+        defaults.set(nextNonce, forKey: SettingsKeys.widgetManualRefreshNonce)
+        defaults.synchronize()
+
+        Task {
+            await RequestLogger.shared.logEvent(
+                source: logSource,
+                summary: "触发强制刷新所有小组件，nonce=\(Int(nextNonce))"
+            )
+        }
+        WidgetCenter.shared.reloadTimelines(ofKind: SettingsKeys.widgetKind)
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
     func orderedMuseums() -> [Museum] {
         MuseumRepository.museums(inPreferredOrder: orderedMuseumIDs())
     }
