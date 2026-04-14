@@ -267,7 +267,7 @@ struct WidgetArtworkService {
         guard !MuseumID.met.areAllFeedCategoriesSelected(selectedCategories) else {
             return try await metAPI.searchObjectIDs(
                 hasImages: settings.preferHasImages,
-                isOnView: false,
+                isOnView: true,
                 query: "*"
             )
         }
@@ -277,7 +277,7 @@ struct WidgetArtworkService {
             guard let departmentID = category.metDepartmentID else { continue }
             let categoryIDs = try await metAPI.searchObjectIDs(
                 hasImages: settings.preferHasImages,
-                isOnView: false,
+                isOnView: true,
                 query: "*",
                 departmentID: departmentID
             )

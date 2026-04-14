@@ -191,7 +191,7 @@ final class ArtworkFeedViewModel: ObservableObject {
                 for (category, departmentID) in zip(selectedCategories, departmentIDs) {
                     let categoryIDs = try await metAPI.searchObjectIDs(
                         hasImages: true,
-                        isOnView: false,
+                        isOnView: true,
                         query: "*",
                         departmentID: departmentID
                     ) { [weak self] message in
@@ -204,7 +204,7 @@ final class ArtworkFeedViewModel: ObservableObject {
             } else {
                 ids = try await metAPI.searchObjectIDs(
                     hasImages: true,
-                    isOnView: false,
+                    isOnView: true,
                     query: "*"
                 ) { [weak self] message in
                     await self?.appendLoadingLog(message)
