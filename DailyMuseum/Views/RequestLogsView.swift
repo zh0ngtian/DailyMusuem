@@ -2,14 +2,28 @@ import SwiftUI
 
 @MainActor
 final class RequestLogsViewModel: ObservableObject {
+    private enum Constants {
+        static let widgetSyncPollIntervalNanoseconds: UInt64 = 500_000_000
+    }
+
     @Published private(set) var entries: [RequestLogEntry] = []
     @Published private(set) var isLoading = false
     private var liveUpdateTask: Task<Void, Never>?
+    private var pollingTask: Task<Void, Never>?
 
-    func refresh() async {
-        isLoading = true
-        entries = await RequestLogger.shared.loadEntries()
-        isLoading = false
+    func refresh(showLoadingState: Bool = true) async {
+        if showLoadingState {
+            isLoading = true
+        }
+
+        let latestEntries = await RequestLogger.shared.loadEntries()
+        if entries != latestEntries {
+            entries = latestEntries
+        }
+
+        if showLoadingState {
+            isLoading = false
+        }
     }
 
     func activate() async {
@@ -19,7 +33,15 @@ final class RequestLogsViewModel: ObservableObject {
         liveUpdateTask = Task { [weak self] in
             for await _ in NotificationCenter.default.notifications(named: .requestLoggerDidChange) {
                 guard !Task.isCancelled else { break }
-                await self?.refresh()
+                await self?.refresh(showLoadingState: false)
+            }
+        }
+
+        pollingTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: Constants.widgetSyncPollIntervalNanoseconds)
+                guard !Task.isCancelled else { break }
+                await self?.refresh(showLoadingState: false)
             }
         }
     }
@@ -27,6 +49,8 @@ final class RequestLogsViewModel: ObservableObject {
     func deactivate() {
         liveUpdateTask?.cancel()
         liveUpdateTask = nil
+        pollingTask?.cancel()
+        pollingTask = nil
     }
 
     func clear() async {
@@ -36,6 +60,7 @@ final class RequestLogsViewModel: ObservableObject {
 
     deinit {
         liveUpdateTask?.cancel()
+        pollingTask?.cancel()
     }
 }
 
