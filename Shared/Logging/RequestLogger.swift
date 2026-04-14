@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 extension Notification.Name {
@@ -20,20 +21,27 @@ actor RequestLogger {
 
     private enum Constants {
         static let maxEntryCount = 800
+        static let directoryName = "Logs"
         static let fileName = "request-logs.json"
+        static let lockFileName = "request-logs.lock"
+        static let lockPollIntervalNanoseconds: UInt64 = 100_000_000
+        static let lockWaitTimeout: TimeInterval = 5
+        static let staleLockThreshold: TimeInterval = 10
     }
 
+    private let directoryURL: URL
     private let fileURL: URL
+    private let lockURL: URL
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
-    private var cachedEntries: [RequestLogEntry]?
 
     init(fileManager: FileManager = .default) {
         let baseURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: SettingsKeys.appGroupID)
             ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? fileManager.temporaryDirectory
-        let directoryURL = baseURL.appendingPathComponent("Logs", isDirectory: true)
+        directoryURL = baseURL.appendingPathComponent(Constants.directoryName, isDirectory: true)
         fileURL = directoryURL.appendingPathComponent(Constants.fileName)
+        lockURL = directoryURL.appendingPathComponent(Constants.lockFileName)
     }
 
     func logEvent(source: String, summary: String) async {
@@ -110,48 +118,102 @@ actor RequestLogger {
     }
 
     func loadEntries() async -> [RequestLogEntry] {
-        let entries = await cachedOrDiskEntries()
+        let entries = loadEntriesFromDisk()
         return entries.sorted { $0.timestamp > $1.timestamp }
     }
 
     func clear() async {
-        cachedEntries = []
-        try? FileManager.default.removeItem(at: fileURL)
+        await withFileLock {
+            try? FileManager.default.removeItem(at: fileURL)
+        }
         notifyDidChange()
     }
 
     private func append(_ entry: RequestLogEntry) async {
-        var entries = await cachedOrDiskEntries()
-        entries.append(entry)
-        if entries.count > Constants.maxEntryCount {
-            entries.removeFirst(entries.count - Constants.maxEntryCount)
+        await withFileLock {
+            var entries = loadEntriesFromDisk()
+            entries.append(entry)
+            if entries.count > Constants.maxEntryCount {
+                entries.removeFirst(entries.count - Constants.maxEntryCount)
+            }
+            persist(entries: entries)
         }
-        cachedEntries = entries
-        await persist(entries: entries)
         notifyDidChange()
     }
 
-    private func cachedOrDiskEntries() async -> [RequestLogEntry] {
-        if let cachedEntries {
-            return cachedEntries
-        }
+    private func loadEntriesFromDisk() -> [RequestLogEntry] {
         guard let data = try? Data(contentsOf: fileURL),
               let decoded = try? decoder.decode([RequestLogEntry].self, from: data) else {
-            cachedEntries = []
             return []
         }
-        cachedEntries = decoded
         return decoded
     }
 
-    private func persist(entries: [RequestLogEntry]) async {
+    private func persist(entries: [RequestLogEntry]) {
         do {
-            try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
             let data = try encoder.encode(entries)
             try data.write(to: fileURL, options: [.atomic])
         } catch {
             // Ignore logging persistence failures to avoid affecting product behavior.
         }
+    }
+
+    private func withFileLock(_ operation: () -> Void) async {
+        let deadline = Date().addingTimeInterval(Constants.lockWaitTimeout)
+
+        while true {
+            do {
+                if try acquireLock() {
+                    defer { releaseLock() }
+                    operation()
+                    return
+                }
+            } catch {
+                operation()
+                return
+            }
+
+            if isStaleLock() {
+                releaseLock()
+                continue
+            }
+
+            if Date() >= deadline {
+                operation()
+                return
+            }
+
+            try? await Task.sleep(nanoseconds: Constants.lockPollIntervalNanoseconds)
+        }
+    }
+
+    private func acquireLock() throws -> Bool {
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+
+        let fileDescriptor = open(lockURL.path, O_WRONLY | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR)
+        guard fileDescriptor >= 0 else {
+            if errno == EEXIST {
+                return false
+            }
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+
+        close(fileDescriptor)
+        return true
+    }
+
+    private func releaseLock() {
+        try? FileManager.default.removeItem(at: lockURL)
+    }
+
+    private func isStaleLock() -> Bool {
+        guard let values = try? lockURL.resourceValues(forKeys: [.contentModificationDateKey]),
+              let modifiedAt = values.contentModificationDate else {
+            return false
+        }
+
+        return Date().timeIntervalSince(modifiedAt) >= Constants.staleLockThreshold
     }
 
     private func notifyDidChange() {
