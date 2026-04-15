@@ -7,12 +7,14 @@ actor WidgetRefreshDeliveryTracker {
     private enum Constants {
         static let directoryName = "WidgetRefresh"
         static let fileName = "delivery-tracker.json"
-        static let staleTimeout: TimeInterval = 20
+        static let staleTimeout: TimeInterval = 90
+        static let completedResultReuseTimeout: TimeInterval = 15
     }
 
     enum Phase: String, Codable {
         case generating
         case delivering
+        case completed
     }
 
     enum Status {
@@ -27,8 +29,11 @@ actor WidgetRefreshDeliveryTracker {
         var phase: Phase
         let configurationCount: Int
         let expectedCounts: [String: Int]
+        let requestedFamilyKey: String
         var deliveredCounts: [String: Int]
         var deliveredTokens: [String: [String]]
+        var targetRenderID: String?
+        var renderedFamilyRenderIDs: [String: String]
         var lastUpdatedAt: TimeInterval
 
         var expectedTotal: Int {
@@ -40,9 +45,10 @@ actor WidgetRefreshDeliveryTracker {
         }
 
         var isComplete: Bool {
-            Self.familyOrder.allSatisfy { familyKey in
-                deliveredCounts[familyKey, default: 0] >= expectedCounts[familyKey, default: 0]
+            guard let targetRenderID else {
+                return false
             }
+            return renderedFamilyRenderIDs[requestedFamilyKey] == targetRenderID
         }
 
         var configurationSummary: String {
@@ -68,14 +74,27 @@ actor WidgetRefreshDeliveryTracker {
                 }
                 .compactMap { $0 }
                 .joined(separator: "、")
+            let renderProgress: String = {
+                guard let targetRenderID else {
+                    return "目标尺寸 \(requestedFamilyKey) 等待生成 renderID"
+                }
+                if renderedFamilyRenderIDs[requestedFamilyKey] == targetRenderID {
+                    return "目标尺寸 \(requestedFamilyKey) 已渲染"
+                }
+                return "目标尺寸 \(requestedFamilyKey) 待渲染"
+            }()
+
             if familyProgress.isEmpty {
-                return "总计 0/0"
+                return "总计 0/0，\(renderProgress)"
             }
-            return "总计 \(deliveredTotal)/\(expectedTotal)（\(familyProgress)）"
+            return "总计 \(deliveredTotal)/\(expectedTotal)（\(familyProgress)），\(renderProgress)"
         }
 
-        mutating func transition(to phase: Phase, at timestamp: TimeInterval) {
+        mutating func transition(to phase: Phase, targetRenderID: String? = nil, at timestamp: TimeInterval) {
             self.phase = phase
+            if let targetRenderID {
+                self.targetRenderID = targetRenderID
+            }
             lastUpdatedAt = timestamp
         }
 
@@ -84,11 +103,30 @@ actor WidgetRefreshDeliveryTracker {
             guard !tokens.contains(token) else {
                 return false
             }
+
             tokens.append(token)
             deliveredTokens[familyKey] = tokens
 
             let expected = expectedCounts[familyKey, default: 0]
             deliveredCounts[familyKey] = min(expected, tokens.count)
+            lastUpdatedAt = timestamp
+            return true
+        }
+
+        mutating func recordRender(familyKey: String, renderID: String, timestamp: TimeInterval) -> Bool {
+            guard phase == .delivering,
+                  let targetRenderID,
+                  familyKey == requestedFamilyKey,
+                  renderID == targetRenderID else {
+                return false
+            }
+
+            guard renderedFamilyRenderIDs[familyKey] != renderID else {
+                return false
+            }
+
+            renderedFamilyRenderIDs[familyKey] = renderID
+            phase = .completed
             lastUpdatedAt = timestamp
             return true
         }
@@ -113,6 +151,7 @@ actor WidgetRefreshDeliveryTracker {
         nonce: Int,
         configurationCount: Int,
         expectedCounts providedCounts: [String: Int],
+        requestedFamilyKey: String,
         startedAt: Date = .now
     ) -> State {
         var expectedCounts = emptyCounts()
@@ -127,19 +166,42 @@ actor WidgetRefreshDeliveryTracker {
             phase: .generating,
             configurationCount: configurationCount,
             expectedCounts: expectedCounts,
+            requestedFamilyKey: requestedFamilyKey,
             deliveredCounts: emptyCounts(),
             deliveredTokens: [:],
+            targetRenderID: nil,
+            renderedFamilyRenderIDs: [:],
             lastUpdatedAt: timestamp
         )
         persist(state)
         return state
     }
 
-    func transitionToDelivering(nonce: Int, now: Date = .now) -> State? {
+    func transitionToDelivering(nonce: Int, targetRenderID: String, now: Date = .now) -> State? {
         guard var state = loadState(), state.nonce == nonce else {
             return nil
         }
-        state.transition(to: .delivering, at: now.timeIntervalSince1970)
+
+        state.transition(
+            to: .delivering,
+            targetRenderID: targetRenderID,
+            at: now.timeIntervalSince1970
+        )
+        persist(state)
+        return state
+    }
+
+    func completeGeneratedRefresh(nonce: Int, targetRenderID: String, now: Date = .now) -> State? {
+        guard var state = loadState(), state.nonce == nonce else {
+            return nil
+        }
+
+        state.transition(
+            to: .completed,
+            targetRenderID: targetRenderID,
+            at: now.timeIntervalSince1970
+        )
+        state.renderedFamilyRenderIDs[state.requestedFamilyKey] = targetRenderID
         persist(state)
         return state
     }
@@ -155,6 +217,31 @@ actor WidgetRefreshDeliveryTracker {
         }
 
         return state
+    }
+
+    func activeTargetRenderID(expectedNonce: Int, now: Date = .now) -> String? {
+        guard let state = activeState(expectedNonce: expectedNonce, now: now),
+              state.phase == .delivering else {
+            return nil
+        }
+        return state.targetRenderID
+    }
+
+    func reusableTargetRenderID(expectedNonce: Int, now: Date = .now) -> String? {
+        guard let state = activeState(expectedNonce: expectedNonce, now: now),
+              let targetRenderID = state.targetRenderID else {
+            return nil
+        }
+
+        switch state.phase {
+        case .delivering:
+            return targetRenderID
+        case .completed:
+            let age = now.timeIntervalSince1970 - state.lastUpdatedAt
+            return age <= Constants.completedResultReuseTimeout ? targetRenderID : nil
+        case .generating:
+            return nil
+        }
     }
 
     func status(for nonce: Int, now: Date = .now) -> Status {
@@ -182,6 +269,24 @@ actor WidgetRefreshDeliveryTracker {
             token: token,
             timestamp: now.timeIntervalSince1970
         ) else {
+            return nil
+        }
+
+        persist(state)
+        return state
+    }
+
+    func recordRender(
+        family: WidgetFamily,
+        renderID: String,
+        now: Date = .now
+    ) -> State? {
+        guard var state = loadState(),
+              state.recordRender(
+                familyKey: family.logKey,
+                renderID: renderID,
+                timestamp: now.timeIntervalSince1970
+              ) else {
             return nil
         }
 

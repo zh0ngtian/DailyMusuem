@@ -7,6 +7,7 @@ actor WidgetArtworkSnapshotStore {
     private enum Constants {
         static let directoryName = "WidgetCache"
         static let snapshotFileName = "current-artwork.json"
+        static let generationLockFileName = "snapshot-generation.lock"
         static let imageFileExtension = "bin"
         static let lockPollIntervalNanoseconds: UInt64 = 200_000_000
         static let lockWaitTimeout: TimeInterval = 15
@@ -99,14 +100,6 @@ actor WidgetArtworkSnapshotStore {
             .appendingPathComponent(Constants.directoryName, isDirectory: true)
     }
 
-    func load(cycleKey: String) -> Snapshot? {
-        guard let snapshot = loadLatest(),
-              snapshot.cycleKey == cycleKey else {
-            return nil
-        }
-        return snapshot
-    }
-
     func loadLatest() -> Snapshot? {
         let fileURL = snapshotFileURL
         guard let data = try? Data(contentsOf: fileURL),
@@ -123,21 +116,12 @@ actor WidgetArtworkSnapshotStore {
         return migratedSnapshot
     }
 
-    func snapshot(
-        for cycleKey: String,
+    func generateSnapshot(
         generate: @Sendable (_ latestSnapshot: Snapshot?) async throws -> Snapshot
     ) async throws -> Snapshot {
-        if let snapshot = load(cycleKey: cycleKey) {
-            return snapshot
-        }
-
-        let lockURL = lockFileURL(for: cycleKey)
+        let lockURL = generationLockURL
         if try acquireGenerationLock(at: lockURL) {
             defer { releaseGenerationLock(at: lockURL) }
-
-            if let snapshot = load(cycleKey: cycleKey) {
-                return snapshot
-            }
 
             let snapshot = try await generate(loadLatest())
             return snapshot
@@ -145,18 +129,19 @@ actor WidgetArtworkSnapshotStore {
 
         await RequestLogger.shared.logEvent(
             source: "Widget 刷新",
-            summary: "检测到同周期快照正在生成，等待复用结果"
+            summary: "检测到最新快照正在生成，等待复用结果"
         )
         let deadline = Date().addingTimeInterval(Constants.lockWaitTimeout)
         while Date() < deadline {
-            if let snapshot = load(cycleKey: cycleKey) {
+            if !FileManager.default.fileExists(atPath: lockURL.path),
+               let snapshot = loadLatest() {
                 return snapshot
             }
 
             if isStaleLock(at: lockURL) {
                 await RequestLogger.shared.logEvent(
                     source: "Widget 刷新",
-                    summary: "检测到陈旧快照锁，准备回收并重新生成"
+                    summary: "检测到陈旧最新快照锁，准备回收并重新生成"
                 )
                 releaseGenerationLock(at: lockURL)
                 break
@@ -165,16 +150,8 @@ actor WidgetArtworkSnapshotStore {
             try? await Task.sleep(nanoseconds: Constants.lockPollIntervalNanoseconds)
         }
 
-        if let snapshot = load(cycleKey: cycleKey) {
-            return snapshot
-        }
-
         if try acquireGenerationLock(at: lockURL) {
             defer { releaseGenerationLock(at: lockURL) }
-
-            if let snapshot = load(cycleKey: cycleKey) {
-                return snapshot
-            }
 
             let snapshot = try await generate(loadLatest())
             return snapshot
@@ -204,8 +181,8 @@ actor WidgetArtworkSnapshotStore {
         directoryURL.appendingPathComponent(Constants.snapshotFileName)
     }
 
-    private func lockFileURL(for cycleKey: String) -> URL {
-        directoryURL.appendingPathComponent("snapshot-\(safeFileName(for: cycleKey)).lock")
+    private var generationLockURL: URL {
+        directoryURL.appendingPathComponent(Constants.generationLockFileName)
     }
 
     private func imageFileURL(for fileName: String) -> URL {
