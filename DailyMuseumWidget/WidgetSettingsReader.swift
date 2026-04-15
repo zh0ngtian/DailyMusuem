@@ -8,7 +8,11 @@ struct WidgetSettingsReader {
     private let defaults: UserDefaults
 
     init() {
-        defaults = UserDefaults(suiteName: SettingsKeys.appGroupID) ?? .standard
+        self.init(defaults: UserDefaults(suiteName: SettingsKeys.appGroupID) ?? .standard)
+    }
+
+    init(defaults: UserDefaults) {
+        self.defaults = defaults
     }
 
     var refreshInterval: WidgetRefreshInterval {

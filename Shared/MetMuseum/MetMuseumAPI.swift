@@ -168,7 +168,7 @@ final class MetMuseumAPI {
         }
     }
 
-    private static func extractWebDescription(from html: String) -> String? {
+    static func extractWebDescription(from html: String) -> String? {
         let renderedHTML = renderedObjectHTML(from: html)
         if let labelHTML = extractElementHTML(
             from: renderedHTML,

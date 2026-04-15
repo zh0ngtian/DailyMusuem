@@ -2,6 +2,33 @@ import Foundation
 import SwiftUI
 
 @MainActor
+protocol ArtworkFeedSettingsProviding: AnyObject {
+    var feedRandomOrder: Bool { get }
+    func feedCategories(for museumID: MuseumID) -> [MuseumCategory]
+    func saveFeedCategories(_ categories: [MuseumCategory], for museumID: MuseumID)
+}
+
+extension SettingsStore: ArtworkFeedSettingsProviding {}
+
+@MainActor
+protocol ArtworkFeedCaching: AnyObject {
+    func snapshot(for museumID: MuseumID, randomOrder: Bool, categorySelectionKey: String) -> ArtworkFeedCache.Snapshot?
+    func store(
+        museumID: MuseumID,
+        randomOrder: Bool,
+        categorySelectionKey: String,
+        items: [ArtworkFeedItem],
+        objectIDPool: [String],
+        loadedObjectIDs: Set<String>,
+        hasMoreItems: Bool,
+        hasMoreRemoteItemIDs: Bool
+    )
+    func clear(museumID: MuseumID, randomOrder: Bool, categorySelectionKey: String)
+}
+
+extension ArtworkFeedCache: ArtworkFeedCaching {}
+
+@MainActor
 final class ArtworkFeedViewModel: ObservableObject {
     private enum Constants {
         static let initialBatchSize = 10
@@ -39,17 +66,33 @@ final class ArtworkFeedViewModel: ObservableObject {
     @Published private(set) var selectedCategories: [MuseumCategory]
 
     private let museum: Museum
-    private let metAPI = MetMuseumAPI()
-    private let japanSearchAPI = JapanSearchAPI()
-    private let nationalMuseumChinaAPI = NationalMuseumChinaAPI()
-    private let shanghaiMuseumAPI = ShanghaiMuseumAPI()
+    private let settings: ArtworkFeedSettingsProviding
+    private let cache: ArtworkFeedCaching
+    private let metAPI: MetMuseumAPI
+    private let japanSearchAPI: JapanSearchAPI
+    private let nationalMuseumChinaAPI: NationalMuseumChinaAPI
+    private let shanghaiMuseumAPI: ShanghaiMuseumAPI
     private var objectIDPool: [String] = []
     private var loadedObjectIDs: Set<String> = []
     private var hasMoreRemoteItemIDs = false
 
-    init(museum: Museum) {
+    init(
+        museum: Museum,
+        settings: ArtworkFeedSettingsProviding? = nil,
+        cache: ArtworkFeedCaching? = nil,
+        metAPI: MetMuseumAPI = MetMuseumAPI(),
+        japanSearchAPI: JapanSearchAPI = JapanSearchAPI(),
+        nationalMuseumChinaAPI: NationalMuseumChinaAPI = NationalMuseumChinaAPI(),
+        shanghaiMuseumAPI: ShanghaiMuseumAPI = ShanghaiMuseumAPI()
+    ) {
         self.museum = museum
-        self.selectedCategories = SettingsStore.shared.feedCategories(for: museum.id)
+        self.settings = settings ?? SettingsStore.shared
+        self.cache = cache ?? ArtworkFeedCache.shared
+        self.metAPI = metAPI
+        self.japanSearchAPI = japanSearchAPI
+        self.nationalMuseumChinaAPI = nationalMuseumChinaAPI
+        self.shanghaiMuseumAPI = shanghaiMuseumAPI
+        self.selectedCategories = self.settings.feedCategories(for: museum.id)
     }
 
     var availableCategories: [MuseumCategory] {
@@ -103,7 +146,7 @@ final class ArtworkFeedViewModel: ObservableObject {
     }
 
     func reload() async {
-        ArtworkFeedCache.shared.clear(
+        cache.clear(
             museumID: museum.id,
             randomOrder: isRandomOrder,
             categorySelectionKey: categorySelectionKey
@@ -429,7 +472,7 @@ final class ArtworkFeedViewModel: ObservableObject {
     }
 
     private var isRandomOrder: Bool {
-        SettingsStore.shared.feedRandomOrder
+        settings.feedRandomOrder
     }
 
     private var categorySelectionKey: String {
@@ -465,12 +508,12 @@ final class ArtworkFeedViewModel: ObservableObject {
         guard normalized.map(\.id) != selectedCategories.map(\.id) else { return }
 
         selectedCategories = normalized
-        SettingsStore.shared.saveFeedCategories(normalized, for: museum.id)
+        settings.saveFeedCategories(normalized, for: museum.id)
         await reload()
     }
 
     private func restoreCachedFeedIfAvailable() -> Bool {
-        guard let snapshot = ArtworkFeedCache.shared.snapshot(
+        guard let snapshot = cache.snapshot(
             for: museum.id,
             randomOrder: isRandomOrder,
             categorySelectionKey: categorySelectionKey
@@ -493,7 +536,7 @@ final class ArtworkFeedViewModel: ObservableObject {
 
     private func persistCache() {
         guard !items.isEmpty else { return }
-        ArtworkFeedCache.shared.store(
+        cache.store(
             museumID: museum.id,
             randomOrder: isRandomOrder,
             categorySelectionKey: categorySelectionKey,

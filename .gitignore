@@ -2,6 +2,7 @@
 .trae/
 .swiftpm
 DerivedData/
+.deriveddata-tests/
 build/
 *.xcuserstate
 *.xccheckout

@@ -9,11 +9,45 @@ struct WidgetArtworkService {
     }
 
     let settings: WidgetSettingsReader
-    private let metAPI = MetMuseumAPI()
-    private let japanSearchAPI = JapanSearchAPI()
-    private let nationalMuseumChinaAPI = NationalMuseumChinaAPI()
-    private let shanghaiMuseumAPI = ShanghaiMuseumAPI()
-    private let snapshotStore = WidgetArtworkSnapshotStore.shared
+    private let metAPI: MetMuseumAPI
+    private let japanSearchAPI: JapanSearchAPI
+    private let nationalMuseumChinaAPI: NationalMuseumChinaAPI
+    private let shanghaiMuseumAPI: ShanghaiMuseumAPI
+    private let snapshotStore: WidgetArtworkSnapshotStore
+    private let urlSession: URLSession
+    private let chooseRandomMuseum: ([Museum]) -> Museum?
+    private let randomIndex: (Range<Int>) -> Int
+    private let shuffleStrings: ([String]) -> [String]
+
+    init(
+        settings: WidgetSettingsReader = WidgetSettingsReader(),
+        metAPI: MetMuseumAPI = MetMuseumAPI(),
+        japanSearchAPI: JapanSearchAPI = JapanSearchAPI(),
+        nationalMuseumChinaAPI: NationalMuseumChinaAPI = NationalMuseumChinaAPI(),
+        shanghaiMuseumAPI: ShanghaiMuseumAPI = ShanghaiMuseumAPI(),
+        snapshotStore: WidgetArtworkSnapshotStore = .shared,
+        urlSession: URLSession = .shared,
+        chooseRandomMuseum: @escaping ([Museum]) -> Museum? = { museums in
+            museums.randomElement()
+        },
+        randomIndex: @escaping (Range<Int>) -> Int = { range in
+            Int.random(in: range)
+        },
+        shuffleStrings: @escaping ([String]) -> [String] = { values in
+            values.shuffled()
+        }
+    ) {
+        self.settings = settings
+        self.metAPI = metAPI
+        self.japanSearchAPI = japanSearchAPI
+        self.nationalMuseumChinaAPI = nationalMuseumChinaAPI
+        self.shanghaiMuseumAPI = shanghaiMuseumAPI
+        self.snapshotStore = snapshotStore
+        self.urlSession = urlSession
+        self.chooseRandomMuseum = chooseRandomMuseum
+        self.randomIndex = randomIndex
+        self.shuffleStrings = shuffleStrings
+    }
 
     func makeLoadingEntry(date: Date) async -> WidgetArtworkEntry {
         if let snapshot = await snapshotStore.loadLatest() {
@@ -363,22 +397,23 @@ struct WidgetArtworkService {
         }
 
         guard candidatePool.count > Constants.candidateSelectionMaxAttempts else {
-            return candidatePool.shuffled()
+            return shuffleStrings(candidatePool)
         }
 
         var sampledIndices: Set<Int> = []
         sampledIndices.reserveCapacity(Constants.candidateSelectionMaxAttempts)
         while sampledIndices.count < Constants.candidateSelectionMaxAttempts {
-            sampledIndices.insert(Int.random(in: 0..<candidatePool.count))
+            sampledIndices.insert(randomIndex(0..<candidatePool.count))
         }
 
-        return sampledIndices.map { candidatePool[$0] }.shuffled()
+        return shuffleStrings(sampledIndices.map { candidatePool[$0] })
     }
 
     private func pickMuseum() -> Museum {
         switch settings.museumScope {
         case .all:
-            return MuseumRepository.widgetSupportedMuseums.randomElement() ?? MuseumRepository.widgetSupportedMuseums[0]
+            return chooseRandomMuseum(MuseumRepository.widgetSupportedMuseums)
+                ?? MuseumRepository.widgetSupportedMuseums[0]
         case .single(let id):
             return MuseumRepository.widgetSupportedMuseums.first(where: { $0.id == id }) ?? MuseumRepository.widgetSupportedMuseums[0]
         }
@@ -392,7 +427,7 @@ struct WidgetArtworkService {
             await RequestLogger.shared.logRequestStart(source: "Widget 图片", url: url)
 
             do {
-                let (data, response) = try await URLSession.shared.data(for: request)
+                let (data, response) = try await urlSession.data(for: request)
                 guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
                     throw URLError(.badServerResponse)
                 }
