@@ -264,7 +264,7 @@ final class NationalMuseumChinaAPI {
     }
 }
 
-private actor NationalMuseumChinaRequestThrottle {
+actor NationalMuseumChinaRequestThrottle {
     private let minimumInterval: TimeInterval
     private var nextAllowedRequestTime: Date = .distantPast
 
@@ -287,7 +287,7 @@ private actor NationalMuseumChinaRequestThrottle {
     }
 }
 
-private struct NationalMuseumChinaExhibitPage {
+struct NationalMuseumChinaExhibitPage {
     let exhibitID: Int
     let title: String
     let objectDate: String?
@@ -319,7 +319,7 @@ private struct NationalMuseumChinaExhibitPage {
     }
 }
 
-private enum NationalMuseumChinaExhibitPageParser {
+enum NationalMuseumChinaExhibitPageParser {
     static func parse(
         html: String,
         exhibitID: Int,

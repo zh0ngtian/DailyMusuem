@@ -73,3 +73,37 @@ targets:
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 1.0
         SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+
+  DailyMuseumTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: DailyMuseumTests
+      - path: Shared/AppDeepLink.swift
+      - path: Shared/Artwork.swift
+      - path: Shared/Museum.swift
+      - path: Shared/Logging/RequestLogger.swift
+      - path: Shared/JapanSearch/JapanSearchAPI.swift
+      - path: Shared/JapanSearch/JapanSearchModels.swift
+      - path: Shared/JapanSearch/JapanSearchPersistentCache.swift
+      - path: Shared/MetMuseum/MetMuseumAPI.swift
+      - path: Shared/MetMuseum/MetMuseumModels.swift
+      - path: Shared/MetMuseum/MetMuseumPersistentCache.swift
+      - path: Shared/NationalMuseumChina/NationalMuseumChinaAPI.swift
+      - path: Shared/Settings/SettingsKeys.swift
+      - path: Shared/Settings/WidgetMuseumScope.swift
+      - path: Shared/Settings/WidgetRefreshInterval.swift
+      - path: DailyMuseumWidget/WidgetArtworkSnapshotStore.swift
+      - path: DailyMuseumWidget/WidgetRefreshDeliveryTracker.swift
+      - path: DailyMuseumWidget/WidgetSettingsReader.swift
+    resources:
+      - path: DailyMuseumTests/Fixtures
+    dependencies:
+      - target: DailyMuseum
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: tech.zh0ngtian.DailyMuseumTests
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 1.0
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"

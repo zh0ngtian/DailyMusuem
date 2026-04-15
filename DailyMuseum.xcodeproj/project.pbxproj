@@ -10,6 +10,30 @@
 		010B92CC939F14CA27C2A0FB /* JapanSearchPersistentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81AF35BA5DF051D95514488B /* JapanSearchPersistentCache.swift */; };
 		0B60E7E46431A00100000001 /* NationalMuseumChinaAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B60E7E46431A00100000005 /* NationalMuseumChinaAPI.swift */; };
 		0B60E7E46431A00100000002 /* NationalMuseumChinaAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B60E7E46431A00100000005 /* NationalMuseumChinaAPI.swift */; };
+		AA0000000000000000000003 /* WidgetArtworkSnapshotStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000001 /* WidgetArtworkSnapshotStoreTests.swift */; };
+		AA000000000000000000000E /* RequestLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0773F3ED0D9C2C7D00381424 /* RequestLogger.swift */; };
+		AA000000000000000000000F /* SettingsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD5690663479FBDA165A96B /* SettingsKeys.swift */; };
+		AA0000000000000000000010 /* WidgetArtworkSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C479641DC62C47615D086EE /* WidgetArtworkSnapshotStore.swift */; };
+		AA0000000000000000000011 /* CoreLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000022 /* CoreLogicTests.swift */; };
+		AA0000000000000000000012 /* WidgetStateAndSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000023 /* WidgetStateAndSettingsTests.swift */; };
+		AA0000000000000000000013 /* ParsingAndAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000024 /* ParsingAndAPITests.swift */; };
+		AA0000000000000000000014 /* AppDeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 217B48EE2D107B1146488C81 /* AppDeepLink.swift */; };
+		AA0000000000000000000015 /* Artwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6236876208BA288526D7D379 /* Artwork.swift */; };
+		AA0000000000000000000016 /* Museum.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22F7ECE0FEA6838A9CA48031 /* Museum.swift */; };
+		AA0000000000000000000017 /* JapanSearchAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFDCEFCEFAE0A60F402972CF /* JapanSearchAPI.swift */; };
+		AA0000000000000000000018 /* JapanSearchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9000674963F093B5BC9FE7 /* JapanSearchModels.swift */; };
+		AA0000000000000000000019 /* JapanSearchPersistentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81AF35BA5DF051D95514488B /* JapanSearchPersistentCache.swift */; };
+		AA000000000000000000001A /* MetMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DE3B16D47B38730CD4475CE /* MetMuseumAPI.swift */; };
+		AA000000000000000000001B /* MetMuseumModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63E587269ECC706F1F22C266 /* MetMuseumModels.swift */; };
+		AA000000000000000000001C /* MetMuseumPersistentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B767DED860727F7B1D106D3E /* MetMuseumPersistentCache.swift */; };
+		AA000000000000000000001D /* NationalMuseumChinaAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B60E7E46431A00100000005 /* NationalMuseumChinaAPI.swift */; };
+		AA000000000000000000001E /* WidgetMuseumScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 785DF258A9365EE2171A1EDA /* WidgetMuseumScope.swift */; };
+		AA000000000000000000001F /* WidgetRefreshInterval.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58A211D35AE0E3261DEDD024 /* WidgetRefreshInterval.swift */; };
+		AA0000000000000000000020 /* WidgetRefreshDeliveryTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5C2D137F4A14D27A0010002 /* WidgetRefreshDeliveryTracker.swift */; };
+		AA0000000000000000000021 /* WidgetSettingsReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFEC49CE4C55DCDEA5364224 /* WidgetSettingsReader.swift */; };
+		AA0000000000000000000029 /* met-overview.html in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000026 /* met-overview.html */; };
+		AA000000000000000000002A /* met-meta-fallback.html in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000027 /* met-meta-fallback.html */; };
+		AA000000000000000000002B /* nmc-detail.html in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000028 /* nmc-detail.html */; };
 		A13F0E36D4A24301B00C1001 /* ShanghaiMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13F0E36D4A24301B00C1003 /* ShanghaiMuseumAPI.swift */; };
 		A13F0E36D4A24301B00C1002 /* ShanghaiMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13F0E36D4A24301B00C1003 /* ShanghaiMuseumAPI.swift */; };
 		048A14DA9BBF5DC796231307 /* MuseumListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB101B5E24D3739851DC6A22 /* MuseumListView.swift */; };
@@ -77,6 +101,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		AA0000000000000000000007 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 18FE775B9DBF9FFF4EBCEC51 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 453027374B065B9697472E15;
+			remoteInfo = DailyMuseum;
+		};
 		CC8429AF7691D46CA42F0669 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 18FE775B9DBF9FFF4EBCEC51 /* Project object */;
@@ -129,6 +160,14 @@
 		9DB226201B7F579BFCF07E7A /* RefreshWidgetIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshWidgetIntent.swift; sourceTree = "<group>"; };
 		9DE3B16D47B38730CD4475CE /* MetMuseumAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetMuseumAPI.swift; sourceTree = "<group>"; };
 		9F3052397EB170BF0730F5B4 /* RequestLogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestLogsView.swift; sourceTree = "<group>"; };
+		AA0000000000000000000001 /* WidgetArtworkSnapshotStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetArtworkSnapshotStoreTests.swift; sourceTree = "<group>"; };
+		AA0000000000000000000002 /* DailyMuseumTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DailyMuseumTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA0000000000000000000022 /* CoreLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreLogicTests.swift; sourceTree = "<group>"; };
+		AA0000000000000000000023 /* WidgetStateAndSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetStateAndSettingsTests.swift; sourceTree = "<group>"; };
+		AA0000000000000000000024 /* ParsingAndAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsingAndAPITests.swift; sourceTree = "<group>"; };
+		AA0000000000000000000026 /* met-overview.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "met-overview.html"; sourceTree = "<group>"; };
+		AA0000000000000000000027 /* met-meta-fallback.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "met-meta-fallback.html"; sourceTree = "<group>"; };
+		AA0000000000000000000028 /* nmc-detail.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "nmc-detail.html"; sourceTree = "<group>"; };
 		0B60E7E46431A00100000005 /* NationalMuseumChinaAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NationalMuseumChinaAPI.swift; sourceTree = "<group>"; };
 		A49931525A891BFC0604633C /* DailyMuseum.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DailyMuseum.entitlements; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B5D /* AppShortcutHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShortcutHandler.swift; sourceTree = "<group>"; };
@@ -203,6 +242,7 @@
 			children = (
 				CE050719A8E48E3DE4D76BBB /* DailyMuseum.app */,
 				677E368A7DD1F542B480E2C3 /* DailyMuseumWidgetExtension.appex */,
+				AA0000000000000000000002 /* DailyMuseumTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -255,10 +295,33 @@
 			isa = PBXGroup;
 			children = (
 				540C4352AA99A790037E6727 /* DailyMuseum */,
+				AA0000000000000000000004 /* DailyMuseumTests */,
 				B853AF91266F3159C7D5DDB2 /* DailyMuseumWidget */,
 				63A075E04AB411510BCCBE31 /* Shared */,
 				41BF8271109E2C2D713CC4AF /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		AA0000000000000000000004 /* DailyMuseumTests */ = {
+			isa = PBXGroup;
+			children = (
+				AA0000000000000000000022 /* CoreLogicTests.swift */,
+				AA0000000000000000000025 /* Fixtures */,
+				AA0000000000000000000024 /* ParsingAndAPITests.swift */,
+				AA0000000000000000000023 /* WidgetStateAndSettingsTests.swift */,
+				AA0000000000000000000001 /* WidgetArtworkSnapshotStoreTests.swift */,
+			);
+			path = DailyMuseumTests;
+			sourceTree = "<group>";
+		};
+		AA0000000000000000000025 /* Fixtures */ = {
+			isa = PBXGroup;
+			children = (
+				AA0000000000000000000027 /* met-meta-fallback.html */,
+				AA0000000000000000000026 /* met-overview.html */,
+				AA0000000000000000000028 /* nmc-detail.html */,
+			);
+			path = Fixtures;
 			sourceTree = "<group>";
 		};
 		96410B48990ECD7B7D8727C1 /* Views */ = {
@@ -337,6 +400,25 @@
 			productReference = CE050719A8E48E3DE4D76BBB /* DailyMuseum.app */;
 			productType = "com.apple.product-type.application";
 		};
+		AA0000000000000000000005 /* DailyMuseumTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA0000000000000000000009 /* Build configuration list for PBXNativeTarget "DailyMuseumTests" */;
+			buildPhases = (
+				AA0000000000000000000006 /* Sources */,
+				AA000000000000000000002C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AA0000000000000000000008 /* PBXTargetDependency */,
+			);
+			name = DailyMuseumTests;
+			packageProductDependencies = (
+			);
+			productName = DailyMuseumTests;
+			productReference = AA0000000000000000000002 /* DailyMuseumTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		882A042403C606FF924702EF /* DailyMuseumWidgetExtension */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 55EF284912239C59A2465E13 /* Build configuration list for PBXNativeTarget "DailyMuseumWidgetExtension" */;
@@ -370,6 +452,9 @@
 							};
 						};
 					};
+					AA0000000000000000000005 = {
+						TestTargetID = 453027374B065B9697472E15;
+					};
 					882A042403C606FF924702EF = {
 						SystemCapabilities = {
 							com.apple.ApplicationGroups.iOS = {
@@ -393,6 +478,7 @@
 			projectRoot = "";
 			targets = (
 				453027374B065B9697472E15 /* DailyMuseum */,
+				AA0000000000000000000005 /* DailyMuseumTests */,
 				882A042403C606FF924702EF /* DailyMuseumWidgetExtension */,
 			);
 		};
@@ -408,9 +494,47 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AA000000000000000000002C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA000000000000000000002A /* met-meta-fallback.html in Resources */,
+				AA0000000000000000000029 /* met-overview.html in Resources */,
+				AA000000000000000000002B /* nmc-detail.html in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		AA0000000000000000000006 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA0000000000000000000014 /* AppDeepLink.swift in Sources */,
+				AA0000000000000000000015 /* Artwork.swift in Sources */,
+				AA0000000000000000000011 /* CoreLogicTests.swift in Sources */,
+				AA0000000000000000000017 /* JapanSearchAPI.swift in Sources */,
+				AA0000000000000000000018 /* JapanSearchModels.swift in Sources */,
+				AA0000000000000000000019 /* JapanSearchPersistentCache.swift in Sources */,
+				AA000000000000000000001A /* MetMuseumAPI.swift in Sources */,
+				AA000000000000000000001B /* MetMuseumModels.swift in Sources */,
+				AA000000000000000000001C /* MetMuseumPersistentCache.swift in Sources */,
+				AA0000000000000000000016 /* Museum.swift in Sources */,
+				AA000000000000000000001D /* NationalMuseumChinaAPI.swift in Sources */,
+				AA0000000000000000000013 /* ParsingAndAPITests.swift in Sources */,
+				AA000000000000000000000E /* RequestLogger.swift in Sources */,
+				AA000000000000000000000F /* SettingsKeys.swift in Sources */,
+				AA000000000000000000001E /* WidgetMuseumScope.swift in Sources */,
+				AA0000000000000000000010 /* WidgetArtworkSnapshotStore.swift in Sources */,
+				AA0000000000000000000012 /* WidgetStateAndSettingsTests.swift in Sources */,
+				AA0000000000000000000020 /* WidgetRefreshDeliveryTracker.swift in Sources */,
+				AA000000000000000000001F /* WidgetRefreshInterval.swift in Sources */,
+				AA0000000000000000000021 /* WidgetSettingsReader.swift in Sources */,
+				AA0000000000000000000003 /* WidgetArtworkSnapshotStoreTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BF1E154830FADC5F0E38AEF4 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -492,6 +616,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		AA0000000000000000000008 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 453027374B065B9697472E15 /* DailyMuseum */;
+			targetProxy = AA0000000000000000000007 /* PBXContainerItemProxy */;
+		};
 		F8E99CC65504B154B1F3C05E /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 882A042403C606FF924702EF /* DailyMuseumWidgetExtension */;
@@ -638,6 +767,52 @@
 			};
 			name = Release;
 		};
+		AA000000000000000000000A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = PGKB4LZW48;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.zh0ngtian.DailyMuseumTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DailyMuseum.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/DailyMuseum";
+				TEST_TARGET_NAME = DailyMuseum;
+			};
+			name = Debug;
+		};
+		AA000000000000000000000B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = PGKB4LZW48;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.zh0ngtian.DailyMuseumTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DailyMuseum.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/DailyMuseum";
+				TEST_TARGET_NAME = DailyMuseum;
+			};
+			name = Release;
+		};
 		DAF3B3E61844BD76A0028C3B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -727,6 +902,15 @@
 			buildConfigurations = (
 				997A301675B63BD00D4C7C94 /* Debug */,
 				09CB9CBFBA3832D85CDB2E5F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		AA0000000000000000000009 /* Build configuration list for PBXNativeTarget "DailyMuseumTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA000000000000000000000A /* Debug */,
+				AA000000000000000000000B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

@@ -142,6 +142,10 @@ actor WidgetRefreshDeliveryTracker {
         let baseURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: SettingsKeys.appGroupID)
             ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? fileManager.temporaryDirectory
+        self.init(baseURL: baseURL)
+    }
+
+    init(baseURL: URL) {
         fileURL = baseURL
             .appendingPathComponent(Constants.directoryName, isDirectory: true)
             .appendingPathComponent(Constants.fileName)
