@@ -1,5 +1,4 @@
 import SwiftUI
-import WidgetKit
 
 @main
 struct DailyMuseumApp: App {
@@ -11,10 +10,6 @@ struct DailyMuseumApp: App {
             RootView(router: router)
                 .onOpenURL { url in
                     router.handle(url: url)
-                }
-                .task {
-                    // Refresh timelines so installed widgets pick up the latest deep-link payload.
-                    WidgetCenter.shared.reloadAllTimelines()
                 }
         }
     }

@@ -43,10 +43,15 @@ struct WidgetArtworkService {
 
     func fetchEntry(date: Date) async throws -> WidgetArtworkEntry {
         let cycleKey = makeCycleKey(date: date)
-        if let snapshot = await snapshotStore.load(cycleKey: cycleKey) {
+        if let targetRenderID = await settings.reusableManualRefreshTargetRenderID(now: date),
+           let snapshot = await snapshotStore.loadLatest(),
+           snapshot.cycleKey == targetRenderID {
+            let reuseSummary = settings.manualRefreshInProgress
+                ? "命中当前手动刷新结果"
+                : "命中最近一次手动刷新结果"
             await RequestLogger.shared.logEvent(
                 source: "Widget 刷新",
-                summary: "命中当前刷新周期快照缓存，直接复用 \(snapshot.museumName) / \(snapshot.title)"
+                summary: "\(reuseSummary)，直接复用 \(snapshot.museumName) / \(snapshot.title)"
             )
             return WidgetArtworkEntry(
                 date: date,
@@ -60,7 +65,7 @@ struct WidgetArtworkService {
             )
         }
 
-        let snapshot = try await snapshotStore.snapshot(for: cycleKey) { latestSnapshot in
+        let snapshot = try await snapshotStore.generateSnapshot { latestSnapshot in
             let previousReference = latestSnapshot?.appURL.flatMap(AppDeepLink.parse)
             let museum = pickMuseum()
             await RequestLogger.shared.logEvent(

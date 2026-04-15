@@ -28,7 +28,7 @@ struct DailyMuseumWidgetView: View {
                                     .progressViewStyle(.circular)
                                     .tint(.white)
                             } else {
-                                Button(intent: RefreshWidgetIntent()) {
+                                Button(intent: RefreshWidgetIntent(familyKey: family.logKey)) {
                                     Image(systemName: "arrow.clockwise.circle.fill")
                                         .font(refreshIconFont)
                                         .foregroundStyle(.white)
@@ -235,11 +235,16 @@ private actor WidgetRenderState {
             return
         }
 
+        let deliveryState = await WidgetRefreshDeliveryTracker.shared.recordRender(
+            family: family,
+            renderID: entry.renderID
+        )
         let displayState = await WidgetDisplayedArtworkRegistry.shared.recordDisplayedEntry(entry, family: family)
         let installedFamilyCounts = await WidgetConfigurationInspector.currentInstalledFamilyCounts()
+        let deliverySummary = deliveryState.map { "，交付进度=\($0.progressSummary)" } ?? ""
         await RequestLogger.shared.logEvent(
             source: "Widget 渲染",
-            summary: "渲染完成 \(entry.museumName) / \(entry.title)，family=\(family.logLabel)，deliveryID=\(entry.deliveryID.isEmpty ? "-" : entry.deliveryID)，renderID=\(entry.familyScopedRenderID)，图片文件=\(imageState(for: entry))，当前各小组件显示：\(displayState.summary(installedFamilyCounts: installedFamilyCounts))"
+            summary: "渲染完成 \(entry.museumName) / \(entry.title)，family=\(family.logLabel)，deliveryID=\(entry.deliveryID.isEmpty ? "-" : entry.deliveryID)，renderID=\(entry.familyScopedRenderID)，图片文件=\(imageState(for: entry))\(deliverySummary)，当前各小组件显示：\(displayState.summary(installedFamilyCounts: installedFamilyCounts))"
         )
     }
 

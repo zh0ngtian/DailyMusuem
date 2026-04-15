@@ -2,7 +2,7 @@ import Foundation
 
 struct WidgetSettingsReader {
     private enum Constants {
-        static let manualRefreshStaleTimeout: TimeInterval = 30
+        static let manualRefreshStaleTimeout: TimeInterval = 90
     }
 
     private let defaults: UserDefaults
@@ -73,6 +73,34 @@ struct WidgetSettingsReader {
         }
 
         return await WidgetRefreshDeliveryTracker.shared.activeState(expectedNonce: nonce, now: now)
+    }
+
+    func activeManualRefreshTargetRenderID(now: Date = .now) async -> String? {
+        guard manualRefreshInProgress else {
+            return nil
+        }
+
+        let nonce = manualRefreshNonceValue
+        guard nonce > 0 else {
+            return nil
+        }
+
+        return await WidgetRefreshDeliveryTracker.shared.activeTargetRenderID(
+            expectedNonce: nonce,
+            now: now
+        )
+    }
+
+    func reusableManualRefreshTargetRenderID(now: Date = .now) async -> String? {
+        let nonce = manualRefreshNonceValue
+        guard nonce > 0 else {
+            return nil
+        }
+
+        return await WidgetRefreshDeliveryTracker.shared.reusableTargetRenderID(
+            expectedNonce: nonce,
+            now: now
+        )
     }
 
     var categorySelectionKey: String {
