@@ -12,6 +12,7 @@ enum SettingsKeys {
     static let widgetManualRefreshNonce = "widget.manualRefreshNonce"
     static let widgetManualRefreshInProgress = "widget.manualRefreshInProgress"
     static let widgetManualRefreshStartedAt = "widget.manualRefreshStartedAt"
+    static let widgetManualRefreshRequestedFamilyKey = "widget.manualRefreshRequestedFamilyKey"
     static let widgetRefreshIntervalMinutes = "widget.refreshIntervalMinutes"
     static let widgetMuseumScope = "widget.museumScope"
     static let widgetPreferHasImages = "widget.preferHasImages"
@@ -23,6 +24,7 @@ enum SettingsKeys {
         widgetManualRefreshNonce,
         widgetManualRefreshInProgress,
         widgetManualRefreshStartedAt,
+        widgetManualRefreshRequestedFamilyKey,
         widgetRefreshIntervalMinutes,
         widgetMuseumScope,
         widgetPreferHasImages

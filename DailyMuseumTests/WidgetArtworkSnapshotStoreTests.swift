@@ -88,14 +88,96 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
         XCTAssertEqual(retryInvocationCount, 2)
     }
 
-    private func makeSnapshot(cycleKey: String) -> WidgetArtworkSnapshotStore.Snapshot {
+    func testStoreKeepsNewerManualRefreshSnapshotWhenOlderRequestFinishesLater() async throws {
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let newerSnapshot = makeSnapshot(
+            cycleKey: "single:tnm|tnm:all|images|19.0|1",
+            generatedAt: 200,
+            manualRefreshNonce: 19
+        )
+        let olderSnapshot = makeSnapshot(
+            cycleKey: "single:tnm|tnm:all|images|17.0|1",
+            generatedAt: 100,
+            manualRefreshNonce: 17
+        )
+
+        let firstStored = await store.store(newerSnapshot, imageData: nil)
+        let secondStored = await store.store(olderSnapshot, imageData: nil)
+        let loadedSnapshot = await store.loadLatest()
+        let loaded = try XCTUnwrap(loadedSnapshot)
+
+        XCTAssertEqual(firstStored.cycleKey, newerSnapshot.cycleKey)
+        XCTAssertEqual(secondStored.cycleKey, newerSnapshot.cycleKey)
+        XCTAssertEqual(loaded.cycleKey, newerSnapshot.cycleKey)
+        XCTAssertEqual(loaded.manualRefreshNonce, 19)
+    }
+
+    func testNewerManualRefreshStealsOlderGenerationLock() async throws {
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let gate = AsyncGate()
+        let olderGenerationStarted = expectation(description: "older generation started")
+        let newerGenerationFinished = expectation(description: "newer generation finished")
+
+        let olderTask = Task<WidgetArtworkSnapshotStore.Snapshot, Error> {
+            try await store.generateSnapshot(manualRefreshNonce: 11) { _ in
+                olderGenerationStarted.fulfill()
+                await gate.wait()
+                return await store.store(
+                    self.makeSnapshot(
+                        cycleKey: "older-cycle",
+                        generatedAt: 100,
+                        manualRefreshNonce: 11
+                    ),
+                    imageData: nil
+                )
+            }
+        }
+
+        await fulfillment(of: [olderGenerationStarted], timeout: 1.0)
+
+        let newerTask = Task<WidgetArtworkSnapshotStore.Snapshot, Error> {
+            let snapshot = try await store.generateSnapshot(manualRefreshNonce: 12) { _ in
+                await store.store(
+                    self.makeSnapshot(
+                        cycleKey: "newer-cycle",
+                        generatedAt: 200,
+                        manualRefreshNonce: 12
+                    ),
+                    imageData: nil
+                )
+            }
+            newerGenerationFinished.fulfill()
+            return snapshot
+        }
+
+        await fulfillment(of: [newerGenerationFinished], timeout: 2.0)
+        await gate.open()
+
+        let newerSnapshot = try await newerTask.value
+        let olderSnapshot = try await olderTask.value
+        let loadedSnapshot = await store.loadLatest()
+        let loaded = try XCTUnwrap(loadedSnapshot)
+
+        XCTAssertEqual(newerSnapshot.cycleKey, "newer-cycle")
+        XCTAssertEqual(olderSnapshot.cycleKey, "newer-cycle")
+        XCTAssertEqual(loaded.cycleKey, "newer-cycle")
+        XCTAssertEqual(loaded.manualRefreshNonce, 12)
+    }
+
+    private func makeSnapshot(
+        cycleKey: String,
+        generatedAt: TimeInterval = 100,
+        manualRefreshNonce: Int = 0
+    ) -> WidgetArtworkSnapshotStore.Snapshot {
         WidgetArtworkSnapshotStore.Snapshot(
             cycleKey: cycleKey,
             museumName: "大都会艺术博物馆",
             title: "Test Artwork",
             subtitle: "2026",
             imageFileName: nil,
-            appURL: nil
+            appURL: nil,
+            generatedAt: generatedAt,
+            manualRefreshNonce: manualRefreshNonce
         )
     }
 }

@@ -112,50 +112,61 @@ struct DailyMuseumWidgetProvider: TimelineProvider {
             let now = Date()
             let nextRefresh = now.addingTimeInterval(refresh.seconds)
             let deliveryID = UUID().uuidString
-            let manualRefreshState = await settings.activeManualRefreshDeliveryState(now: now)
-            let activeRefreshDate = manualRefreshState.map { Date(timeIntervalSince1970: $0.startedAt) } ?? now
+            let manualRefreshState = await settings.activeManualRefreshDeliveryState(
+                forFamilyKey: context.family.logKey,
+                now: now
+            )
             let manualRefreshSummary = manualRefreshState.map {
                 "nonce=\($0.nonce)，phase=\($0.phase.rawValue)，交付进度=\($0.progressSummary)"
             } ?? "nonce=\(settings.manualRefreshNonceValue)"
-
-            if settings.manualRefreshInProgress, manualRefreshState?.phase == .generating {
-                let retryDate = now.addingTimeInterval(Constants.loadingStateRetryInterval)
-                await RequestLogger.shared.logEvent(
-                    source: "Widget 刷新",
-                    summary: "检测到手动刷新生成阶段，尺寸=\(context.family.logLabel)，displaySize=\(context.displaySize.widgetLogLabel)，deliveryID=\(deliveryID)，\(manualRefreshSummary)，先展示加载态，并在 \(Self.logTimestampFormatter.string(from: retryDate)) 重试"
-                )
-                let loadingEntry = await WidgetArtworkService(settings: settings)
-                    .makeLoadingEntry(date: now)
-                    .scoped(to: context.family, deliveryID: deliveryID)
-                completion(Timeline(entries: [loadingEntry], policy: .after(retryDate)))
-                return
-            }
-
-            if settings.manualRefreshInProgress, manualRefreshState == nil {
-                await RequestLogger.shared.logEvent(
-                    source: "Widget 刷新",
-                    summary: "检测到手动刷新标记，但未找到交付追踪状态，尺寸=\(context.family.logLabel)，displaySize=\(context.displaySize.widgetLogLabel)，deliveryID=\(deliveryID)，直接返回最新内容"
-                )
-            }
 
             await RequestLogger.shared.logEvent(
                 source: "Widget 刷新",
                 summary: "开始刷新 timeline，尺寸=\(context.family.logLabel)，displaySize=\(context.displaySize.widgetLogLabel)，deliveryID=\(deliveryID)，范围=\(settings.museumScope.rawValue)，仅图片=\(settings.preferHasImages ? "是" : "否")，\(manualRefreshSummary)"
             )
 
-            let entry: WidgetArtworkEntry
-            do {
-                entry = try await WidgetArtworkService(settings: settings)
-                    .fetchEntry(date: activeRefreshDate)
-                    .scoped(to: context.family, deliveryID: deliveryID)
-                let deliveryProgress = await recordManualRefreshDeliveryIfNeeded(
-                    state: manualRefreshState,
-                    context: context,
-                    deliveryID: deliveryID
-                )
+            if manualRefreshState == nil,
+               settings.manualRefreshInProgress,
+               settings.manualRefreshRequestedFamilyKey != context.family.logKey,
+               let pinnedEntry = await WidgetDisplayedArtworkRegistry.shared.displayedEntry(
+                forFamilyKey: context.family.logKey,
+                date: now
+               ) {
                 await RequestLogger.shared.logEvent(
                     source: "Widget 刷新",
-                    summary: "timeline 刷新成功，尺寸=\(context.family.logLabel)，displaySize=\(context.displaySize.widgetLogLabel)，deliveryID=\(deliveryID)\(deliveryProgress)，下次系统刷新时间约为 \(Self.logTimestampFormatter.string(from: nextRefresh))"
+                    summary: "检测到手动刷新仅针对 \(settings.manualRefreshRequestedFamilyKey)，当前尺寸=\(context.family.logLabel) 保持原样，不参与这次刷新"
+                )
+                completion(Timeline(entries: [pinnedEntry], policy: .after(nextRefresh)))
+                return
+            }
+
+            if let resolution = await resolveManualRefreshTimeline(
+                settings: settings,
+                state: manualRefreshState,
+                context: context,
+                now: now,
+                deliveryID: deliveryID
+            ) {
+                switch resolution {
+                case .loading(let entry, let retryDate):
+                    completion(Timeline(entries: [entry], policy: .after(retryDate)))
+                case .ready(let entries, let nextPolicyDate):
+                    completion(Timeline(entries: entries, policy: .after(nextPolicyDate ?? nextRefresh)))
+                }
+                return
+            }
+
+            let entry: WidgetArtworkEntry
+            do {
+                entry = try await WidgetArtworkService(
+                    settings: settings,
+                    familyKey: context.family.logKey
+                )
+                    .fetchEntry(date: now)
+                    .scoped(to: context.family, deliveryID: deliveryID)
+                await RequestLogger.shared.logEvent(
+                    source: "Widget 刷新",
+                    summary: "timeline 刷新成功，尺寸=\(context.family.logLabel)，displaySize=\(context.displaySize.widgetLogLabel)，deliveryID=\(deliveryID)，图片尺寸=\(imageSummary(for: entry))，下次系统刷新时间约为 \(Self.logTimestampFormatter.string(from: nextRefresh))"
                 )
             } catch {
                 await RequestLogger.shared.logEvent(
@@ -178,6 +189,124 @@ struct DailyMuseumWidgetProvider: TimelineProvider {
 
             completion(Timeline(entries: [entry], policy: .after(nextRefresh)))
         }
+    }
+
+    private func resolveManualRefreshTimeline(
+        settings: WidgetSettingsReader,
+        state: WidgetRefreshDeliveryTracker.State?,
+        context: Context,
+        now: Date,
+        deliveryID: String
+    ) async -> ManualRefreshTimelineResolution? {
+        guard let state else {
+            return nil
+        }
+
+        switch state.phase {
+        case .generating:
+            let retryDate = now.addingTimeInterval(Constants.loadingStateRetryInterval)
+            await RequestLogger.shared.logEvent(
+                source: "Widget 刷新",
+                summary: "检测到手动刷新生成阶段，尺寸=\(context.family.logLabel)，displaySize=\(context.displaySize.widgetLogLabel)，deliveryID=\(deliveryID)，nonce=\(state.nonce)，\(state.progressSummary)，先展示加载态，并在 \(Self.logTimestampFormatter.string(from: retryDate)) 重试"
+            )
+            let loadingEntry = await WidgetArtworkService(
+                settings: settings,
+                familyKey: context.family.logKey
+            )
+                .makeLoadingEntry(date: now)
+                .scoped(to: context.family, deliveryID: deliveryID)
+            return .loading(entry: loadingEntry, retryDate: retryDate)
+        case .delivering, .completed:
+            let activeRefreshDate = Date(timeIntervalSince1970: state.startedAt)
+            guard let targetRenderID = state.targetRenderID else {
+                let retryDate = now.addingTimeInterval(Constants.loadingStateRetryInterval)
+                await RequestLogger.shared.logEvent(
+                    source: "Widget 刷新",
+                    summary: "检测到手动刷新状态缺少 renderID，尺寸=\(context.family.logLabel)，displaySize=\(context.displaySize.widgetLogLabel)，deliveryID=\(deliveryID)，nonce=\(state.nonce)，先展示加载态，并在 \(Self.logTimestampFormatter.string(from: retryDate)) 重试"
+                )
+                let loadingEntry = await WidgetArtworkService(
+                    settings: settings,
+                    familyKey: context.family.logKey
+                )
+                    .makeLoadingEntry(date: now)
+                    .scoped(to: context.family, deliveryID: deliveryID)
+                return .loading(entry: loadingEntry, retryDate: retryDate)
+            }
+
+            let service = WidgetArtworkService(
+                settings: settings,
+                familyKey: context.family.logKey
+            )
+            guard let manualRefreshEntry = await service.manualRefreshEntry(
+                date: activeRefreshDate,
+                targetRenderID: targetRenderID
+            ) else {
+                let retryDate = now.addingTimeInterval(Constants.loadingStateRetryInterval)
+                await RequestLogger.shared.logEvent(
+                    source: "Widget 刷新",
+                    summary: "手动刷新结果尚未就绪，尺寸=\(context.family.logLabel)，displaySize=\(context.displaySize.widgetLogLabel)，deliveryID=\(deliveryID)，nonce=\(state.nonce)，renderID=\(targetRenderID)，先展示加载态，并在 \(Self.logTimestampFormatter.string(from: retryDate)) 重试"
+                )
+                let loadingEntry = await WidgetArtworkService(
+                    settings: settings,
+                    familyKey: context.family.logKey
+                )
+                    .makeLoadingEntry(date: now)
+                    .scoped(to: context.family, deliveryID: deliveryID)
+                return .loading(entry: loadingEntry, retryDate: retryDate)
+            }
+            let scheduledEntries = makeManualRefreshTimelineEntries(
+                entry: manualRefreshEntry,
+                state: state,
+                family: context.family,
+                now: now,
+                deliveryID: deliveryID
+            )
+
+            let deliveryProgress = await recordManualRefreshDeliveryIfNeeded(
+                state: state,
+                context: context,
+                deliveryID: deliveryID
+            )
+            let syncSummary = scheduledEntries.nextPolicyDate.map {
+                "，桌面同步窗口中，将在 \(Self.logTimestampFormatter.string(from: $0)) 继续请求同一 renderID"
+            } ?? ""
+            await RequestLogger.shared.logEvent(
+                source: "Widget 刷新",
+                summary: "命中手动刷新结果，尺寸=\(context.family.logLabel)，displaySize=\(context.displaySize.widgetLogLabel)，deliveryID=\(deliveryID)，nonce=\(state.nonce)，phase=\(state.phase.rawValue)，renderID=\(targetRenderID)，图片尺寸=\(imageSummary(for: manualRefreshEntry))\(deliveryProgress)\(syncSummary)"
+            )
+            return .ready(entries: scheduledEntries.entries, nextPolicyDate: scheduledEntries.nextPolicyDate)
+        }
+    }
+
+    private func makeManualRefreshTimelineEntries(
+        entry: WidgetArtworkEntry,
+        state: WidgetRefreshDeliveryTracker.State,
+        family: WidgetFamily,
+        now: Date,
+        deliveryID: String
+    ) -> ManualRefreshTimelineEntries {
+        let currentEntry = entry.scoped(to: family, deliveryID: deliveryID).dated(now)
+        guard state.phase == .completed,
+              let syncStartedAt = WidgetDesktopSyncSchedule.syncStartedAt(for: state) else {
+            return ManualRefreshTimelineEntries(entries: [currentEntry], nextPolicyDate: nil)
+        }
+
+        let futureEntries = WidgetDesktopSyncSchedule.remainingCheckpointDates(
+            syncStartedAt: syncStartedAt,
+            now: now
+        ).map { checkpointDate in
+            entry
+                .scoped(
+                    to: family,
+                    deliveryID: "\(deliveryID)-sync-\(Int(checkpointDate.timeIntervalSince1970.rounded()))"
+                )
+                .dated(checkpointDate)
+        }
+
+        return ManualRefreshTimelineEntries(
+            entries: [currentEntry] + futureEntries,
+            nextPolicyDate: WidgetDesktopSyncSchedule.syncWindowEnd(for: state)
+        )
     }
 
     private func recordManualRefreshDeliveryIfNeeded(
@@ -206,6 +335,23 @@ struct DailyMuseumWidgetProvider: TimelineProvider {
         formatter.dateFormat = "MM-dd HH:mm:ss"
         return formatter
     }()
+
+    private func imageSummary(for entry: WidgetArtworkEntry) -> String {
+        guard let fileName = entry.imageFileName else {
+            return "无图"
+        }
+        return WidgetArtworkSnapshotStore.imageDimensions(for: fileName)?.summary ?? "未知"
+    }
+}
+
+private enum ManualRefreshTimelineResolution {
+    case loading(entry: WidgetArtworkEntry, retryDate: Date)
+    case ready(entries: [WidgetArtworkEntry], nextPolicyDate: Date?)
+}
+
+private struct ManualRefreshTimelineEntries {
+    let entries: [WidgetArtworkEntry]
+    let nextPolicyDate: Date?
 }
 
 extension WidgetFamily {
@@ -224,5 +370,22 @@ extension WidgetFamily {
 
     var logLabel: String {
         logKey
+    }
+}
+
+private extension WidgetArtworkEntry {
+    func dated(_ date: Date) -> WidgetArtworkEntry {
+        WidgetArtworkEntry(
+            date: date,
+            renderID: renderID,
+            familyKey: familyKey,
+            deliveryID: deliveryID,
+            museumName: museumName,
+            title: title,
+            subtitle: subtitle,
+            imageFileName: imageFileName,
+            appURL: appURL,
+            isRefreshing: isRefreshing
+        )
     }
 }

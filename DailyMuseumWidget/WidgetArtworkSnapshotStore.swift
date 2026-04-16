@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import ImageIO
 
 actor WidgetArtworkSnapshotStore {
     static let shared = WidgetArtworkSnapshotStore()
@@ -10,8 +11,14 @@ actor WidgetArtworkSnapshotStore {
         static let generationLockFileName = "snapshot-generation.lock"
         static let imageFileExtension = "bin"
         static let lockPollIntervalNanoseconds: UInt64 = 200_000_000
+        static let lockHeartbeatIntervalNanoseconds: UInt64 = 1_000_000_000
         static let lockWaitTimeout: TimeInterval = 15
         static let staleLockThreshold: TimeInterval = 20
+    }
+
+    private struct GenerationLockMetadata: Codable {
+        let ownerNonce: Int?
+        let createdAt: TimeInterval
     }
 
     struct Snapshot: Codable {
@@ -21,6 +28,8 @@ actor WidgetArtworkSnapshotStore {
         let subtitle: String?
         let imageFileName: String?
         let appURL: URL?
+        let generatedAt: TimeInterval
+        let manualRefreshNonce: Int
 
         private let embeddedImageData: Data?
 
@@ -30,7 +39,9 @@ actor WidgetArtworkSnapshotStore {
             title: String,
             subtitle: String?,
             imageFileName: String?,
-            appURL: URL?
+            appURL: URL?,
+            generatedAt: TimeInterval = Date().timeIntervalSince1970,
+            manualRefreshNonce: Int = 0
         ) {
             self.cycleKey = cycleKey
             self.museumName = museumName
@@ -38,6 +49,8 @@ actor WidgetArtworkSnapshotStore {
             self.subtitle = subtitle
             self.imageFileName = imageFileName
             self.appURL = appURL
+            self.generatedAt = generatedAt
+            self.manualRefreshNonce = manualRefreshNonce
             embeddedImageData = nil
         }
 
@@ -49,6 +62,8 @@ actor WidgetArtworkSnapshotStore {
             case imageFileName
             case imageData
             case appURL
+            case generatedAt
+            case manualRefreshNonce
         }
 
         init(from decoder: Decoder) throws {
@@ -59,6 +74,8 @@ actor WidgetArtworkSnapshotStore {
             subtitle = try container.decodeIfPresent(String.self, forKey: .subtitle)
             imageFileName = try container.decodeIfPresent(String.self, forKey: .imageFileName)
             appURL = try container.decodeIfPresent(URL.self, forKey: .appURL)
+            generatedAt = try container.decodeIfPresent(TimeInterval.self, forKey: .generatedAt) ?? 0
+            manualRefreshNonce = try container.decodeIfPresent(Int.self, forKey: .manualRefreshNonce) ?? 0
             embeddedImageData = try container.decodeIfPresent(Data.self, forKey: .imageData)
         }
 
@@ -70,6 +87,8 @@ actor WidgetArtworkSnapshotStore {
             try container.encodeIfPresent(subtitle, forKey: .subtitle)
             try container.encodeIfPresent(imageFileName, forKey: .imageFileName)
             try container.encodeIfPresent(appURL, forKey: .appURL)
+            try container.encode(generatedAt, forKey: .generatedAt)
+            try container.encode(manualRefreshNonce, forKey: .manualRefreshNonce)
         }
 
         func withImageFileName(_ imageFileName: String?) -> Snapshot {
@@ -79,7 +98,9 @@ actor WidgetArtworkSnapshotStore {
                 title: title,
                 subtitle: subtitle,
                 imageFileName: imageFileName,
-                appURL: appURL
+                appURL: appURL,
+                generatedAt: generatedAt,
+                manualRefreshNonce: manualRefreshNonce
             )
         }
 
@@ -121,11 +142,18 @@ actor WidgetArtworkSnapshotStore {
     }
 
     func generateSnapshot(
+        lockKey: String = "global",
+        manualRefreshNonce: Int? = nil,
+        shouldAbortWaiting: @escaping @Sendable () -> Bool = { false },
         generate: @Sendable (_ latestSnapshot: Snapshot?) async throws -> Snapshot
     ) async throws -> Snapshot {
-        let lockURL = generationLockURL
-        if try acquireGenerationLock(at: lockURL) {
-            defer { releaseGenerationLock(at: lockURL) }
+        let lockURL = generationLockURL(for: lockKey)
+        if try acquireGenerationLock(at: lockURL, ownerNonce: manualRefreshNonce) {
+            let heartbeatTask = startGenerationLockHeartbeat(at: lockURL)
+            defer {
+                heartbeatTask.cancel()
+                releaseGenerationLock(at: lockURL)
+            }
 
             let snapshot = try await generate(loadLatest())
             return snapshot
@@ -137,9 +165,28 @@ actor WidgetArtworkSnapshotStore {
         )
         let deadline = Date().addingTimeInterval(Constants.lockWaitTimeout)
         while Date() < deadline {
+            if shouldAbortWaiting() {
+                throw WidgetManualRefreshInterruptedError(
+                    executionNonce: manualRefreshNonce ?? 0,
+                    activeNonce: manualRefreshNonce ?? 0
+                )
+            }
+
             if !FileManager.default.fileExists(atPath: lockURL.path),
                let snapshot = loadLatest() {
                 return snapshot
+            }
+
+            if let manualRefreshNonce,
+               let lockOwnerNonce = generationLockOwnerNonce(at: lockURL),
+               lockOwnerNonce > 0,
+               manualRefreshNonce > lockOwnerNonce {
+                await RequestLogger.shared.logEvent(
+                    source: "Widget 刷新",
+                    summary: "检测到较旧 nonce=\(lockOwnerNonce) 持有最新快照锁，当前 nonce=\(manualRefreshNonce) 直接抢占并重新生成"
+                )
+                releaseGenerationLock(at: lockURL)
+                break
             }
 
             if isStaleLock(at: lockURL) {
@@ -154,8 +201,19 @@ actor WidgetArtworkSnapshotStore {
             try? await Task.sleep(nanoseconds: Constants.lockPollIntervalNanoseconds)
         }
 
-        if try acquireGenerationLock(at: lockURL) {
-            defer { releaseGenerationLock(at: lockURL) }
+        if shouldAbortWaiting() {
+            throw WidgetManualRefreshInterruptedError(
+                executionNonce: manualRefreshNonce ?? 0,
+                activeNonce: manualRefreshNonce ?? 0
+            )
+        }
+
+        if try acquireGenerationLock(at: lockURL, ownerNonce: manualRefreshNonce) {
+            let heartbeatTask = startGenerationLockHeartbeat(at: lockURL)
+            defer {
+                heartbeatTask.cancel()
+                releaseGenerationLock(at: lockURL)
+            }
 
             let snapshot = try await generate(loadLatest())
             return snapshot
@@ -165,6 +223,11 @@ actor WidgetArtworkSnapshotStore {
     }
 
     func store(_ snapshot: Snapshot, imageData: Data?) -> Snapshot {
+        if let latestSnapshot = loadLatest(),
+           shouldKeepExistingSnapshot(latestSnapshot, over: snapshot) {
+            return latestSnapshot
+        }
+
         let storedSnapshot = snapshot.withImageFileName(storeImageData(imageData, cycleKey: snapshot.cycleKey))
         persist(snapshot: storedSnapshot)
         return storedSnapshot
@@ -185,8 +248,9 @@ actor WidgetArtworkSnapshotStore {
         directoryURL.appendingPathComponent(Constants.snapshotFileName)
     }
 
-    private var generationLockURL: URL {
-        directoryURL.appendingPathComponent(Constants.generationLockFileName)
+    private func generationLockURL(for lockKey: String) -> URL {
+        let suffix = safeFileName(for: lockKey)
+        return directoryURL.appendingPathComponent("\(suffix)-\(Constants.generationLockFileName)")
     }
 
     private func imageFileURL(for fileName: String) -> URL {
@@ -217,7 +281,7 @@ actor WidgetArtworkSnapshotStore {
             .replacingOccurrences(of: "=", with: "")
     }
 
-    private func acquireGenerationLock(at url: URL) throws -> Bool {
+    private func acquireGenerationLock(at url: URL, ownerNonce: Int?) throws -> Bool {
         try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
 
         let path = url.path
@@ -230,11 +294,24 @@ actor WidgetArtworkSnapshotStore {
         }
 
         close(fileDescriptor)
+        persistGenerationLockMetadata(ownerNonce: ownerNonce, at: url)
         return true
     }
 
     private func releaseGenerationLock(at url: URL) {
         try? FileManager.default.removeItem(at: url)
+    }
+
+    private func startGenerationLockHeartbeat(at url: URL) -> Task<Void, Never> {
+        Task.detached(priority: .utility) {
+            while !Task.isCancelled {
+                try? FileManager.default.setAttributes(
+                    [.modificationDate: Date()],
+                    ofItemAtPath: url.path
+                )
+                try? await Task.sleep(nanoseconds: Constants.lockHeartbeatIntervalNanoseconds)
+            }
+        }
     }
 
     private func isStaleLock(at url: URL) -> Bool {
@@ -246,6 +323,37 @@ actor WidgetArtworkSnapshotStore {
         return Date().timeIntervalSince(modifiedAt) >= Constants.staleLockThreshold
     }
 
+    private func generationLockOwnerNonce(at url: URL) -> Int? {
+        guard let data = try? Data(contentsOf: url),
+              let metadata = try? decoder.decode(GenerationLockMetadata.self, from: data) else {
+            return nil
+        }
+        return metadata.ownerNonce
+    }
+
+    private func persistGenerationLockMetadata(ownerNonce: Int?, at url: URL) {
+        let metadata = GenerationLockMetadata(
+            ownerNonce: ownerNonce,
+            createdAt: Date().timeIntervalSince1970
+        )
+        guard let data = try? encoder.encode(metadata) else {
+            return
+        }
+        try? data.write(to: url)
+    }
+
+    private func shouldKeepExistingSnapshot(_ existing: Snapshot, over incoming: Snapshot) -> Bool {
+        if existing.manualRefreshNonce != incoming.manualRefreshNonce {
+            return existing.manualRefreshNonce > incoming.manualRefreshNonce
+        }
+
+        if existing.generatedAt != incoming.generatedAt {
+            return existing.generatedAt >= incoming.generatedAt
+        }
+
+        return existing.cycleKey == incoming.cycleKey
+    }
+
     nonisolated static func imageURL(for fileName: String) -> URL? {
         let fileManager = FileManager.default
         let baseURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: SettingsKeys.appGroupID)
@@ -254,5 +362,35 @@ actor WidgetArtworkSnapshotStore {
         return baseURL
             .appendingPathComponent(Constants.directoryName, isDirectory: true)
             .appendingPathComponent(fileName)
+    }
+
+    nonisolated static func imageDimensions(for fileName: String) -> WidgetImageDimensions? {
+        guard let url = imageURL(for: fileName),
+              let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? Int,
+              let height = properties[kCGImagePropertyPixelHeight] as? Int else {
+            return nil
+        }
+        return WidgetImageDimensions(width: width, height: height)
+    }
+
+    nonisolated static func imageDimensions(from imageData: Data) -> WidgetImageDimensions? {
+        guard let source = CGImageSourceCreateWithData(imageData as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? Int,
+              let height = properties[kCGImagePropertyPixelHeight] as? Int else {
+            return nil
+        }
+        return WidgetImageDimensions(width: width, height: height)
+    }
+}
+
+struct WidgetImageDimensions {
+    let width: Int
+    let height: Int
+
+    var summary: String {
+        "\(width)x\(height)"
     }
 }

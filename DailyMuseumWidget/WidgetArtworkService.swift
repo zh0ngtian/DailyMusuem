@@ -3,8 +3,6 @@ import Foundation
 struct WidgetArtworkService {
     private enum Constants {
         static let candidateSelectionMaxAttempts = 12
-        static let imageDownloadMaxAttempts = 3
-        static let imageRequestTimeout: TimeInterval = 8
         static let imageRetryBaseDelayNanoseconds: UInt64 = 400_000_000
     }
 
@@ -15,6 +13,8 @@ struct WidgetArtworkService {
     private let shanghaiMuseumAPI: ShanghaiMuseumAPI
     private let snapshotStore: WidgetArtworkSnapshotStore
     private let urlSession: URLSession
+    private let manualRefreshExecutionNonce: Int?
+    private let familyKey: String
     private let chooseRandomMuseum: ([Museum]) -> Museum?
     private let randomIndex: (Range<Int>) -> Int
     private let shuffleStrings: ([String]) -> [String]
@@ -27,6 +27,8 @@ struct WidgetArtworkService {
         shanghaiMuseumAPI: ShanghaiMuseumAPI = ShanghaiMuseumAPI(),
         snapshotStore: WidgetArtworkSnapshotStore = .shared,
         urlSession: URLSession = .shared,
+        manualRefreshExecutionNonce: Int? = nil,
+        familyKey: String = "",
         chooseRandomMuseum: @escaping ([Museum]) -> Museum? = { museums in
             museums.randomElement()
         },
@@ -44,6 +46,8 @@ struct WidgetArtworkService {
         self.shanghaiMuseumAPI = shanghaiMuseumAPI
         self.snapshotStore = snapshotStore
         self.urlSession = urlSession
+        self.manualRefreshExecutionNonce = manualRefreshExecutionNonce
+        self.familyKey = familyKey
         self.chooseRandomMuseum = chooseRandomMuseum
         self.randomIndex = randomIndex
         self.shuffleStrings = shuffleStrings
@@ -76,30 +80,46 @@ struct WidgetArtworkService {
     }
 
     func fetchEntry(date: Date) async throws -> WidgetArtworkEntry {
+        try throwIfManualRefreshInterrupted()
         let cycleKey = makeCycleKey(date: date)
-        if let targetRenderID = await settings.reusableManualRefreshTargetRenderID(now: date),
-           let snapshot = await snapshotStore.loadLatest(),
-           snapshot.cycleKey == targetRenderID {
-            let reuseSummary = settings.manualRefreshInProgress
+        if let targetRenderID = await settings.reusableManualRefreshTargetRenderID(
+            forFamilyKey: familyKey,
+            now: date
+        ),
+           let entry = await manualRefreshEntry(date: date, targetRenderID: targetRenderID) {
+            let reuseSummary = settings.manualRefreshInProgress(forFamilyKey: familyKey, now: date)
                 ? "命中当前手动刷新结果"
                 : "命中最近一次手动刷新结果"
             await RequestLogger.shared.logEvent(
                 source: "Widget 刷新",
-                summary: "\(reuseSummary)，直接复用 \(snapshot.museumName) / \(snapshot.title)"
+                summary: "\(reuseSummary)，直接复用 \(entry.museumName) / \(entry.title)"
             )
-            return WidgetArtworkEntry(
-                date: date,
-                renderID: snapshot.cycleKey,
-                museumName: snapshot.museumName,
-                title: snapshot.title,
-                subtitle: snapshot.subtitle,
-                imageFileName: snapshot.imageFileName,
-                appURL: snapshot.appURL,
-                isRefreshing: false
-            )
+            return entry
         }
 
-        let snapshot = try await snapshotStore.generateSnapshot { latestSnapshot in
+        let snapshot = try await snapshotStore.generateSnapshot(
+            lockKey: resolvedFamilyKey,
+            manualRefreshNonce: manualRefreshExecutionNonce,
+            shouldAbortWaiting: { [settings, manualRefreshExecutionNonce] in
+                guard let manualRefreshExecutionNonce else {
+                    return false
+                }
+                return settings.shouldInterruptManualRefreshExecution(nonce: manualRefreshExecutionNonce)
+            }
+        ) { latestSnapshot in
+            try throwIfManualRefreshInterrupted()
+            if WidgetSnapshotReuseDecision.shouldReuseLatestSnapshot(
+                latestSnapshotCycleKey: latestSnapshot?.cycleKey,
+                requestedCycleKey: cycleKey
+            ),
+               let latestSnapshot {
+                await RequestLogger.shared.logEvent(
+                    source: "Widget 刷新",
+                    summary: "命中同周期快照，直接复用 \(latestSnapshot.museumName) / \(latestSnapshot.title)"
+                )
+                return latestSnapshot
+            }
+
             let previousReference = latestSnapshot?.appURL.flatMap(AppDeepLink.parse)
             let museum = pickMuseum()
             await RequestLogger.shared.logEvent(
@@ -174,6 +194,24 @@ struct WidgetArtworkService {
         )
     }
 
+    func manualRefreshEntry(date: Date, targetRenderID: String) async -> WidgetArtworkEntry? {
+        guard let snapshot = await snapshotStore.loadLatest(),
+              snapshot.cycleKey == targetRenderID else {
+            return nil
+        }
+
+        return WidgetArtworkEntry(
+            date: date,
+            renderID: snapshot.cycleKey,
+            museumName: snapshot.museumName,
+            title: snapshot.title,
+            subtitle: snapshot.subtitle,
+            imageFileName: snapshot.imageFileName,
+            appURL: snapshot.appURL,
+            isRefreshing: false
+        )
+    }
+
     private func resolveSnapshot(
         from candidateIDs: [String],
         museum: Museum,
@@ -195,18 +233,33 @@ struct WidgetArtworkService {
 
         for candidateID in orderedCandidateIDs {
             do {
+                try throwIfManualRefreshInterrupted()
                 let artwork = try await loadArtwork(candidateID)
-                if let snapshot = try await makeValidatedSnapshot(
+                try throwIfManualRefreshInterrupted()
+                switch try await makeValidatedSnapshot(
                     for: artwork,
                     museum: museum,
                     cycleKey: cycleKey
                 ) {
+                case .ready(let snapshot):
                     return snapshot
-                }
-                if fallbackArtwork == nil {
-                    fallbackArtwork = artwork
+                case .missingImage:
+                    if fallbackArtwork == nil {
+                        fallbackArtwork = artwork
+                    }
+                case .imageFetchFailed:
+                    if fallbackArtwork == nil {
+                        fallbackArtwork = artwork
+                    }
+                case .invalidImageData:
+                    if fallbackArtwork == nil {
+                        fallbackArtwork = artwork
+                    }
                 }
             } catch {
+                if error is CancellationError || error is WidgetManualRefreshInterruptedError {
+                    throw error
+                }
                 lastError = error
                 await RequestLogger.shared.logEvent(
                     source: "Widget 刷新",
@@ -239,29 +292,60 @@ struct WidgetArtworkService {
         for artwork: Artwork,
         museum: Museum,
         cycleKey: String
-    ) async throws -> WidgetArtworkSnapshotStore.Snapshot? {
-        guard let imageURL = preferredWidgetImageURL(for: artwork, museum: museum) else {
+    ) async throws -> WidgetValidatedSnapshotResult {
+        let imageURLs = preferredWidgetImageURLs(for: artwork, museum: museum)
+        guard !imageURLs.isEmpty else {
             await RequestLogger.shared.logEvent(
                 source: "Widget 刷新",
                 summary: "候选展品缺少图片，继续尝试 \(museum.displayName) / \(artwork.title)"
             )
-            return nil
+            return .missingImage
         }
 
-        guard let imageData = try await fetchImageData(url: imageURL) else {
+        var sawImageFetchFailure = false
+
+        for (index, imageURL) in imageURLs.enumerated() {
+            try throwIfManualRefreshInterrupted()
+            guard let imageData = try await fetchImageData(url: imageURL) else {
+                sawImageFetchFailure = true
+                continue
+            }
+
+            guard let dimensions = WidgetArtworkSnapshotStore.imageDimensions(from: imageData) else {
+                await RequestLogger.shared.logEvent(
+                    source: "Widget 刷新",
+                    summary: "候选展品图片无法解析尺寸，继续尝试 \(museum.displayName) / \(artwork.title)"
+                )
+                continue
+            }
+
+            guard WidgetImageSuitabilityDecision.isAcceptableForWidget(dimensions: dimensions) else {
+                let candidatePosition = index + 1
+                let candidateCount = imageURLs.count
+                await RequestLogger.shared.logEvent(
+                    source: "Widget 刷新",
+                    summary: "候选展品图片尺寸不适合 widget，继续尝试 \(museum.displayName) / \(artwork.title)，图片尺寸=\(dimensions.summary)，候选 \(candidatePosition)/\(candidateCount)"
+                )
+                continue
+            }
+
+            return .ready(await snapshot(
+                for: artwork,
+                museum: museum,
+                cycleKey: cycleKey,
+                imageData: imageData
+            ))
+        }
+
+        if sawImageFetchFailure {
             await RequestLogger.shared.logEvent(
                 source: "Widget 刷新",
                 summary: "候选展品图片拉取失败，继续尝试 \(museum.displayName) / \(artwork.title)"
             )
-            return nil
+            return .imageFetchFailed
         }
 
-        return await snapshot(
-            for: artwork,
-            museum: museum,
-            cycleKey: cycleKey,
-            imageData: imageData
-        )
+        return .invalidImageData
     }
 
     private func snapshot(
@@ -282,37 +366,48 @@ struct WidgetArtworkService {
             title: artwork.title,
             subtitle: artwork.objectDate,
             imageFileName: nil,
-            appURL: AppDeepLink.artworkURL(reference: reference)
+            appURL: AppDeepLink.artworkURL(reference: reference),
+            generatedAt: Date().timeIntervalSince1970,
+            manualRefreshNonce: effectiveManualRefreshNonce
         )
         let storedSnapshot = await snapshotStore.store(snapshot, imageData: imageData)
-        await RequestLogger.shared.logEvent(
-            source: "Widget 刷新",
-            summary: "刷新完成，已缓存 \(museum.displayName) / \(artwork.title)"
-        )
+        let imageSummary = storedSnapshot.imageFileName
+            .flatMap { WidgetArtworkSnapshotStore.imageDimensions(for: $0)?.summary }
+            ?? "无图"
+        if storedSnapshot.cycleKey == snapshot.cycleKey {
+            await RequestLogger.shared.logEvent(
+                source: "Widget 刷新",
+                summary: "刷新完成，已缓存 \(museum.displayName) / \(artwork.title)，图片尺寸=\(imageSummary)"
+            )
+        } else {
+            await RequestLogger.shared.logEvent(
+                source: "Widget 刷新",
+                summary: "检测到较新的快照已写入，忽略较旧结果 \(museum.displayName) / \(artwork.title)，继续保留 \(storedSnapshot.museumName) / \(storedSnapshot.title)，图片尺寸=\(imageSummary)"
+            )
+        }
         return storedSnapshot
     }
 
-    private func preferredWidgetImageURL(for artwork: Artwork, museum: Museum) -> URL? {
-        switch museum.id {
-        case .tnm:
-            return artwork.primaryImageURL ?? artwork.primaryImageSmallURL
-        case .met, .nmc, .shm:
-            return artwork.primaryImageSmallURL ?? artwork.primaryImageURL
-        }
+    private func preferredWidgetImageURLs(for artwork: Artwork, museum: Museum) -> [URL] {
+        WidgetPreferredImageURLDecision.resolveCandidates(for: artwork, museumID: museum.id)
     }
 
     private func metObjectIDs() async throws -> [Int] {
+        try throwIfManualRefreshInterrupted()
         let selectedCategories = settings.categories(for: .met)
         guard !MuseumID.met.areAllFeedCategoriesSelected(selectedCategories) else {
-            return try await metAPI.searchObjectIDs(
+            let ids = try await metAPI.searchObjectIDs(
                 hasImages: settings.preferHasImages,
                 isOnView: true,
                 query: "*"
             )
+            try throwIfManualRefreshInterrupted()
+            return ids
         }
 
         var mergedIDs: [Int] = []
         for category in selectedCategories {
+            try throwIfManualRefreshInterrupted()
             guard let departmentID = category.metDepartmentID else { continue }
             let categoryIDs = try await metAPI.searchObjectIDs(
                 hasImages: settings.preferHasImages,
@@ -320,56 +415,76 @@ struct WidgetArtworkService {
                 query: "*",
                 departmentID: departmentID
             )
+            try throwIfManualRefreshInterrupted()
             mergedIDs.append(contentsOf: categoryIDs)
         }
         return Self.stableUniqueInts(mergedIDs)
     }
 
     private func tnmItemIDs() async throws -> [String] {
+        try throwIfManualRefreshInterrupted()
         let selectedCategories = settings.categories(for: .tnm)
         guard !MuseumID.tnm.areAllFeedCategoriesSelected(selectedCategories) else {
             let searchPool = try await japanSearchAPI.searchItemIDs(preferHasImages: settings.preferHasImages)
+            try throwIfManualRefreshInterrupted()
             return searchPool.itemIDs
         }
 
         var mergedIDs: [String] = []
         for category in selectedCategories {
+            try throwIfManualRefreshInterrupted()
             guard let typeCode = category.japanSearchTypeCode else { continue }
             let categoryResult = try await japanSearchAPI.searchItemIDs(
                 preferHasImages: settings.preferHasImages,
                 categoryTypeCode: typeCode
             )
+            try throwIfManualRefreshInterrupted()
             mergedIDs.append(contentsOf: categoryResult.itemIDs)
         }
         return Self.stableUniqueStrings(mergedIDs)
     }
 
     private func nmcExhibitIDs() async throws -> [Int] {
+        try throwIfManualRefreshInterrupted()
         let selectedCategories = settings.categories(for: .nmc)
         guard !MuseumID.nmc.areAllFeedCategoriesSelected(selectedCategories) else {
-            return try await nationalMuseumChinaAPI.allExhibitIDs()
+            let ids = try await nationalMuseumChinaAPI.allExhibitIDs()
+            try throwIfManualRefreshInterrupted()
+            return ids
         }
 
         var mergedIDs: [Int] = []
         for category in selectedCategories {
+            try throwIfManualRefreshInterrupted()
             guard let categoryID = category.nationalMuseumChinaCategoryID else { continue }
             let categoryItemIDs = try await nationalMuseumChinaAPI.allExhibitIDs(
                 categoryID: categoryID,
                 categoryDisplayName: category.displayName
             )
+            try throwIfManualRefreshInterrupted()
             mergedIDs.append(contentsOf: categoryItemIDs)
         }
         return Self.stableUniqueInts(mergedIDs)
     }
 
     private func shmArtworkCodes() async throws -> [String] {
+        try throwIfManualRefreshInterrupted()
         let selectedCategories = settings.categories(for: .shm)
         let selectedSubtypes: [String]? = if MuseumID.shm.areAllFeedCategoriesSelected(selectedCategories) {
             nil
         } else {
             selectedCategories.compactMap(\.shanghaiMuseumSubtype)
         }
-        return try await shanghaiMuseumAPI.allArtworkCodes(subtypes: selectedSubtypes)
+        // Widget only needs a small candidate pool per refresh. Pulling the entire
+        // Shanghai collection forces hundreds of paginated requests before we can
+        // choose a single artwork, which makes refresh effectively unbounded.
+        let minimumPoolCount = max(Constants.candidateSelectionMaxAttempts, 10)
+        let snapshot = try await shanghaiMuseumAPI.searchArtworkCodes(
+            subtypes: selectedSubtypes,
+            minimumCount: minimumPoolCount
+        )
+        try throwIfManualRefreshInterrupted()
+        return snapshot.artworkCodes
     }
 
     private func categorySummary(for museumID: MuseumID) -> String {
@@ -421,13 +536,24 @@ struct WidgetArtworkService {
 
     private func fetchImageData(url: URL?) async throws -> Data? {
         guard let url else { return nil }
-        for attempt in 1...Constants.imageDownloadMaxAttempts {
+        let requestTimeout = WidgetImageFetchPolicy.requestTimeout(
+            manualRefreshInProgress: isManualRefreshExecution
+        )
+        let maxAttempts = WidgetImageFetchPolicy.maxAttempts(
+            manualRefreshInProgress: isManualRefreshExecution
+        )
+        for attempt in 1...maxAttempts {
+            try throwIfManualRefreshInterrupted()
             let start = Date()
-            let request = URLRequest(url: url, timeoutInterval: Constants.imageRequestTimeout)
+            let request = WidgetImageRequestPolicy.makeRequest(
+                url: url,
+                timeout: requestTimeout
+            )
             await RequestLogger.shared.logRequestStart(source: "Widget 图片", url: url)
 
             do {
                 let (data, response) = try await urlSession.data(for: request)
+                try throwIfManualRefreshInterrupted()
                 guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
                     throw URLError(.badServerResponse)
                 }
@@ -438,6 +564,11 @@ struct WidgetArtworkService {
                     duration: Date().timeIntervalSince(start),
                     responseBytes: data.count
                 )
+                let dimensionSummary = WidgetArtworkSnapshotStore.imageDimensions(from: data)?.summary ?? "未知"
+                await RequestLogger.shared.logEvent(
+                    source: "Widget 图片",
+                    summary: "图片像素尺寸=\(dimensionSummary)"
+                )
                 if attempt > 1 {
                     await RequestLogger.shared.logEvent(
                         source: "Widget 图片",
@@ -446,6 +577,9 @@ struct WidgetArtworkService {
                 }
                 return data
             } catch {
+                if error is CancellationError || error is WidgetManualRefreshInterruptedError {
+                    throw error
+                }
                 await RequestLogger.shared.logRequestFailure(
                     source: "Widget 图片",
                     url: url,
@@ -453,10 +587,10 @@ struct WidgetArtworkService {
                     error: error
                 )
 
-                guard attempt < Constants.imageDownloadMaxAttempts else {
+                guard attempt < maxAttempts else {
                     await RequestLogger.shared.logEvent(
                         source: "Widget 图片",
-                        summary: "图片请求已达到最大重试次数 \(Constants.imageDownloadMaxAttempts)"
+                        summary: "图片请求已达到最大重试次数 \(maxAttempts)"
                     )
                     return nil
                 }
@@ -467,7 +601,7 @@ struct WidgetArtworkService {
                     summary: "准备第 \(nextAttempt) 次重试"
                 )
                 let delay = Constants.imageRetryBaseDelayNanoseconds * UInt64(attempt)
-                try? await Task.sleep(nanoseconds: delay)
+                try await Task.sleep(nanoseconds: delay)
             }
         }
 
@@ -477,12 +611,46 @@ struct WidgetArtworkService {
     private func makeCycleKey(date: Date) -> String {
         let refreshBucket = Int(date.timeIntervalSince1970 / settings.refreshInterval.seconds)
         return [
+            resolvedFamilyKey,
             settings.museumScope.rawValue,
             settings.categorySelectionKey,
             settings.preferHasImages ? "images" : "all",
-            String(settings.manualRefreshNonce),
+            String(effectiveManualRefreshNonce),
             String(refreshBucket)
         ].joined(separator: "|")
+    }
+
+    private var effectiveManualRefreshNonce: Int {
+        guard isManualRefreshExecution else {
+            return 0
+        }
+        return manualRefreshExecutionNonce ?? settings.manualRefreshNonceValue
+    }
+
+    private var isManualRefreshExecution: Bool {
+        manualRefreshExecutionNonce != nil || settings.manualRefreshInProgress(forFamilyKey: familyKey)
+    }
+
+    private var resolvedFamilyKey: String {
+        familyKey.isEmpty ? "unscoped" : familyKey
+    }
+
+    private func throwIfManualRefreshInterrupted(now: Date = .now) throws {
+        guard let manualRefreshExecutionNonce else {
+            try Task.checkCancellation()
+            return
+        }
+        try Task.checkCancellation()
+        guard settings.shouldInterruptManualRefreshExecution(
+            nonce: manualRefreshExecutionNonce,
+            now: now
+        ) else {
+            return
+        }
+        throw WidgetManualRefreshInterruptedError(
+            executionNonce: manualRefreshExecutionNonce,
+            activeNonce: settings.manualRefreshNonceValue
+        )
     }
 
     private static func stableUniqueStrings(_ values: [String]) -> [String] {
@@ -505,5 +673,43 @@ struct WidgetArtworkService {
             result.append(value)
         }
         return result
+    }
+}
+
+enum WidgetImageRequestPolicy {
+    private enum Constants {
+        static let safariUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+        static let accept = "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+        static let acceptLanguage = "ja-JP,ja;q=0.9,en-US;q=0.8,zh-CN;q=0.7"
+    }
+
+    static func makeRequest(url: URL, timeout: TimeInterval) -> URLRequest {
+        var request = URLRequest(url: url, timeoutInterval: timeout)
+        request.httpMethod = "GET"
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+
+        if requiresBrowserLikeHeaders(url: url) {
+            request.setValue(Constants.safariUserAgent, forHTTPHeaderField: "User-Agent")
+            request.setValue(Constants.accept, forHTTPHeaderField: "Accept")
+            request.setValue(Constants.acceptLanguage, forHTTPHeaderField: "Accept-Language")
+            request.setValue("https://colbase.nich.go.jp/", forHTTPHeaderField: "Referer")
+            request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+            request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+        }
+
+        return request
+    }
+
+    private static func requiresBrowserLikeHeaders(url: URL) -> Bool {
+        url.host?.contains("colbase.nich.go.jp") == true
+    }
+}
+
+enum WidgetSnapshotReuseDecision {
+    static func shouldReuseLatestSnapshot(
+        latestSnapshotCycleKey: String?,
+        requestedCycleKey: String
+    ) -> Bool {
+        latestSnapshotCycleKey == requestedCycleKey
     }
 }

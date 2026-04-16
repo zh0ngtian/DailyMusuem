@@ -6,13 +6,18 @@ struct WidgetSettingsReader {
     }
 
     private let defaults: UserDefaults
+    private let refreshTracker: WidgetRefreshDeliveryTracker
 
     init() {
-        self.init(defaults: UserDefaults(suiteName: SettingsKeys.appGroupID) ?? .standard)
+        self.init(
+            defaults: UserDefaults(suiteName: SettingsKeys.appGroupID) ?? .standard,
+            refreshTracker: .shared
+        )
     }
 
-    init(defaults: UserDefaults) {
+    init(defaults: UserDefaults, refreshTracker: WidgetRefreshDeliveryTracker = .shared) {
         self.defaults = defaults
+        self.refreshTracker = refreshTracker
     }
 
     var refreshInterval: WidgetRefreshInterval {
@@ -44,30 +49,46 @@ struct WidgetSettingsReader {
     }
 
     var manualRefreshInProgress: Bool {
-        guard defaults.bool(forKey: SettingsKeys.widgetManualRefreshInProgress) else {
-            return false
-        }
+        manualRefreshFlagIsActive(now: .now)
+    }
 
-        let startedAt = defaults.double(forKey: SettingsKeys.widgetManualRefreshStartedAt)
-        guard startedAt > 0 else {
-            clearManualRefreshState()
-            return false
-        }
+    var manualRefreshRequestedFamilyKey: String {
+        defaults.string(forKey: SettingsKeys.widgetManualRefreshRequestedFamilyKey) ?? ""
+    }
 
-        if Date().timeIntervalSince1970 - startedAt >= Constants.manualRefreshStaleTimeout {
-            clearManualRefreshState()
-            return false
-        }
+    func manualRefreshInProgress(forFamilyKey familyKey: String, now: Date = .now) -> Bool {
+        manualRefreshFlagIsActive(now: now) && manualRefreshApplies(toFamilyKey: familyKey)
+    }
 
-        return true
+    func shouldInterruptManualRefreshExecution(nonce: Int, now: Date = .now) -> Bool {
+        WidgetManualRefreshInterruptionDecision.shouldInterrupt(
+            executionNonce: nonce,
+            isManualRefreshInProgress: manualRefreshFlagIsActive(now: now),
+            activeNonce: manualRefreshNonceValue
+        )
+    }
+
+    func clearManualRefreshStateIfCurrentNonce(_ nonce: Int) {
+        guard manualRefreshNonceValue == nonce else {
+            return
+        }
+        clearManualRefreshState()
     }
 
     func categories(for museumID: MuseumID) -> [MuseumCategory] {
         museumID.feedCategories(withStoredValue: defaults.string(forKey: feedCategoryKey(for: museumID)))
     }
 
-    func activeManualRefreshDeliveryState(now: Date = .now) async -> WidgetRefreshDeliveryTracker.State? {
-        guard manualRefreshInProgress else {
+    func activeManualRefreshDeliveryState(
+        forFamilyKey familyKey: String? = nil,
+        now: Date = .now
+    ) async -> WidgetRefreshDeliveryTracker.State? {
+        guard manualRefreshFlagIsActive(now: now) else {
+            await refreshTracker.clear()
+            return nil
+        }
+
+        guard manualRefreshApplies(toFamilyKey: familyKey) else {
             return nil
         }
 
@@ -76,35 +97,36 @@ struct WidgetSettingsReader {
             return nil
         }
 
-        return await WidgetRefreshDeliveryTracker.shared.activeState(expectedNonce: nonce, now: now)
+        switch await refreshTracker.activeRefreshStatus(expectedNonce: nonce, now: now) {
+        case .active(let state):
+            return state
+        case .expired, .missing:
+            clearManualRefreshState()
+            await refreshTracker.clear(nonce: nonce)
+            return nil
+        }
     }
 
-    func activeManualRefreshTargetRenderID(now: Date = .now) async -> String? {
-        guard manualRefreshInProgress else {
+    func activeManualRefreshTargetRenderID(
+        forFamilyKey familyKey: String? = nil,
+        now: Date = .now
+    ) async -> String? {
+        let state = await activeManualRefreshDeliveryState(forFamilyKey: familyKey, now: now)
+        guard state?.phase != .generating else {
             return nil
         }
-
-        let nonce = manualRefreshNonceValue
-        guard nonce > 0 else {
-            return nil
-        }
-
-        return await WidgetRefreshDeliveryTracker.shared.activeTargetRenderID(
-            expectedNonce: nonce,
-            now: now
-        )
+        return state?.targetRenderID
     }
 
-    func reusableManualRefreshTargetRenderID(now: Date = .now) async -> String? {
-        let nonce = manualRefreshNonceValue
-        guard nonce > 0 else {
+    func reusableManualRefreshTargetRenderID(
+        forFamilyKey familyKey: String? = nil,
+        now: Date = .now
+    ) async -> String? {
+        let state = await activeManualRefreshDeliveryState(forFamilyKey: familyKey, now: now)
+        guard state?.phase != .generating else {
             return nil
         }
-
-        return await WidgetRefreshDeliveryTracker.shared.reusableTargetRenderID(
-            expectedNonce: nonce,
-            now: now
-        )
+        return state?.targetRenderID
     }
 
     var categorySelectionKey: String {
@@ -129,7 +151,39 @@ struct WidgetSettingsReader {
     private func clearManualRefreshState() {
         defaults.set(false, forKey: SettingsKeys.widgetManualRefreshInProgress)
         defaults.removeObject(forKey: SettingsKeys.widgetManualRefreshStartedAt)
+        defaults.removeObject(forKey: SettingsKeys.widgetManualRefreshRequestedFamilyKey)
         defaults.synchronize()
+    }
+
+    private func manualRefreshFlagIsActive(now: Date, forFamilyKey familyKey: String? = nil) -> Bool {
+        guard defaults.bool(forKey: SettingsKeys.widgetManualRefreshInProgress) else {
+            return false
+        }
+
+        let startedAt = defaults.double(forKey: SettingsKeys.widgetManualRefreshStartedAt)
+        guard startedAt > 0 else {
+            clearManualRefreshState()
+            return false
+        }
+
+        if now.timeIntervalSince1970 - startedAt >= Constants.manualRefreshStaleTimeout {
+            clearManualRefreshState()
+            return false
+        }
+
+        return true
+    }
+
+    private func manualRefreshApplies(toFamilyKey familyKey: String?) -> Bool {
+        guard let familyKey, !familyKey.isEmpty else {
+            return true
+        }
+
+        let requestedFamilyKey = defaults.string(forKey: SettingsKeys.widgetManualRefreshRequestedFamilyKey) ?? ""
+        if requestedFamilyKey.isEmpty {
+            return true
+        }
+        return requestedFamilyKey == familyKey
     }
 
     private func persistWidgetMuseumScope(_ scope: WidgetMuseumScope) {
