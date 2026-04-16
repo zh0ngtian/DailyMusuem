@@ -219,7 +219,22 @@ private actor WidgetRenderState {
     private var completedRenderIDs: Set<String> = []
 
     func logRenderStartedIfNeeded(entry: WidgetArtworkEntry, family: WidgetFamily) async {
-        let renderLogKey = entry.familyScopedRenderID
+        let activeManualRefreshState = await WidgetSettingsReader()
+            .activeManualRefreshDeliveryState(forFamilyKey: family.logKey)
+        guard !WidgetRenderLoggingDecision.shouldSuppressRenderLog(
+            entryRenderID: entry.renderID,
+            deliveryID: entry.deliveryID,
+            activeManualRefreshState: activeManualRefreshState
+        ) else {
+            return
+        }
+
+        let renderLogKey = WidgetRenderLoggingDecision.renderLogKey(
+            entryRenderID: entry.renderID,
+            familyKey: family.logKey,
+            deliveryID: entry.deliveryID,
+            activeManualRefreshState: activeManualRefreshState
+        )
         guard startedRenderIDs.insert(renderLogKey).inserted else {
             return
         }
@@ -230,7 +245,22 @@ private actor WidgetRenderState {
     }
 
     func logRenderCompletedIfNeeded(entry: WidgetArtworkEntry, family: WidgetFamily) async {
-        let renderLogKey = entry.familyScopedRenderID
+        let activeManualRefreshState = await WidgetSettingsReader()
+            .activeManualRefreshDeliveryState(forFamilyKey: family.logKey)
+        guard !WidgetRenderLoggingDecision.shouldSuppressRenderLog(
+            entryRenderID: entry.renderID,
+            deliveryID: entry.deliveryID,
+            activeManualRefreshState: activeManualRefreshState
+        ) else {
+            return
+        }
+
+        let renderLogKey = WidgetRenderLoggingDecision.renderLogKey(
+            entryRenderID: entry.renderID,
+            familyKey: family.logKey,
+            deliveryID: entry.deliveryID,
+            activeManualRefreshState: activeManualRefreshState
+        )
         guard completedRenderIDs.insert(renderLogKey).inserted else {
             return
         }
@@ -239,19 +269,58 @@ private actor WidgetRenderState {
             family: family,
             renderID: entry.renderID
         )
-        let displayState = await WidgetDisplayedArtworkRegistry.shared.recordDisplayedEntry(entry, family: family)
+        let renderedArtworkUpdate = await WidgetDisplayedArtworkRegistry.shared.recordRenderedEntry(
+            entry,
+            family: family,
+            activeManualRefreshState: activeManualRefreshState
+        )
         let installedFamilyCounts = await WidgetConfigurationInspector.currentInstalledFamilyCounts()
         let deliverySummary = deliveryState.map { "，交付进度=\($0.progressSummary)" } ?? ""
+        let requestedFollowUpReload = await requestFollowUpReloadIfNeeded(deliveryState: deliveryState, family: family)
+        let reloadSummary = requestedFollowUpReload ? "，已触发一次后续 timeline 重载以推动桌面位图同步" : ""
+        let renderRecordSummary: String = {
+            let summary = renderedArtworkUpdate.state.summary(installedFamilyCounts: installedFamilyCounts)
+            if renderedArtworkUpdate.persisted {
+                return "，最近扩展渲染记录：\(summary)"
+            }
+            return "，本次扩展渲染未更新最近记录（\(renderedArtworkUpdate.reason)），当前最近扩展渲染记录：\(summary)"
+        }()
         await RequestLogger.shared.logEvent(
             source: "Widget 渲染",
-            summary: "渲染完成 \(entry.museumName) / \(entry.title)，family=\(family.logLabel)，deliveryID=\(entry.deliveryID.isEmpty ? "-" : entry.deliveryID)，renderID=\(entry.familyScopedRenderID)，图片文件=\(imageState(for: entry))\(deliverySummary)，当前各小组件显示：\(displayState.summary(installedFamilyCounts: installedFamilyCounts))"
+            summary: "渲染完成 \(entry.museumName) / \(entry.title)，family=\(family.logLabel)，deliveryID=\(entry.deliveryID.isEmpty ? "-" : entry.deliveryID)，renderID=\(entry.familyScopedRenderID)，图片文件=\(imageState(for: entry))\(deliverySummary)\(reloadSummary)\(renderRecordSummary)"
         )
     }
 
     private func imageState(for entry: WidgetArtworkEntry) -> String {
-        entry.imageFileName.flatMap { WidgetArtworkSnapshotStore.imageURL(for: $0) }
-            .map { FileManager.default.fileExists(atPath: $0.path) ? "存在" : "缺失" }
-            ?? "无图"
+        guard let fileName = entry.imageFileName,
+              let imageURL = WidgetArtworkSnapshotStore.imageURL(for: fileName) else {
+            return "无图"
+        }
+        guard FileManager.default.fileExists(atPath: imageURL.path) else {
+            return "缺失"
+        }
+        let dimensionSummary = WidgetArtworkSnapshotStore.imageDimensions(for: fileName)?.summary ?? "未知"
+        return "存在(\(dimensionSummary))"
+    }
+
+    private func requestFollowUpReloadIfNeeded(
+        deliveryState: WidgetRefreshDeliveryTracker.State?,
+        family: WidgetFamily
+    ) async -> Bool {
+        guard WidgetRenderFollowUpReloadDecision.shouldRequestReload(
+            deliveryState: deliveryState,
+            familyKey: family.logKey
+        ) else {
+            return false
+        }
+
+        WidgetCenter.shared.reloadTimelines(ofKind: SettingsKeys.widgetKind)
+        let targetRenderID = deliveryState?.targetRenderID ?? "-"
+        await RequestLogger.shared.logEvent(
+            source: "Widget 渲染",
+            summary: "目标尺寸 \(family.logLabel) 已收到扩展渲染回执，主动追加一次 timeline 重载，renderID=\(targetRenderID)"
+        )
+        return true
     }
 }
 
@@ -280,7 +349,7 @@ private enum WidgetConfigurationInspector {
     }
 }
 
-private actor WidgetDisplayedArtworkRegistry {
+actor WidgetDisplayedArtworkRegistry {
     static let shared = WidgetDisplayedArtworkRegistry()
 
     private enum Constants {
@@ -303,7 +372,7 @@ private actor WidgetDisplayedArtworkRegistry {
             }
 
             guard !familyKeys.isEmpty else {
-                return "暂无已记录的小组件显示信息"
+                return "暂无已记录的小组件扩展渲染信息"
             }
 
             return familyKeys.map { familyKey in
@@ -326,6 +395,7 @@ private actor WidgetDisplayedArtworkRegistry {
         let renderID: String
         let deliveryID: String
         let imageFileName: String?
+        let appURLString: String?
         let isRefreshing: Bool
         let updatedAt: TimeInterval
 
@@ -352,6 +422,12 @@ private actor WidgetDisplayedArtworkRegistry {
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
+    struct UpdateResult {
+        let state: State
+        let persisted: Bool
+        let reason: String
+    }
+
     init(fileManager: FileManager = .default) {
         let baseURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: SettingsKeys.appGroupID)
             ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
@@ -361,8 +437,29 @@ private actor WidgetDisplayedArtworkRegistry {
             .appendingPathComponent(Constants.fileName)
     }
 
-    func recordDisplayedEntry(_ entry: WidgetArtworkEntry, family: WidgetFamily, now: Date = .now) -> State {
+    func recordRenderedEntry(
+        _ entry: WidgetArtworkEntry,
+        family: WidgetFamily,
+        activeManualRefreshState: WidgetRefreshDeliveryTracker.State?,
+        now: Date = .now
+    ) -> UpdateResult {
         var state = loadState() ?? State(displayedByFamily: [:])
+        guard WidgetRenderedArtworkPersistenceDecision.shouldPersist(
+            entryRenderID: entry.renderID,
+            isRefreshing: entry.isRefreshing,
+            activeManualRefreshState: activeManualRefreshState
+        ) else {
+            return UpdateResult(
+                state: state,
+                persisted: false,
+                reason: WidgetRenderedArtworkPersistenceDecision.ignoreReason(
+                    entryRenderID: entry.renderID,
+                    isRefreshing: entry.isRefreshing,
+                    activeManualRefreshState: activeManualRefreshState
+                )
+            )
+        }
+
         state.displayedByFamily[family.logKey] = DisplayedArtwork(
             familyKey: family.logKey,
             museumName: entry.museumName,
@@ -371,11 +468,38 @@ private actor WidgetDisplayedArtworkRegistry {
             renderID: entry.familyScopedRenderID,
             deliveryID: entry.deliveryID,
             imageFileName: entry.imageFileName,
+            appURLString: entry.appURL?.absoluteString,
             isRefreshing: entry.isRefreshing,
             updatedAt: now.timeIntervalSince1970
         )
         persist(state)
-        return state
+        return UpdateResult(state: state, persisted: true, reason: "已记录")
+    }
+
+    func displayedArtworkSummary(forFamilyKey familyKey: String) -> String {
+        guard let displayedArtwork = loadState()?.displayedByFamily[familyKey] else {
+            return "未记录"
+        }
+        return displayedArtwork.summary
+    }
+
+    func displayedEntry(forFamilyKey familyKey: String, date: Date) -> WidgetArtworkEntry? {
+        guard let displayedArtwork = loadState()?.displayedByFamily[familyKey] else {
+            return nil
+        }
+
+        return WidgetArtworkEntry(
+            date: date,
+            renderID: displayedArtwork.renderID,
+            familyKey: familyKey,
+            deliveryID: displayedArtwork.deliveryID,
+            museumName: displayedArtwork.museumName,
+            title: displayedArtwork.title,
+            subtitle: displayedArtwork.subtitle,
+            imageFileName: displayedArtwork.imageFileName,
+            appURL: displayedArtwork.appURLString.flatMap(URL.init(string:)),
+            isRefreshing: displayedArtwork.isRefreshing
+        )
     }
 
     private func loadState() -> State? {

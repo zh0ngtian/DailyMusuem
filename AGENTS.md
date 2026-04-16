@@ -349,6 +349,11 @@
 
 - 后续每次修复问题或新增功能后，都需要优先使用真机 `Yao iPhone 17 Pro` 作为默认构建和运行目标再交付。
 - 如果真机暂时不可用，再退回使用 `iPhone 17 Pro` 模拟器验证。
+- 使用模拟器做交互验证时，默认采用 `xcodebuild build` + `xcrun simctl install` + `xcrun simctl launch` 链路，不默认使用 `xcodebuild test`。
+- 原因：
+  - `xcodebuild test` 会接管并可能克隆/回收模拟器，测试结束后目标模拟器可能被自动关闭。
+  - 如需保持当前模拟器桌面状态、继续截图或继续观察 widget 刷新结果，应优先避免在验证中途运行 `xcodebuild test`。
+- 只有在明确需要跑单元测试或 UI 测试时，才使用 `xcodebuild test`；跑完后需要预期模拟器可能回到 `Shutdown` 状态，并按需重新 `boot/install/launch`。
 - 当前默认验证设备：
   - 真机名称：`Yao iPhone 17 Pro`
   - 真机设备 ID：`00008150-000E4010362B401C`

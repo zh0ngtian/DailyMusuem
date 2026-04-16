@@ -31,6 +31,13 @@
 		AA000000000000000000001F /* WidgetRefreshInterval.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58A211D35AE0E3261DEDD024 /* WidgetRefreshInterval.swift */; };
 		AA0000000000000000000020 /* WidgetRefreshDeliveryTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5C2D137F4A14D27A0010002 /* WidgetRefreshDeliveryTracker.swift */; };
 		AA0000000000000000000021 /* WidgetSettingsReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFEC49CE4C55DCDEA5364224 /* WidgetSettingsReader.swift */; };
+		AA0000000000000000000031 /* WidgetManualRefreshRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000030 /* WidgetManualRefreshRunner.swift */; };
+		AA0000000000000000000032 /* WidgetManualRefreshRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000030 /* WidgetManualRefreshRunner.swift */; };
+		AA0000000000000000000033 /* WidgetArtworkService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDB91ABFDF5059FE1FCE0687 /* WidgetArtworkService.swift */; };
+		AA0000000000000000000034 /* WidgetArtworkSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C479641DC62C47615D086EE /* WidgetArtworkSnapshotStore.swift */; };
+		AA0000000000000000000035 /* WidgetRefreshDeliveryTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5C2D137F4A14D27A0010002 /* WidgetRefreshDeliveryTracker.swift */; };
+		AA0000000000000000000036 /* WidgetSettingsReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFEC49CE4C55DCDEA5364224 /* WidgetSettingsReader.swift */; };
+		AA0000000000000000000038 /* WidgetManualRefreshSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000037 /* WidgetManualRefreshSupport.swift */; };
 		AA0000000000000000000029 /* met-overview.html in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000026 /* met-overview.html */; };
 		AA000000000000000000002A /* met-meta-fallback.html in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000027 /* met-meta-fallback.html */; };
 		AA000000000000000000002B /* nmc-detail.html in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000028 /* nmc-detail.html */; };
@@ -168,6 +175,8 @@
 		AA0000000000000000000026 /* met-overview.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "met-overview.html"; sourceTree = "<group>"; };
 		AA0000000000000000000027 /* met-meta-fallback.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "met-meta-fallback.html"; sourceTree = "<group>"; };
 		AA0000000000000000000028 /* nmc-detail.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "nmc-detail.html"; sourceTree = "<group>"; };
+		AA0000000000000000000030 /* WidgetManualRefreshRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetManualRefreshRunner.swift; sourceTree = "<group>"; };
+		AA0000000000000000000037 /* WidgetManualRefreshSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetManualRefreshSupport.swift; sourceTree = "<group>"; };
 		0B60E7E46431A00100000005 /* NationalMuseumChinaAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NationalMuseumChinaAPI.swift; sourceTree = "<group>"; };
 		A49931525A891BFC0604633C /* DailyMuseum.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DailyMuseum.entitlements; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B5D /* AppShortcutHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShortcutHandler.swift; sourceTree = "<group>"; };
@@ -268,6 +277,7 @@
 				BE28917A141154DC14C0AD37 /* Info.plist */,
 				FABED403F7CD2A9A4E6D1FEB /* LaunchScreen.storyboard */,
 				8EEE448C8964D21F694014F7 /* RootView.swift */,
+				AA0000000000000000000037 /* WidgetManualRefreshSupport.swift */,
 				96410B48990ECD7B7D8727C1 /* Views */,
 			);
 			path = DailyMuseum;
@@ -279,6 +289,7 @@
 				217B48EE2D107B1146488C81 /* AppDeepLink.swift */,
 				6236876208BA288526D7D379 /* Artwork.swift */,
 				22F7ECE0FEA6838A9CA48031 /* Museum.swift */,
+				AA0000000000000000000030 /* WidgetManualRefreshRunner.swift */,
 				5225386D7CA9D444567A323F /* ArtworkFeed */,
 				A68417A79F9D150D53ED0C41 /* Images */,
 				0F8ACE05F507B92A0E80653D /* JapanSearch */,
@@ -563,6 +574,7 @@
 				39EF46DCBA1A93ADAB139396 /* RequestLogger.swift in Sources */,
 				25F50C06099559E4DBB10D2C /* SettingsKeys.swift in Sources */,
 				7D7B4261C7FDB3E5EF55DC31 /* SettingsStore.swift in Sources */,
+				AA0000000000000000000032 /* WidgetManualRefreshRunner.swift in Sources */,
 				EDB9E6F8888D36C995A222B3 /* WidgetArtworkService.swift in Sources */,
 				E6F45083BBEDF96C8635C070 /* WidgetArtworkSnapshotStore.swift in Sources */,
 				B5C2D137F4A14D27A0010001 /* WidgetRefreshDeliveryTracker.swift in Sources */,
@@ -607,6 +619,12 @@
 				10BFA44C9A4240C5EBF57018 /* SettingsKeys.swift in Sources */,
 				85112783CD28996B11A9101D /* SettingsStore.swift in Sources */,
 				EDCA33ABA853CDF8C3FE7FA5 /* SettingsView.swift in Sources */,
+				AA0000000000000000000038 /* WidgetManualRefreshSupport.swift in Sources */,
+				AA0000000000000000000031 /* WidgetManualRefreshRunner.swift in Sources */,
+				AA0000000000000000000033 /* WidgetArtworkService.swift in Sources */,
+				AA0000000000000000000034 /* WidgetArtworkSnapshotStore.swift in Sources */,
+				AA0000000000000000000035 /* WidgetRefreshDeliveryTracker.swift in Sources */,
+				AA0000000000000000000036 /* WidgetSettingsReader.swift in Sources */,
 				F0AE0A1C3CC1749CBE7B804F /* WaterfallGrid.swift in Sources */,
 				D7688FF2CCD4DDF0F7F6544D /* WidgetMuseumScope.swift in Sources */,
 				46E9C3AC1BC94DC749C3C180 /* WidgetRefreshInterval.swift in Sources */,
