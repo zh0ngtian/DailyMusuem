@@ -62,13 +62,13 @@ final class ParsingAndAPITests: XCTestCase {
         )
     }
 
-    func testNationalMuseumChinaRequestThrottleEnforcesMinimumInterval() async {
+    func testNationalMuseumChinaRequestThrottleEnforcesMinimumInterval() async throws {
         let throttle = NationalMuseumChinaRequestThrottle(minimumInterval: 0.002)
         let now = Date(timeIntervalSince1970: 1_000)
 
-        let firstDelay = await throttle.waitForTurn(now: now)
-        let secondDelay = await throttle.waitForTurn(now: now)
-        let thirdDelay = await throttle.waitForTurn(now: now.addingTimeInterval(0.01))
+        let firstDelay = try await throttle.waitForTurn(now: now)
+        let secondDelay = try await throttle.waitForTurn(now: now)
+        let thirdDelay = try await throttle.waitForTurn(now: now.addingTimeInterval(0.01))
 
         XCTAssertEqual(firstDelay, 0, accuracy: 0.0001)
         XCTAssertGreaterThan(secondDelay, 0.001)

@@ -15,23 +15,28 @@ final class MetMuseumAPI {
         isOnView: Bool,
         query: String,
         departmentID: Int? = nil,
+        cachePolicy: MuseumRequestCachePolicy = .useCaches,
         onLog: (@Sendable (String) async -> Void)? = nil
     ) async throws -> [Int] {
         let logger = RequestLogger.shared
         let cacheKey = "\(hasImages ? "images-only" : "all-images")-\(isOnView)-\(query)-\(departmentID.map(String.init) ?? "all")"
-        await onLog?("检查 objectIDs 内存缓存...")
-        if let cached = await responseCache.searchObjectIDs(forKey: cacheKey) {
-            await logger.logEvent(source: "Met 搜索", summary: "命中内存缓存，复用 \(cached.count) 条 objectIDs")
-            await onLog?("已命中内存缓存，直接复用 \(cached.count) 条 objectIDs。")
-            return cached
-        }
+        if cachePolicy.usesCaches {
+            await onLog?("检查 objectIDs 内存缓存...")
+            if let cached = await responseCache.searchObjectIDs(forKey: cacheKey) {
+                await logger.logEvent(source: "Met 搜索", summary: "命中内存缓存，复用 \(cached.count) 条 objectIDs")
+                await onLog?("已命中内存缓存，直接复用 \(cached.count) 条 objectIDs。")
+                return cached
+            }
 
-        await onLog?("未命中内存缓存，检查本地磁盘缓存...")
-        if let persisted = await persistentCache.objectIDs(forKey: cacheKey) {
-            await responseCache.setSearchObjectIDs(persisted, forKey: cacheKey)
-            await logger.logEvent(source: "Met 搜索", summary: "命中本地缓存，复用 \(persisted.count) 条 objectIDs")
-            await onLog?("已命中本地缓存，读取到 \(persisted.count) 条 objectIDs。")
-            return persisted
+            await onLog?("未命中内存缓存，检查本地磁盘缓存...")
+            if let persisted = await persistentCache.objectIDs(forKey: cacheKey) {
+                await responseCache.setSearchObjectIDs(persisted, forKey: cacheKey)
+                await logger.logEvent(source: "Met 搜索", summary: "命中本地缓存，复用 \(persisted.count) 条 objectIDs")
+                await onLog?("已命中本地缓存，读取到 \(persisted.count) 条 objectIDs。")
+                return persisted
+            }
+        } else {
+            await onLog?("网络直连模式，跳过 objectIDs 缓存读取。")
         }
 
         await onLog?("未命中本地缓存，开始从大都会艺术博物馆拉取全量 objectIDs，首次可能较慢...")
@@ -57,7 +62,9 @@ final class MetMuseumAPI {
         await logger.logRequestStart(source: "Met 搜索", url: url)
 
         do {
-            let (data, response) = try await session.data(from: url)
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            let (data, response) = try await session.data(for: request)
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
             try validate(response: response)
             let decoded = try JSONDecoder().decode(MetMuseumSearchResponse.self, from: data)
@@ -69,10 +76,14 @@ final class MetMuseumAPI {
                 duration: Date().timeIntervalSince(start),
                 responseBytes: data.count
             )
-            await onLog?("全量 objectIDs 拉取完成，共 \(objectIDs.count) 条，正在写入本地缓存...")
-            await responseCache.setSearchObjectIDs(objectIDs, forKey: cacheKey)
-            await persistentCache.setObjectIDs(objectIDs, forKey: cacheKey)
-            await onLog?("objectIDs 缓存写入完成。")
+            if cachePolicy.usesCaches {
+                await onLog?("全量 objectIDs 拉取完成，共 \(objectIDs.count) 条，正在写入本地缓存...")
+                await responseCache.setSearchObjectIDs(objectIDs, forKey: cacheKey)
+                await persistentCache.setObjectIDs(objectIDs, forKey: cacheKey)
+                await onLog?("objectIDs 缓存写入完成。")
+            } else {
+                await onLog?("全量 objectIDs 拉取完成，共 \(objectIDs.count) 条，网络直连模式不写入缓存。")
+            }
             return objectIDs
         } catch {
             await logger.logRequestFailure(
@@ -85,11 +96,16 @@ final class MetMuseumAPI {
         }
     }
 
-    func fetchObject(objectID: Int) async throws -> MetMuseumObject {
+    func fetchObject(
+        objectID: Int,
+        cachePolicy: MuseumRequestCachePolicy = .useCaches
+    ) async throws -> MetMuseumObject {
         let logger = RequestLogger.shared
-        if let cached = await responseCache.object(forID: objectID) {
-            await logger.logEvent(source: "Met 详情", summary: "命中内存缓存，objectID=\(objectID)")
-            return cached
+        if cachePolicy.usesCaches {
+            if let cached = await responseCache.object(forID: objectID) {
+                await logger.logEvent(source: "Met 详情", summary: "命中内存缓存，objectID=\(objectID)")
+                return cached
+            }
         }
 
         let url = baseURL.appending(path: "objects").appending(path: "\(objectID)")
@@ -97,7 +113,9 @@ final class MetMuseumAPI {
         await logger.logRequestStart(source: "Met 详情", url: url)
 
         do {
-            let (data, response) = try await session.data(from: url)
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            let (data, response) = try await session.data(for: request)
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
             try validate(response: response)
             let object = try JSONDecoder().decode(MetMuseumObject.self, from: data)
@@ -108,7 +126,9 @@ final class MetMuseumAPI {
                 duration: Date().timeIntervalSince(start),
                 responseBytes: data.count
             )
-            await responseCache.setObject(object, forID: objectID)
+            if cachePolicy.usesCaches {
+                await responseCache.setObject(object, forID: objectID)
+            }
             return object
         } catch {
             await logger.logRequestFailure(

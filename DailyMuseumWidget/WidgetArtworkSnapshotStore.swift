@@ -1,271 +1,274 @@
-import Darwin
 import Foundation
 import ImageIO
+import UIKit
+
+enum WidgetRefreshPhase: String, Codable, Equatable {
+    case idle
+    case refreshing
+    case success
+    case failure
+}
+
+struct WidgetImageDimensions: Equatable {
+    let width: Int
+    let height: Int
+
+    var summary: String {
+        "\(width)x\(height)"
+    }
+}
 
 actor WidgetArtworkSnapshotStore {
     static let shared = WidgetArtworkSnapshotStore()
 
     private enum Constants {
-        static let directoryName = "WidgetCache"
-        static let snapshotFileName = "current-artwork.json"
-        static let generationLockFileName = "snapshot-generation.lock"
-        static let imageFileExtension = "bin"
-        static let lockPollIntervalNanoseconds: UInt64 = 200_000_000
-        static let lockHeartbeatIntervalNanoseconds: UInt64 = 1_000_000_000
-        static let lockWaitTimeout: TimeInterval = 15
-        static let staleLockThreshold: TimeInterval = 20
+        static let directoryName = "WidgetInstances"
+        static let stateFileName = "instances.json"
+        static let imagesDirectoryName = "images"
+        static let widgetImageMaximumDimension: CGFloat = 1200
+        static let legacyPaths = [
+            "WidgetCache",
+            "WidgetRefresh",
+            "WidgetRender",
+        ]
     }
 
-    private struct GenerationLockMetadata: Codable {
-        let ownerNonce: Int?
-        let createdAt: TimeInterval
-    }
-
-    struct Snapshot: Codable {
-        let cycleKey: String
+    struct ArtworkPayload: Codable, Equatable {
+        let museumID: MuseumID
         let museumName: String
         let title: String
         let subtitle: String?
         let imageFileName: String?
         let appURL: URL?
-        let generatedAt: TimeInterval
-        let manualRefreshNonce: Int
+        let updatedAt: TimeInterval
 
-        private let embeddedImageData: Data?
-
-        init(
-            cycleKey: String,
-            museumName: String,
-            title: String,
-            subtitle: String?,
-            imageFileName: String?,
-            appURL: URL?,
-            generatedAt: TimeInterval = Date().timeIntervalSince1970,
-            manualRefreshNonce: Int = 0
-        ) {
-            self.cycleKey = cycleKey
-            self.museumName = museumName
-            self.title = title
-            self.subtitle = subtitle
-            self.imageFileName = imageFileName
-            self.appURL = appURL
-            self.generatedAt = generatedAt
-            self.manualRefreshNonce = manualRefreshNonce
-            embeddedImageData = nil
-        }
-
-        private enum CodingKeys: String, CodingKey {
-            case cycleKey
-            case museumName
-            case title
-            case subtitle
-            case imageFileName
-            case imageData
-            case appURL
-            case generatedAt
-            case manualRefreshNonce
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            cycleKey = try container.decode(String.self, forKey: .cycleKey)
-            museumName = try container.decode(String.self, forKey: .museumName)
-            title = try container.decode(String.self, forKey: .title)
-            subtitle = try container.decodeIfPresent(String.self, forKey: .subtitle)
-            imageFileName = try container.decodeIfPresent(String.self, forKey: .imageFileName)
-            appURL = try container.decodeIfPresent(URL.self, forKey: .appURL)
-            generatedAt = try container.decodeIfPresent(TimeInterval.self, forKey: .generatedAt) ?? 0
-            manualRefreshNonce = try container.decodeIfPresent(Int.self, forKey: .manualRefreshNonce) ?? 0
-            embeddedImageData = try container.decodeIfPresent(Data.self, forKey: .imageData)
-        }
-
-        func encode(to encoder: Encoder) throws {
-            var container = encoder.container(keyedBy: CodingKeys.self)
-            try container.encode(cycleKey, forKey: .cycleKey)
-            try container.encode(museumName, forKey: .museumName)
-            try container.encode(title, forKey: .title)
-            try container.encodeIfPresent(subtitle, forKey: .subtitle)
-            try container.encodeIfPresent(imageFileName, forKey: .imageFileName)
-            try container.encodeIfPresent(appURL, forKey: .appURL)
-            try container.encode(generatedAt, forKey: .generatedAt)
-            try container.encode(manualRefreshNonce, forKey: .manualRefreshNonce)
-        }
-
-        func withImageFileName(_ imageFileName: String?) -> Snapshot {
-            Snapshot(
-                cycleKey: cycleKey,
+        func withImageFileName(_ imageFileName: String?) -> ArtworkPayload {
+            ArtworkPayload(
+                museumID: museumID,
                 museumName: museumName,
                 title: title,
                 subtitle: subtitle,
                 imageFileName: imageFileName,
                 appURL: appURL,
-                generatedAt: generatedAt,
-                manualRefreshNonce: manualRefreshNonce
+                updatedAt: updatedAt
             )
-        }
-
-        var legacyEmbeddedImageData: Data? {
-            embeddedImageData
         }
     }
 
+    struct InstanceState: Codable, Equatable {
+        let instanceToken: String
+        var scopeRawValue: String
+        var nonce: Int
+        var phase: WidgetRefreshPhase
+        var artwork: ArtworkPayload?
+        var failureMessage: String?
+        var lastUpdatedAt: TimeInterval
+    }
+
+    private struct PersistedState: Codable {
+        let instances: [InstanceState]
+    }
+
+    private let baseURL: URL
     private let directoryURL: URL
+    private let imagesDirectoryURL: URL
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
+    private var didMigrateLegacyArtifacts = false
 
     init(fileManager: FileManager = .default) {
-        let baseURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: SettingsKeys.appGroupID)
+        let containerURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: SettingsKeys.appGroupID)
             ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? fileManager.temporaryDirectory
-        self.init(baseURL: baseURL)
+        self.init(baseURL: containerURL)
     }
 
     init(baseURL: URL) {
-        directoryURL = baseURL
-            .appendingPathComponent(Constants.directoryName, isDirectory: true)
+        self.baseURL = baseURL
+        directoryURL = baseURL.appendingPathComponent(Constants.directoryName, isDirectory: true)
+        imagesDirectoryURL = directoryURL.appendingPathComponent(Constants.imagesDirectoryName, isDirectory: true)
     }
 
-    func loadLatest() -> Snapshot? {
-        let fileURL = snapshotFileURL
-        guard let data = try? Data(contentsOf: fileURL),
-              let snapshot = try? decoder.decode(Snapshot.self, from: data) else {
+    func registerInstance(
+        instanceToken: String,
+        scopeRawValue: String,
+        now: Date = .now
+    ) -> InstanceState {
+        migrateLegacyArtifactsIfNeeded()
+
+        var instances = loadInstances()
+        var state = instances[instanceToken] ?? InstanceState(
+            instanceToken: instanceToken,
+            scopeRawValue: scopeRawValue,
+            nonce: 0,
+            phase: .idle,
+            artwork: nil,
+            failureMessage: nil,
+            lastUpdatedAt: now.timeIntervalSince1970
+        )
+        state.scopeRawValue = scopeRawValue
+        state.lastUpdatedAt = now.timeIntervalSince1970
+        instances[instanceToken] = state
+        persist(instances)
+        return state
+    }
+
+    func state(for instanceToken: String) -> InstanceState? {
+        migrateLegacyArtifactsIfNeeded()
+        return loadInstances()[instanceToken]
+    }
+
+    func beginRefresh(
+        instanceToken: String,
+        scopeRawValue: String,
+        now: Date = .now
+    ) -> InstanceState {
+        migrateLegacyArtifactsIfNeeded()
+
+        var instances = loadInstances()
+        var state = instances[instanceToken] ?? InstanceState(
+            instanceToken: instanceToken,
+            scopeRawValue: scopeRawValue,
+            nonce: 0,
+            phase: .idle,
+            artwork: nil,
+            failureMessage: nil,
+            lastUpdatedAt: now.timeIntervalSince1970
+        )
+        state.scopeRawValue = scopeRawValue
+        state.nonce += 1
+        state.phase = .refreshing
+        state.failureMessage = nil
+        state.lastUpdatedAt = now.timeIntervalSince1970
+        instances[instanceToken] = state
+        persist(instances)
+        return state
+    }
+
+    func markSuccess(
+        instanceToken: String,
+        expectedNonce: Int,
+        payload: ArtworkPayload,
+        imageData: Data?,
+        now: Date = .now
+    ) -> InstanceState? {
+        migrateLegacyArtifactsIfNeeded()
+
+        var instances = loadInstances()
+        guard var state = instances[instanceToken], state.nonce == expectedNonce else {
             return nil
         }
-        guard snapshot.imageFileName == nil,
-              let embeddedImageData = snapshot.legacyEmbeddedImageData else {
-            return snapshot
-        }
 
-        let migratedSnapshot = snapshot.withImageFileName(storeImageData(embeddedImageData, cycleKey: snapshot.cycleKey))
-        persist(snapshot: migratedSnapshot)
-        return migratedSnapshot
-    }
-
-    func generateSnapshot(
-        lockKey: String = "global",
-        manualRefreshNonce: Int? = nil,
-        shouldAbortWaiting: @escaping @Sendable () -> Bool = { false },
-        generate: @Sendable (_ latestSnapshot: Snapshot?) async throws -> Snapshot
-    ) async throws -> Snapshot {
-        let lockURL = generationLockURL(for: lockKey)
-        if try acquireGenerationLock(at: lockURL, ownerNonce: manualRefreshNonce) {
-            let heartbeatTask = startGenerationLockHeartbeat(at: lockURL)
-            defer {
-                heartbeatTask.cancel()
-                releaseGenerationLock(at: lockURL)
-            }
-
-            let snapshot = try await generate(loadLatest())
-            return snapshot
-        }
-
-        await RequestLogger.shared.logEvent(
-            source: "Widget 刷新",
-            summary: "检测到最新快照正在生成，等待复用结果"
+        let previousImageFileName = state.artwork?.imageFileName
+        let storedPayload = payload.withImageFileName(
+            storeImageData(imageData, instanceToken: instanceToken, nonce: expectedNonce)
         )
-        let deadline = Date().addingTimeInterval(Constants.lockWaitTimeout)
-        while Date() < deadline {
-            if shouldAbortWaiting() {
-                throw WidgetManualRefreshInterruptedError(
-                    executionNonce: manualRefreshNonce ?? 0,
-                    activeNonce: manualRefreshNonce ?? 0
-                )
-            }
+        state.phase = .success
+        state.artwork = storedPayload
+        state.failureMessage = nil
+        state.lastUpdatedAt = now.timeIntervalSince1970
+        instances[instanceToken] = state
+        persist(instances)
 
-            if !FileManager.default.fileExists(atPath: lockURL.path),
-               let snapshot = loadLatest() {
-                return snapshot
-            }
-
-            if let manualRefreshNonce,
-               let lockOwnerNonce = generationLockOwnerNonce(at: lockURL),
-               lockOwnerNonce > 0,
-               manualRefreshNonce > lockOwnerNonce {
-                await RequestLogger.shared.logEvent(
-                    source: "Widget 刷新",
-                    summary: "检测到较旧 nonce=\(lockOwnerNonce) 持有最新快照锁，当前 nonce=\(manualRefreshNonce) 直接抢占并重新生成"
-                )
-                releaseGenerationLock(at: lockURL)
-                break
-            }
-
-            if isStaleLock(at: lockURL) {
-                await RequestLogger.shared.logEvent(
-                    source: "Widget 刷新",
-                    summary: "检测到陈旧最新快照锁，准备回收并重新生成"
-                )
-                releaseGenerationLock(at: lockURL)
-                break
-            }
-
-            try? await Task.sleep(nanoseconds: Constants.lockPollIntervalNanoseconds)
+        if previousImageFileName != storedPayload.imageFileName {
+            deleteImageFile(named: previousImageFileName)
         }
-
-        if shouldAbortWaiting() {
-            throw WidgetManualRefreshInterruptedError(
-                executionNonce: manualRefreshNonce ?? 0,
-                activeNonce: manualRefreshNonce ?? 0
-            )
-        }
-
-        if try acquireGenerationLock(at: lockURL, ownerNonce: manualRefreshNonce) {
-            let heartbeatTask = startGenerationLockHeartbeat(at: lockURL)
-            defer {
-                heartbeatTask.cancel()
-                releaseGenerationLock(at: lockURL)
-            }
-
-            let snapshot = try await generate(loadLatest())
-            return snapshot
-        }
-
-        throw URLError(.timedOut)
+        return state
     }
 
-    func store(_ snapshot: Snapshot, imageData: Data?) -> Snapshot {
-        if let latestSnapshot = loadLatest(),
-           shouldKeepExistingSnapshot(latestSnapshot, over: snapshot) {
-            return latestSnapshot
+    func markFailure(
+        instanceToken: String,
+        expectedNonce: Int,
+        message: String,
+        now: Date = .now
+    ) -> InstanceState? {
+        migrateLegacyArtifactsIfNeeded()
+
+        var instances = loadInstances()
+        guard var state = instances[instanceToken], state.nonce == expectedNonce else {
+            return nil
         }
 
-        let storedSnapshot = snapshot.withImageFileName(storeImageData(imageData, cycleKey: snapshot.cycleKey))
-        persist(snapshot: storedSnapshot)
-        return storedSnapshot
+        let previousImageFileName = state.artwork?.imageFileName
+        state.phase = .failure
+        state.artwork = nil
+        state.failureMessage = message
+        state.lastUpdatedAt = now.timeIntervalSince1970
+        instances[instanceToken] = state
+        persist(instances)
+        deleteImageFile(named: previousImageFileName)
+        return state
     }
 
-    private func persist(snapshot: Snapshot) {
-        let fileURL = snapshotFileURL
+    func knownInstances() -> [InstanceState] {
+        migrateLegacyArtifactsIfNeeded()
+        return loadInstances().values.sorted { lhs, rhs in
+            lhs.instanceToken < rhs.instanceToken
+        }
+    }
+
+    func mostRecentDisplayableState(scopeRawValue: String) -> InstanceState? {
+        migrateLegacyArtifactsIfNeeded()
+
+        let candidates = loadInstances()
+            .values
+            .filter { $0.scopeRawValue == scopeRawValue }
+
+        if let success = candidates
+            .filter({ $0.phase == .success })
+            .max(by: { lhs, rhs in lhs.lastUpdatedAt < rhs.lastUpdatedAt }) {
+            return success
+        }
+
+        return candidates
+            .filter { $0.phase == .refreshing }
+            .max(by: { lhs, rhs in lhs.lastUpdatedAt < rhs.lastUpdatedAt })
+    }
+
+    func migrateLegacyArtifactsIfNeeded() {
+        guard !didMigrateLegacyArtifacts else {
+            return
+        }
+
+        didMigrateLegacyArtifacts = true
+        for relativePath in Constants.legacyPaths {
+            let legacyURL = baseURL.appendingPathComponent(relativePath, isDirectory: true)
+            try? FileManager.default.removeItem(at: legacyURL)
+        }
+    }
+
+    private func loadInstances() -> [String: InstanceState] {
+        guard let data = try? Data(contentsOf: stateFileURL),
+              let persisted = try? decoder.decode(PersistedState.self, from: data) else {
+            return [:]
+        }
+
+        return Dictionary(
+            uniqueKeysWithValues: persisted.instances.map { ($0.instanceToken, $0) }
+        )
+    }
+
+    private func persist(_ instances: [String: InstanceState]) {
         do {
             try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-            let data = try encoder.encode(snapshot)
-            try data.write(to: fileURL, options: [.atomic])
+            let data = try encoder.encode(
+                PersistedState(instances: instances.values.sorted { $0.instanceToken < $1.instanceToken })
+            )
+            try data.write(to: stateFileURL, options: [.atomic])
         } catch {
-            // Ignore snapshot write failures and fall back to network fetching.
+            // Ignore persistence failures and let WidgetKit fall back to the in-memory refresh flow.
         }
     }
 
-    private var snapshotFileURL: URL {
-        directoryURL.appendingPathComponent(Constants.snapshotFileName)
-    }
-
-    private func generationLockURL(for lockKey: String) -> URL {
-        let suffix = safeFileName(for: lockKey)
-        return directoryURL.appendingPathComponent("\(suffix)-\(Constants.generationLockFileName)")
-    }
-
-    private func imageFileURL(for fileName: String) -> URL {
-        directoryURL.appendingPathComponent(fileName)
-    }
-
-    private func storeImageData(_ imageData: Data?, cycleKey: String) -> String? {
+    private func storeImageData(_ imageData: Data?, instanceToken: String, nonce: Int) -> String? {
         guard let imageData else {
             return nil
         }
 
-        let fileName = "artwork-\(safeFileName(for: cycleKey)).\(Constants.imageFileExtension)"
-        let fileURL = imageFileURL(for: fileName)
         do {
-            try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: imagesDirectoryURL, withIntermediateDirectories: true)
+            let fileName = "\(safeFileName(for: instanceToken))-\(nonce).bin"
+            let fileURL = imagesDirectoryURL.appendingPathComponent(fileName)
             try imageData.write(to: fileURL, options: [.atomic])
             return fileName
         } catch {
@@ -273,100 +276,86 @@ actor WidgetArtworkSnapshotStore {
         }
     }
 
-    private func safeFileName(for cycleKey: String) -> String {
-        Data(cycleKey.utf8)
-            .base64EncodedString()
-            .replacingOccurrences(of: "/", with: "_")
-            .replacingOccurrences(of: "+", with: "-")
-            .replacingOccurrences(of: "=", with: "")
-    }
-
-    private func acquireGenerationLock(at url: URL, ownerNonce: Int?) throws -> Bool {
-        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-
-        let path = url.path
-        let fileDescriptor = open(path, O_WRONLY | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR)
-        guard fileDescriptor >= 0 else {
-            if errno == EEXIST {
-                return false
-            }
-            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
-        }
-
-        close(fileDescriptor)
-        persistGenerationLockMetadata(ownerNonce: ownerNonce, at: url)
-        return true
-    }
-
-    private func releaseGenerationLock(at url: URL) {
-        try? FileManager.default.removeItem(at: url)
-    }
-
-    private func startGenerationLockHeartbeat(at url: URL) -> Task<Void, Never> {
-        Task.detached(priority: .utility) {
-            while !Task.isCancelled {
-                try? FileManager.default.setAttributes(
-                    [.modificationDate: Date()],
-                    ofItemAtPath: url.path
-                )
-                try? await Task.sleep(nanoseconds: Constants.lockHeartbeatIntervalNanoseconds)
-            }
-        }
-    }
-
-    private func isStaleLock(at url: URL) -> Bool {
-        guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey]),
-              let modifiedAt = values.contentModificationDate else {
-            return false
-        }
-
-        return Date().timeIntervalSince(modifiedAt) >= Constants.staleLockThreshold
-    }
-
-    private func generationLockOwnerNonce(at url: URL) -> Int? {
-        guard let data = try? Data(contentsOf: url),
-              let metadata = try? decoder.decode(GenerationLockMetadata.self, from: data) else {
-            return nil
-        }
-        return metadata.ownerNonce
-    }
-
-    private func persistGenerationLockMetadata(ownerNonce: Int?, at url: URL) {
-        let metadata = GenerationLockMetadata(
-            ownerNonce: ownerNonce,
-            createdAt: Date().timeIntervalSince1970
-        )
-        guard let data = try? encoder.encode(metadata) else {
+    private func deleteImageFile(named fileName: String?) {
+        guard let fileName else {
             return
         }
-        try? data.write(to: url)
+        try? FileManager.default.removeItem(at: imagesDirectoryURL.appendingPathComponent(fileName))
     }
 
-    private func shouldKeepExistingSnapshot(_ existing: Snapshot, over incoming: Snapshot) -> Bool {
-        if existing.manualRefreshNonce != incoming.manualRefreshNonce {
-            return existing.manualRefreshNonce > incoming.manualRefreshNonce
-        }
-
-        if existing.generatedAt != incoming.generatedAt {
-            return existing.generatedAt >= incoming.generatedAt
-        }
-
-        return existing.cycleKey == incoming.cycleKey
+    private func safeFileName(for rawValue: String) -> String {
+        rawValue
+            .replacingOccurrences(of: "[^A-Za-z0-9_-]+", with: "-", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
     }
 
-    nonisolated static func imageURL(for fileName: String) -> URL? {
-        let fileManager = FileManager.default
-        let baseURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: SettingsKeys.appGroupID)
-            ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
-            ?? fileManager.temporaryDirectory
+    private var stateFileURL: URL {
+        directoryURL.appendingPathComponent(Constants.stateFileName)
+    }
+
+    static func imageURL(for fileName: String) -> URL? {
+        let baseURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: SettingsKeys.appGroupID)
+            ?? FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
         return baseURL
             .appendingPathComponent(Constants.directoryName, isDirectory: true)
+            .appendingPathComponent(Constants.imagesDirectoryName, isDirectory: true)
             .appendingPathComponent(fileName)
     }
 
-    nonisolated static func imageDimensions(for fileName: String) -> WidgetImageDimensions? {
+    static func imageDimensions(for fileName: String) -> WidgetImageDimensions? {
         guard let url = imageURL(for: fileName),
-              let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let data = try? Data(contentsOf: url) else {
+            return nil
+        }
+        return imageDimensions(from: data)
+    }
+
+    static func widgetImage(
+        for fileName: String,
+        targetPointSize: CGSize,
+        scale: CGFloat
+    ) -> UIImage? {
+        guard let url = imageURL(for: fileName),
+              let data = try? Data(contentsOf: url) else {
+            return nil
+        }
+        return widgetImage(from: data, targetPointSize: targetPointSize, scale: scale)
+    }
+
+    static func widgetImage(
+        from data: Data,
+        targetPointSize: CGSize,
+        scale: CGFloat
+    ) -> UIImage? {
+        let targetPixelSize = normalizedWidgetPixelSize(for: targetPointSize, scale: scale)
+        guard targetPixelSize.width > 0, targetPixelSize.height > 0 else {
+            return UIImage(data: data)
+        }
+
+        return autoreleasepool {
+            guard let sourceImage = UIImage(data: data),
+                  let cgImage = sourceImage.cgImage else {
+                return UIImage(data: data)
+            }
+
+            let targetAspectRatio = targetPixelSize.width / targetPixelSize.height
+            let croppedImage = croppedWidgetImage(cgImage, targetAspectRatio: targetAspectRatio) ?? cgImage
+
+            let format = UIGraphicsImageRendererFormat.default()
+            format.scale = 1
+            format.opaque = true
+
+            return UIGraphicsImageRenderer(size: targetPixelSize, format: format).image { _ in
+                UIImage(cgImage: croppedImage).draw(
+                    in: CGRect(origin: .zero, size: targetPixelSize)
+                )
+            }
+        }
+    }
+
+    static func imageDimensions(from data: Data) -> WidgetImageDimensions? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
               let width = properties[kCGImagePropertyPixelWidth] as? Int,
               let height = properties[kCGImagePropertyPixelHeight] as? Int else {
@@ -375,22 +364,54 @@ actor WidgetArtworkSnapshotStore {
         return WidgetImageDimensions(width: width, height: height)
     }
 
-    nonisolated static func imageDimensions(from imageData: Data) -> WidgetImageDimensions? {
-        guard let source = CGImageSourceCreateWithData(imageData as CFData, nil),
-              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
-              let width = properties[kCGImagePropertyPixelWidth] as? Int,
-              let height = properties[kCGImagePropertyPixelHeight] as? Int else {
-            return nil
+    private static func normalizedWidgetPixelSize(
+        for pointSize: CGSize,
+        scale: CGFloat
+    ) -> CGSize {
+        let normalizedScale = max(scale, 1)
+        let rawPixelSize = CGSize(
+            width: max(pointSize.width * normalizedScale, 1),
+            height: max(pointSize.height * normalizedScale, 1)
+        )
+        let maximumDimension = max(rawPixelSize.width, rawPixelSize.height)
+        guard maximumDimension > Constants.widgetImageMaximumDimension else {
+            return CGSize(
+                width: max(rawPixelSize.width.rounded(.down), 1),
+                height: max(rawPixelSize.height.rounded(.down), 1)
+            )
         }
-        return WidgetImageDimensions(width: width, height: height)
+
+        let scaleFactor = Constants.widgetImageMaximumDimension / maximumDimension
+        return CGSize(
+            width: max((rawPixelSize.width * scaleFactor).rounded(.down), 1),
+            height: max((rawPixelSize.height * scaleFactor).rounded(.down), 1)
+        )
     }
-}
 
-struct WidgetImageDimensions {
-    let width: Int
-    let height: Int
+    private static func croppedWidgetImage(
+        _ cgImage: CGImage,
+        targetAspectRatio: CGFloat
+    ) -> CGImage? {
+        guard targetAspectRatio > 0 else {
+            return cgImage
+        }
 
-    var summary: String {
-        "\(width)x\(height)"
+        let sourceWidth = cgImage.width
+        let sourceHeight = cgImage.height
+        let sourceAspectRatio = CGFloat(sourceWidth) / CGFloat(sourceHeight)
+
+        if abs(sourceAspectRatio - targetAspectRatio) < 0.001 {
+            return cgImage
+        }
+
+        if sourceAspectRatio > targetAspectRatio {
+            let cropWidth = max(Int((CGFloat(sourceHeight) * targetAspectRatio).rounded(.down)), 1)
+            let originX = max((sourceWidth - cropWidth) / 2, 0)
+            return cgImage.cropping(to: CGRect(x: originX, y: 0, width: cropWidth, height: sourceHeight))
+        }
+
+        let cropHeight = max(Int((CGFloat(sourceWidth) / targetAspectRatio).rounded(.down)), 1)
+        let originY = max((sourceHeight - cropHeight) / 2, 0)
+        return cgImage.cropping(to: CGRect(x: 0, y: originY, width: sourceWidth, height: cropHeight))
     }
 }

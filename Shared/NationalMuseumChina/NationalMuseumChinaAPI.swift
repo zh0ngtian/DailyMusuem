@@ -24,30 +24,35 @@ final class NationalMuseumChinaAPI {
     func allExhibitIDs(
         categoryID: Int? = nil,
         categoryDisplayName: String = "全部",
+        cachePolicy: MuseumRequestCachePolicy = .useCaches,
         onLog: (@Sendable (String) async -> Void)? = nil
     ) async throws -> [Int] {
         let effectiveCategoryID = categoryID ?? 0
         let logger = RequestLogger.shared
 
-        await onLog?("检查中国国家博物馆展品 ID 池（\(categoryDisplayName)）内存缓存...")
-        if let cached = await responseCache.exhibitIDs(forCategoryID: effectiveCategoryID) {
-            await logger.logEvent(
-                source: "中国国家博物馆展品池",
-                summary: "命中内存缓存，类别=\(categoryDisplayName)，共 \(cached.count) 条"
-            )
-            await onLog?("已命中内存缓存，类别 \(categoryDisplayName)，共 \(cached.count) 条。")
-            return cached
-        }
+        if cachePolicy.usesCaches {
+            await onLog?("检查中国国家博物馆展品 ID 池（\(categoryDisplayName)）内存缓存...")
+            if let cached = await responseCache.exhibitIDs(forCategoryID: effectiveCategoryID) {
+                await logger.logEvent(
+                    source: "中国国家博物馆展品池",
+                    summary: "命中内存缓存，类别=\(categoryDisplayName)，共 \(cached.count) 条"
+                )
+                await onLog?("已命中内存缓存，类别 \(categoryDisplayName)，共 \(cached.count) 条。")
+                return cached
+            }
 
-        await onLog?("未命中内存缓存，检查中国国家博物馆展品 ID 池本地缓存...")
-        if let persisted = await persistentCache.exhibitIDs(forCategoryID: effectiveCategoryID) {
-            await responseCache.setExhibitIDs(persisted, forCategoryID: effectiveCategoryID)
-            await logger.logEvent(
-                source: "中国国家博物馆展品池",
-                summary: "命中本地缓存，类别=\(categoryDisplayName)，共 \(persisted.count) 条"
-            )
-            await onLog?("已命中本地缓存，类别 \(categoryDisplayName)，共 \(persisted.count) 条。")
-            return persisted
+            await onLog?("未命中内存缓存，检查中国国家博物馆展品 ID 池本地缓存...")
+            if let persisted = await persistentCache.exhibitIDs(forCategoryID: effectiveCategoryID) {
+                await responseCache.setExhibitIDs(persisted, forCategoryID: effectiveCategoryID)
+                await logger.logEvent(
+                    source: "中国国家博物馆展品池",
+                    summary: "命中本地缓存，类别=\(categoryDisplayName)，共 \(persisted.count) 条"
+                )
+                await onLog?("已命中本地缓存，类别 \(categoryDisplayName)，共 \(persisted.count) 条。")
+                return persisted
+            }
+        } else {
+            await onLog?("网络直连模式，跳过中国国家博物馆展品池缓存读取。")
         }
 
         await onLog?("开始从中国国家博物馆批量列表接口拉取展品 ID，类别 \(categoryDisplayName)...")
@@ -57,8 +62,10 @@ final class NationalMuseumChinaAPI {
             categoryDisplayName: categoryDisplayName,
             onLog: onLog
         )
-        await responseCache.setExhibitIDs(ids, forCategoryID: effectiveCategoryID)
-        await persistentCache.setExhibitIDs(ids, forCategoryID: effectiveCategoryID)
+        if cachePolicy.usesCaches {
+            await responseCache.setExhibitIDs(ids, forCategoryID: effectiveCategoryID)
+            await persistentCache.setExhibitIDs(ids, forCategoryID: effectiveCategoryID)
+        }
         await logger.logEvent(
             source: "中国国家博物馆展品池",
             summary: "批量接口拉取完成，类别=\(categoryDisplayName)，共 \(ids.count) 条"
@@ -67,23 +74,28 @@ final class NationalMuseumChinaAPI {
         return ids
     }
 
-    func fetchExhibit(exhibitID: Int) async throws -> Artwork {
+    func fetchExhibit(
+        exhibitID: Int,
+        cachePolicy: MuseumRequestCachePolicy = .useCaches
+    ) async throws -> Artwork {
         let logger = RequestLogger.shared
 
-        if let cached = await responseCache.artwork(forID: exhibitID) {
-            await logger.logEvent(source: "中国国家博物馆详情", summary: "命中内存缓存，exhibitID=\(exhibitID)")
-            return cached
-        }
+        if cachePolicy.usesCaches {
+            if let cached = await responseCache.artwork(forID: exhibitID) {
+                await logger.logEvent(source: "中国国家博物馆详情", summary: "命中内存缓存，exhibitID=\(exhibitID)")
+                return cached
+            }
 
-        if let persisted = await persistentCache.artwork(forID: exhibitID) {
-            await responseCache.setArtwork(persisted, forID: exhibitID)
-            await logger.logEvent(source: "中国国家博物馆详情", summary: "命中本地缓存，exhibitID=\(exhibitID)")
-            return persisted
+            if let persisted = await persistentCache.artwork(forID: exhibitID) {
+                await responseCache.setArtwork(persisted, forID: exhibitID)
+                await logger.logEvent(source: "中国国家博物馆详情", summary: "命中本地缓存，exhibitID=\(exhibitID)")
+                return persisted
+            }
         }
 
         let url = try makeShareURL(exhibitID: exhibitID)
         let request = makeRequest(url: url)
-        let throttleDelay = await Self.requestThrottle.waitForTurn()
+        let throttleDelay = try await Self.requestThrottle.waitForTurn()
         if throttleDelay > 0 {
             let delayText = String(format: "%.2f", throttleDelay)
             await logger.logEvent(
@@ -118,8 +130,10 @@ final class NationalMuseumChinaAPI {
                 duration: Date().timeIntervalSince(start),
                 responseBytes: data.count
             )
-            await responseCache.setArtwork(artwork, forID: exhibitID)
-            await persistentCache.setArtwork(artwork, forID: exhibitID)
+            if cachePolicy.usesCaches {
+                await responseCache.setArtwork(artwork, forID: exhibitID)
+                await persistentCache.setArtwork(artwork, forID: exhibitID)
+            }
             return artwork
         } catch {
             await logger.logRequestFailure(
@@ -220,7 +234,7 @@ final class NationalMuseumChinaAPI {
         let url = try makeExhibitListURL(categoryID: categoryID, page: page, limit: limit)
         let request = makeListRequest(url: url)
         let logger = RequestLogger.shared
-        let throttleDelay = await Self.requestThrottle.waitForTurn()
+        let throttleDelay = try await Self.requestThrottle.waitForTurn()
         if throttleDelay > 0 {
             let delayText = String(format: "%.2f", throttleDelay)
             await logger.logEvent(
@@ -272,7 +286,7 @@ actor NationalMuseumChinaRequestThrottle {
         self.minimumInterval = minimumInterval
     }
 
-    func waitForTurn(now: Date = Date()) async -> TimeInterval {
+    func waitForTurn(now: Date = Date()) async throws -> TimeInterval {
         let scheduledTime = max(now, nextAllowedRequestTime)
         let delay = max(0, scheduledTime.timeIntervalSince(now))
         nextAllowedRequestTime = scheduledTime.addingTimeInterval(minimumInterval)
@@ -282,7 +296,7 @@ actor NationalMuseumChinaRequestThrottle {
         }
 
         let nanoseconds = UInt64(delay * 1_000_000_000)
-        try? await Task.sleep(nanoseconds: nanoseconds)
+        try await Task.sleep(nanoseconds: nanoseconds)
         return delay
     }
 }

@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 
 final class WidgetArtworkSnapshotStoreTests: XCTestCase {
@@ -18,198 +19,200 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
         try super.tearDownWithError()
     }
 
-    func testConcurrentSuccessfulRefreshGeneratesSnapshotOnlyOnce() async throws {
+    func testRegisterAndBeginRefreshCreatePerInstanceState() async throws {
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
-        let gate = AsyncGate()
-        let counter = InvocationCounter()
-        let generationStarted = expectation(description: "first generation started")
-        let expectedSnapshot = makeSnapshot(cycleKey: "success-cycle")
 
-        let firstTask = Task<WidgetArtworkSnapshotStore.Snapshot, Error> {
-            try await store.generateSnapshot { _ in
-                let attempt = await counter.increment()
-                XCTAssertEqual(attempt, 1)
-                generationStarted.fulfill()
-                await gate.wait()
-                return await store.store(expectedSnapshot, imageData: nil)
-            }
-        }
-
-        await fulfillment(of: [generationStarted], timeout: 1.0)
-
-        let secondTask = Task<WidgetArtworkSnapshotStore.Snapshot, Error> {
-            try await store.generateSnapshot { _ in
-                XCTFail("A successful widget refresh should not generate a second snapshot.")
-                return await store.store(self.makeSnapshot(cycleKey: "unexpected"), imageData: nil)
-            }
-        }
-
-        try await Task.sleep(nanoseconds: 200_000_000)
-        await gate.open()
-
-        let firstSnapshot = try await firstTask.value
-        let secondSnapshot = try await secondTask.value
-
-        XCTAssertEqual(firstSnapshot.cycleKey, expectedSnapshot.cycleKey)
-        XCTAssertEqual(secondSnapshot.cycleKey, expectedSnapshot.cycleKey)
-        let invocationCount = await counter.currentValue()
-        XCTAssertEqual(invocationCount, 1)
-    }
-
-    func testFailedRefreshDoesNotCountAsCompletedGeneration() async throws {
-        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
-        let counter = InvocationCounter()
-
-        do {
-            _ = try await store.generateSnapshot { _ in
-                _ = await counter.increment()
-                throw StubError.expectedFailure
-            }
-            XCTFail("The first widget refresh attempt should fail.")
-        } catch let error as StubError {
-            XCTAssertEqual(error, .expectedFailure)
-        } catch {
-            XCTFail("Unexpected error: \(error)")
-        }
-
-        let latestSnapshot = await store.loadLatest()
-        XCTAssertNil(latestSnapshot)
-
-        let expectedSnapshot = makeSnapshot(cycleKey: "retry-cycle")
-        let retrySnapshot = try await store.generateSnapshot { latestSnapshot in
-            XCTAssertNil(latestSnapshot)
-            let attempt = await counter.increment()
-            XCTAssertEqual(attempt, 2)
-            return await store.store(expectedSnapshot, imageData: nil)
-        }
-
-        XCTAssertEqual(retrySnapshot.cycleKey, expectedSnapshot.cycleKey)
-        let retryInvocationCount = await counter.currentValue()
-        XCTAssertEqual(retryInvocationCount, 2)
-    }
-
-    func testStoreKeepsNewerManualRefreshSnapshotWhenOlderRequestFinishesLater() async throws {
-        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
-        let newerSnapshot = makeSnapshot(
-            cycleKey: "single:tnm|tnm:all|images|19.0|1",
-            generatedAt: 200,
-            manualRefreshNonce: 19
+        let registered = await store.registerInstance(
+            instanceToken: "instance-a",
+            scopeRawValue: WidgetMuseumScope.single(.met).rawValue
         )
-        let olderSnapshot = makeSnapshot(
-            cycleKey: "single:tnm|tnm:all|images|17.0|1",
-            generatedAt: 100,
-            manualRefreshNonce: 17
+        let refreshing = await store.beginRefresh(
+            instanceToken: "instance-a",
+            scopeRawValue: WidgetMuseumScope.single(.met).rawValue
+        )
+        let reloaded = await store.state(for: "instance-a")
+
+        XCTAssertEqual(registered.phase, .idle)
+        XCTAssertEqual(refreshing.phase, .refreshing)
+        XCTAssertEqual(refreshing.nonce, 1)
+        XCTAssertEqual(reloaded?.phase, .refreshing)
+        XCTAssertEqual(reloaded?.scopeRawValue, WidgetMuseumScope.single(.met).rawValue)
+    }
+
+    func testMarkSuccessStoresImageAndFailureRemovesPreviousPayload() async throws {
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        _ = await store.beginRefresh(
+            instanceToken: "instance-b",
+            scopeRawValue: WidgetMuseumScope.single(.tnm).rawValue
         )
 
-        let firstStored = await store.store(newerSnapshot, imageData: nil)
-        let secondStored = await store.store(olderSnapshot, imageData: nil)
-        let loadedSnapshot = await store.loadLatest()
-        let loaded = try XCTUnwrap(loadedSnapshot)
+        let successState = await store.markSuccess(
+            instanceToken: "instance-b",
+            expectedNonce: 1,
+            payload: makePayload(
+                museumID: .tnm,
+                museumName: "东京国立博物馆",
+                title: "一期"
+            ),
+            imageData: Data("image-a".utf8)
+        )
+        let imageFileName = try XCTUnwrap(successState?.artwork?.imageFileName)
+        let imageURL = baseURL
+            .appendingPathComponent("WidgetInstances", isDirectory: true)
+            .appendingPathComponent("images", isDirectory: true)
+            .appendingPathComponent(imageFileName)
 
-        XCTAssertEqual(firstStored.cycleKey, newerSnapshot.cycleKey)
-        XCTAssertEqual(secondStored.cycleKey, newerSnapshot.cycleKey)
-        XCTAssertEqual(loaded.cycleKey, newerSnapshot.cycleKey)
-        XCTAssertEqual(loaded.manualRefreshNonce, 19)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: imageURL.path))
+
+        _ = await store.beginRefresh(
+            instanceToken: "instance-b",
+            scopeRawValue: WidgetMuseumScope.single(.tnm).rawValue
+        )
+        let failureState = await store.markFailure(
+            instanceToken: "instance-b",
+            expectedNonce: 2,
+            message: "未找到可展示的展品。"
+        )
+
+        XCTAssertEqual(failureState?.phase, .failure)
+        XCTAssertNil(failureState?.artwork)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: imageURL.path))
     }
 
-    func testNewerManualRefreshStealsOlderGenerationLock() async throws {
+    func testMarkSuccessIgnoresSupersededNonce() async throws {
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
-        let gate = AsyncGate()
-        let olderGenerationStarted = expectation(description: "older generation started")
-        let newerGenerationFinished = expectation(description: "newer generation finished")
+        _ = await store.beginRefresh(
+            instanceToken: "instance-c",
+            scopeRawValue: WidgetMuseumScope.all.rawValue
+        )
+        _ = await store.beginRefresh(
+            instanceToken: "instance-c",
+            scopeRawValue: WidgetMuseumScope.all.rawValue
+        )
 
-        let olderTask = Task<WidgetArtworkSnapshotStore.Snapshot, Error> {
-            try await store.generateSnapshot(manualRefreshNonce: 11) { _ in
-                olderGenerationStarted.fulfill()
-                await gate.wait()
-                return await store.store(
-                    self.makeSnapshot(
-                        cycleKey: "older-cycle",
-                        generatedAt: 100,
-                        manualRefreshNonce: 11
-                    ),
-                    imageData: nil
-                )
-            }
-        }
+        let outdatedWrite = await store.markSuccess(
+            instanceToken: "instance-c",
+            expectedNonce: 1,
+            payload: makePayload(
+                museumID: .met,
+                museumName: "大都会艺术博物馆",
+                title: "旧结果"
+            ),
+            imageData: Data("old".utf8)
+        )
+        let currentState = await store.state(for: "instance-c")
 
-        await fulfillment(of: [olderGenerationStarted], timeout: 1.0)
-
-        let newerTask = Task<WidgetArtworkSnapshotStore.Snapshot, Error> {
-            let snapshot = try await store.generateSnapshot(manualRefreshNonce: 12) { _ in
-                await store.store(
-                    self.makeSnapshot(
-                        cycleKey: "newer-cycle",
-                        generatedAt: 200,
-                        manualRefreshNonce: 12
-                    ),
-                    imageData: nil
-                )
-            }
-            newerGenerationFinished.fulfill()
-            return snapshot
-        }
-
-        await fulfillment(of: [newerGenerationFinished], timeout: 2.0)
-        await gate.open()
-
-        let newerSnapshot = try await newerTask.value
-        let olderSnapshot = try await olderTask.value
-        let loadedSnapshot = await store.loadLatest()
-        let loaded = try XCTUnwrap(loadedSnapshot)
-
-        XCTAssertEqual(newerSnapshot.cycleKey, "newer-cycle")
-        XCTAssertEqual(olderSnapshot.cycleKey, "newer-cycle")
-        XCTAssertEqual(loaded.cycleKey, "newer-cycle")
-        XCTAssertEqual(loaded.manualRefreshNonce, 12)
+        XCTAssertNil(outdatedWrite)
+        XCTAssertEqual(currentState?.nonce, 2)
+        XCTAssertEqual(currentState?.phase, .refreshing)
     }
 
-    private func makeSnapshot(
-        cycleKey: String,
-        generatedAt: TimeInterval = 100,
-        manualRefreshNonce: Int = 0
-    ) -> WidgetArtworkSnapshotStore.Snapshot {
-        WidgetArtworkSnapshotStore.Snapshot(
-            cycleKey: cycleKey,
-            museumName: "大都会艺术博物馆",
-            title: "Test Artwork",
+    func testRegisterInstanceClearsLegacyDirectories() async throws {
+        let legacyDirectories = ["WidgetCache", "WidgetRefresh", "WidgetRender"]
+        for directoryName in legacyDirectories {
+            let directoryURL = baseURL.appendingPathComponent(directoryName, isDirectory: true)
+            try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+            try Data("legacy".utf8).write(to: directoryURL.appendingPathComponent("file.txt"))
+        }
+
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        _ = await store.registerInstance(
+            instanceToken: "instance-d",
+            scopeRawValue: WidgetMuseumScope.single(.shm).rawValue
+        )
+
+        for directoryName in legacyDirectories {
+            let directoryURL = baseURL.appendingPathComponent(directoryName, isDirectory: true)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: directoryURL.path))
+        }
+    }
+
+    func testMostRecentDisplayableStatePrefersSuccessOverNewerRefreshingStateForScope() async throws {
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let scope = WidgetMuseumScope.single(.met).rawValue
+
+        _ = await store.registerInstance(instanceToken: "idle", scopeRawValue: scope)
+
+        _ = await store.beginRefresh(instanceToken: "success", scopeRawValue: scope)
+        _ = await store.markSuccess(
+            instanceToken: "success",
+            expectedNonce: 1,
+            payload: makePayload(
+                museumID: .met,
+                museumName: "大都会艺术博物馆",
+                title: "可展示结果"
+            ),
+            imageData: nil,
+            now: Date(timeIntervalSince1970: 200)
+        )
+
+        _ = await store.beginRefresh(
+            instanceToken: "refreshing",
+            scopeRawValue: scope,
+            now: Date(timeIntervalSince1970: 300)
+        )
+
+        let adopted = await store.mostRecentDisplayableState(scopeRawValue: scope)
+
+        XCTAssertEqual(adopted?.instanceToken, "success")
+        XCTAssertEqual(adopted?.phase, .success)
+    }
+
+    func testWidgetImageUsesCroppedThumbnailWithinPixelBudget() throws {
+        let sourceSize = CGSize(width: 6000, height: 600)
+        let sourceData = makeJPEGData(size: sourceSize)
+
+        let image = try XCTUnwrap(
+            WidgetArtworkSnapshotStore.widgetImage(
+                from: sourceData,
+                targetPointSize: CGSize(width: 380, height: 376),
+                scale: 3
+            )
+        )
+
+        let pixelWidth = Int(image.size.width * image.scale)
+        let pixelHeight = Int(image.size.height * image.scale)
+        let aspectRatio = CGFloat(pixelWidth) / CGFloat(pixelHeight)
+        let expectedAspectRatio = 380.0 / 376.0
+
+        XCTAssertLessThanOrEqual(max(pixelWidth, pixelHeight), 1200)
+        XCTAssertEqual(aspectRatio, expectedAspectRatio, accuracy: 0.02)
+    }
+
+    private func makePayload(
+        museumID: MuseumID,
+        museumName: String,
+        title: String
+    ) -> WidgetArtworkSnapshotStore.ArtworkPayload {
+        WidgetArtworkSnapshotStore.ArtworkPayload(
+            museumID: museumID,
+            museumName: museumName,
+            title: title,
             subtitle: "2026",
             imageFileName: nil,
-            appURL: nil,
-            generatedAt: generatedAt,
-            manualRefreshNonce: manualRefreshNonce
+            appURL: URL(string: "dailymuseum://artwork/\(museumID.rawValue)/1"),
+            updatedAt: 1
         )
     }
-}
 
-private actor InvocationCounter {
-    private(set) var value = 0
+    private func makeJPEGData(size: CGSize) -> Data {
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        format.opaque = true
 
-    func increment() -> Int {
-        value += 1
-        return value
-    }
+        return UIGraphicsImageRenderer(size: size, format: format).jpegData(withCompressionQuality: 0.8) { context in
+            UIColor.black.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
 
-    func currentValue() -> Int {
-        value
-    }
-}
-
-private actor AsyncGate {
-    private var continuation: CheckedContinuation<Void, Never>?
-
-    func wait() async {
-        await withCheckedContinuation { continuation in
-            self.continuation = continuation
+            UIColor.white.setFill()
+            context.fill(
+                CGRect(
+                    x: size.width / 3,
+                    y: 0,
+                    width: size.width / 3,
+                    height: size.height
+                )
+            )
         }
     }
-
-    func open() {
-        continuation?.resume()
-        continuation = nil
-    }
-}
-
-private enum StubError: Error, Equatable {
-    case expectedFailure
 }

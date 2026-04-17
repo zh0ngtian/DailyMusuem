@@ -22,13 +22,17 @@ final class AppRouter: ObservableObject {
               url.path == "/widget-refresh" else {
             return false
         }
-        let familyKey = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-            .queryItems?
-            .first(where: { $0.name == "familyKey" })?
-            .value ?? ""
+        let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        let familyKey = queryItems.first(where: { $0.name == "familyKey" })?.value ?? ""
+        let instanceToken = queryItems.first(where: { $0.name == "instanceToken" })?.value
+        let scopeRawValue = queryItems.first(where: { $0.name == "scopeRawValue" })?.value
         Task {
             await WidgetManualRefreshRunner(logSource: "Widget 调试")
-                .perform(familyKey: familyKey)
+                .perform(
+                    familyKey: familyKey,
+                    instanceToken: instanceToken,
+                    scopeRawValue: scopeRawValue
+                )
         }
         return true
     }

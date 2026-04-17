@@ -1,8 +1,13 @@
 .DS_Store
 .trae/
+.tmp-device/
 .swiftpm
 DerivedData/
+.deriveddata-generic/
+.deriveddata-ios/
+.deriveddata-sim/
 .deriveddata-tests/
+.deriveddata*/
 build/
 *.xcuserstate
 *.xccheckout

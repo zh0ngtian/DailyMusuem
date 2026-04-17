@@ -1,561 +1,482 @@
 import Foundation
 import WidgetKit
 
-actor WidgetRefreshDeliveryTracker {
-    static let shared = WidgetRefreshDeliveryTracker()
+protocol WidgetArtworkCandidateLoading: Sendable {
+    func nextCandidateArtwork() async throws -> Artwork?
+    func isExhausted() async -> Bool
+}
 
-    private enum Constants {
-        static let directoryName = "WidgetRefresh"
-        static let fileName = "delivery-tracker.json"
-        static let staleTimeout: TimeInterval = 90
-        static let completedResultReuseTimeout: TimeInterval = WidgetDesktopSyncSchedule.syncWindowDuration
-    }
-
-    enum Phase: String, Codable {
-        case generating
-        case delivering
-        case completed
-    }
-
-    enum Status {
-        case pending(State)
-        case completed(State)
-        case missing
-    }
-
-    enum ActiveRefreshStatus {
-        case active(State)
-        case expired
-        case missing
-    }
-
-    struct State: Codable {
-        let nonce: Int
-        let startedAt: TimeInterval
-        var phase: Phase
-        let configurationCount: Int
-        let expectedCounts: [String: Int]
-        let requestedFamilyKey: String
-        var deliveredCounts: [String: Int]
-        var deliveredTokens: [String: [String]]
-        var targetRenderID: String?
-        var renderedFamilyRenderIDs: [String: String]
-        var lastUpdatedAt: TimeInterval
-
-        var expectedTotal: Int {
-            expectedCounts.values.reduce(0, +)
-        }
-
-        var deliveredTotal: Int {
-            deliveredCounts.values.reduce(0, +)
-        }
-
-        var isComplete: Bool {
-            guard let targetRenderID else {
-                return false
-            }
-            return renderedFamilyRenderIDs[requestedFamilyKey] == targetRenderID
-        }
-
-        var configurationSummary: String {
-            let counts = Self.familyOrder
-                .map { familyKey in
-                    let expected = expectedCounts[familyKey, default: 0]
-                    return expected > 0 ? "\(familyKey)x\(expected)" : nil
-                }
-                .compactMap { $0 }
-            if counts.isEmpty {
-                return "0 个"
-            }
-            return "\(configurationCount) 个（" + counts.joined(separator: "、") + "）"
-        }
-
-        var progressSummary: String {
-            let phaseSummary: String = switch phase {
-            case .generating:
-                "阶段=生成中"
-            case .delivering:
-                "阶段=投递中"
-            case .completed:
-                "阶段=目标尺寸已收到扩展渲染回执（桌面同步窗口中）"
-            }
-            let familyProgress = Self.familyOrder
-                .map { familyKey in
-                    let expected = expectedCounts[familyKey, default: 0]
-                    let delivered = deliveredCounts[familyKey, default: 0]
-                    guard expected > 0 else { return nil }
-                    return "\(familyKey) \(delivered)/\(expected)"
-                }
-                .compactMap { $0 }
-                .joined(separator: "、")
-            let renderProgress: String = {
-                guard let targetRenderID else {
-                    return "目标尺寸 \(requestedFamilyKey) 等待生成 renderID"
-                }
-                if renderedFamilyRenderIDs[requestedFamilyKey] == targetRenderID {
-                    return "目标尺寸 \(requestedFamilyKey) 已收到扩展渲染回执，等待桌面位图同步"
-                }
-                return "目标尺寸 \(requestedFamilyKey) 待扩展渲染回执"
-            }()
-
-            if familyProgress.isEmpty {
-                return "\(phaseSummary)，总计 0/0，\(renderProgress)"
-            }
-            return "\(phaseSummary)，总计 \(deliveredTotal)/\(expectedTotal)（\(familyProgress)），\(renderProgress)"
-        }
-
-        mutating func transition(to phase: Phase, targetRenderID: String? = nil, at timestamp: TimeInterval) {
-            self.phase = phase
-            if let targetRenderID {
-                self.targetRenderID = targetRenderID
-            }
-            lastUpdatedAt = timestamp
-        }
-
-        mutating func recordDelivery(familyKey: String, token: String, timestamp: TimeInterval) -> Bool {
-            var tokens = deliveredTokens[familyKey] ?? []
-            guard !tokens.contains(token) else {
-                return false
-            }
-
-            tokens.append(token)
-            deliveredTokens[familyKey] = tokens
-
-            let expected = expectedCounts[familyKey, default: 0]
-            deliveredCounts[familyKey] = min(expected, tokens.count)
-            lastUpdatedAt = timestamp
-            return true
-        }
-
-        mutating func recordRender(familyKey: String, renderID: String, timestamp: TimeInterval) -> Bool {
-            guard phase == .delivering,
-                  let targetRenderID,
-                  familyKey == requestedFamilyKey,
-                  renderID == targetRenderID else {
-                return false
-            }
-
-            guard renderedFamilyRenderIDs[familyKey] != renderID else {
-                return false
-            }
-
-            renderedFamilyRenderIDs[familyKey] = renderID
-            phase = .completed
-            lastUpdatedAt = timestamp
-            return true
-        }
-
-        private static let familyOrder = ["systemLarge", "systemMedium", "systemSmall"]
-    }
-
-    private let fileURL: URL
-    private let encoder = JSONEncoder()
-    private let decoder = JSONDecoder()
-
-    init(fileManager: FileManager = .default) {
-        let baseURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: SettingsKeys.appGroupID)
-            ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
-            ?? fileManager.temporaryDirectory
-        self.init(baseURL: baseURL)
-    }
-
-    init(baseURL: URL) {
-        fileURL = baseURL
-            .appendingPathComponent(Constants.directoryName, isDirectory: true)
-            .appendingPathComponent(Constants.fileName)
-    }
-
-    func begin(
-        nonce: Int,
-        configurationCount: Int,
-        expectedCounts providedCounts: [String: Int],
-        requestedFamilyKey: String,
-        startedAt: Date = .now
-    ) -> State {
-        var expectedCounts = emptyCounts()
-        for (familyKey, count) in providedCounts {
-            expectedCounts[familyKey, default: 0] = count
-        }
-
-        let timestamp = startedAt.timeIntervalSince1970
-        let state = State(
-            nonce: nonce,
-            startedAt: timestamp,
-            phase: .generating,
-            configurationCount: configurationCount,
-            expectedCounts: expectedCounts,
-            requestedFamilyKey: requestedFamilyKey,
-            deliveredCounts: emptyCounts(),
-            deliveredTokens: [:],
-            targetRenderID: nil,
-            renderedFamilyRenderIDs: [:],
-            lastUpdatedAt: timestamp
-        )
-        persist(state)
-        return state
-    }
-
-    func transitionToDelivering(nonce: Int, targetRenderID: String, now: Date = .now) -> State? {
-        guard var state = loadState(), state.nonce == nonce else {
-            return nil
-        }
-
-        state.transition(
-            to: .delivering,
-            targetRenderID: targetRenderID,
-            at: now.timeIntervalSince1970
-        )
-        persist(state)
-        return state
-    }
-
-    func completeGeneratedRefresh(nonce: Int, targetRenderID: String, now: Date = .now) -> State? {
-        transitionToDelivering(
-            nonce: nonce,
-            targetRenderID: targetRenderID,
-            now: now
-        )
-    }
-
-    func activeState(expectedNonce: Int, now: Date = .now) -> State? {
-        guard let state = loadState(), state.nonce == expectedNonce else {
-            return nil
-        }
-
-        if now.timeIntervalSince1970 - state.lastUpdatedAt > Constants.staleTimeout {
-            removeState()
-            return nil
-        }
-
-        return state
-    }
-
-    func activeTargetRenderID(expectedNonce: Int, now: Date = .now) -> String? {
-        guard case .active(let state) = activeRefreshStatus(expectedNonce: expectedNonce, now: now),
-              state.phase != .generating else {
-            return nil
-        }
-        return state.targetRenderID
-    }
-
-    func reusableTargetRenderID(expectedNonce: Int, now: Date = .now) -> String? {
-        guard case .active(let state) = activeRefreshStatus(expectedNonce: expectedNonce, now: now),
-              state.phase != .generating else {
-            return nil
-        }
-        return state.targetRenderID
-    }
-
-    func status(for nonce: Int, now: Date = .now) -> Status {
-        guard case .active(let state) = activeRefreshStatus(expectedNonce: nonce, now: now) else {
-            return .missing
-        }
-        return state.isComplete ? .completed(state) : .pending(state)
-    }
-
-    func activeRefreshStatus(expectedNonce: Int, now: Date = .now) -> ActiveRefreshStatus {
-        guard let state = activeState(expectedNonce: expectedNonce, now: now) else {
-            return .missing
-        }
-
-        if state.phase == .completed {
-            let age = now.timeIntervalSince1970 - state.lastUpdatedAt
-            if age >= Constants.completedResultReuseTimeout {
-                return .expired
-            }
-        }
-
-        return .active(state)
-    }
-
-    func recordDelivery(
-        nonce: Int,
-        family: WidgetFamily,
-        displaySize: CGSize,
-        deliveryID: String,
-        now: Date = .now
-    ) -> State? {
-        guard var state = activeState(expectedNonce: nonce, now: now),
-              state.phase == .delivering else {
-            return nil
-        }
-
-        let token = "\(deliveryID)|\(displaySize.widgetLogLabel)"
-        guard state.recordDelivery(
-            familyKey: family.logKey,
-            token: token,
-            timestamp: now.timeIntervalSince1970
-        ) else {
-            return nil
-        }
-
-        persist(state)
-        return state
-    }
-
-    func recordRender(
-        family: WidgetFamily,
-        renderID: String,
-        now: Date = .now
-    ) -> State? {
-        guard var state = loadState(),
-              state.recordRender(
-                familyKey: family.logKey,
-                renderID: renderID,
-                timestamp: now.timeIntervalSince1970
-              ) else {
-            return nil
-        }
-
-        persist(state)
-        return state
-    }
-
-    func clear(nonce: Int? = nil) {
-        guard let state = loadState() else {
-            return
-        }
-        guard nonce == nil || state.nonce == nonce else {
-            return
-        }
-        removeState()
-    }
-
-    private func emptyCounts() -> [String: Int] {
-        [
-            "systemLarge": 0,
-            "systemMedium": 0,
-            "systemSmall": 0,
-        ]
-    }
-
-    private func loadState() -> State? {
-        guard let data = try? Data(contentsOf: fileURL),
-              let state = try? decoder.decode(State.self, from: data) else {
-            return nil
-        }
-        return state
-    }
-
-    private func persist(_ state: State) {
-        do {
-            try FileManager.default.createDirectory(
-                at: fileURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            let data = try encoder.encode(state)
-            try data.write(to: fileURL, options: [.atomic])
-        } catch {
-            // Ignore persistence failures to avoid breaking widget refresh.
-        }
-    }
-
-    private func removeState() {
-        try? FileManager.default.removeItem(at: fileURL)
+extension ArtworkBatchLoader: WidgetArtworkCandidateLoading {
+    func nextCandidateArtwork() async throws -> Artwork? {
+        try await nextBatch(count: 1).first
     }
 }
 
-enum WidgetRenderFollowUpReloadDecision {
-    static func shouldRequestReload(
-        deliveryState: WidgetRefreshDeliveryTracker.State?,
-        familyKey: String
-    ) -> Bool {
-        guard let deliveryState else {
-            return false
-        }
-
-        return deliveryState.phase == .completed
-            && deliveryState.requestedFamilyKey == familyKey
-    }
-}
-
-enum WidgetRenderLoggingDecision {
-    static func shouldSuppressRenderLog(
-        entryRenderID: String,
-        deliveryID: String,
-        activeManualRefreshState: WidgetRefreshDeliveryTracker.State?
-    ) -> Bool {
-        guard deliveryID.contains("-sync-"),
-              let activeManualRefreshState,
-              activeManualRefreshState.phase == .completed,
-              let targetRenderID = activeManualRefreshState.targetRenderID else {
-            return false
-        }
-
-        return entryRenderID == targetRenderID
-    }
-
-    static func renderLogKey(
-        entryRenderID: String,
-        familyKey: String,
-        deliveryID: String,
-        activeManualRefreshState: WidgetRefreshDeliveryTracker.State?
-    ) -> String {
-        guard let activeManualRefreshState,
-              activeManualRefreshState.phase == .completed,
-              activeManualRefreshState.targetRenderID == entryRenderID else {
-            return [entryRenderID, familyKey, deliveryID]
-                .filter { !$0.isEmpty }
-                .joined(separator: "|")
-        }
-
-        return [entryRenderID, familyKey, "sync-window"]
-            .filter { !$0.isEmpty }
-            .joined(separator: "|")
-    }
-}
-
-enum WidgetRenderedArtworkPersistenceDecision {
-    static func shouldPersist(
-        entryRenderID: String,
-        isRefreshing: Bool,
-        activeManualRefreshState: WidgetRefreshDeliveryTracker.State?
-    ) -> Bool {
-        guard !isRefreshing else {
-            return false
-        }
-
-        guard let activeManualRefreshState else {
-            return true
-        }
-
-        guard let targetRenderID = activeManualRefreshState.targetRenderID else {
-            return false
-        }
-
-        return entryRenderID == targetRenderID
-    }
-
-    static func ignoreReason(
-        entryRenderID: String,
-        isRefreshing: Bool,
-        activeManualRefreshState: WidgetRefreshDeliveryTracker.State?
-    ) -> String {
-        if isRefreshing {
-            return "加载态不写入最近扩展渲染记录"
-        }
-
-        guard let activeManualRefreshState else {
-            return "无需忽略"
-        }
-
-        guard let targetRenderID = activeManualRefreshState.targetRenderID else {
-            return "存在进行中的手动刷新，但目标 renderID 尚未生成"
-        }
-
-        return "存在更新中的手动刷新目标 renderID=\(targetRenderID)，忽略过期扩展渲染 renderID=\(entryRenderID)"
-    }
-}
-
-enum WidgetManualRefreshInterruptionDecision {
-    static func shouldInterrupt(
-        executionNonce: Int,
-        isManualRefreshInProgress: Bool,
-        activeNonce: Int
-    ) -> Bool {
-        !isManualRefreshInProgress || activeNonce != executionNonce
-    }
-}
-
-struct WidgetManualRefreshInterruptedError: LocalizedError {
-    let executionNonce: Int
-    let activeNonce: Int
+enum WidgetRefreshError: LocalizedError, Equatable {
+    case noRenderableArtwork
 
     var errorDescription: String? {
-        "手动刷新 nonce=\(executionNonce) 已被 nonce=\(activeNonce) 抢占"
+        switch self {
+        case .noRenderableArtwork:
+            return "未找到可展示的展品。"
+        }
     }
 }
 
-enum WidgetDesktopSyncSchedule {
-    static let checkpointOffsets: [TimeInterval] = [2, 5, 10, 20, 30]
-    static let syncWindowDuration: TimeInterval = checkpointOffsets.last ?? 30
+struct WidgetRefreshPayload: Equatable {
+    let museumID: MuseumID
+    let museumName: String
+    let title: String
+    let subtitle: String?
+    let imageData: Data
+    let appURL: URL?
 
-    static func syncStartedAt(for state: WidgetRefreshDeliveryTracker.State) -> Date? {
-        guard state.phase == .completed else {
-            return nil
-        }
-        return Date(timeIntervalSince1970: state.lastUpdatedAt)
+    func storedPayload(now: Date = .now) -> WidgetArtworkSnapshotStore.ArtworkPayload {
+        WidgetArtworkSnapshotStore.ArtworkPayload(
+            museumID: museumID,
+            museumName: museumName,
+            title: title,
+            subtitle: subtitle,
+            imageFileName: nil,
+            appURL: appURL,
+            updatedAt: now.timeIntervalSince1970
+        )
+    }
+}
+
+actor WidgetRefreshCoordinator {
+    static let shared = WidgetRefreshCoordinator()
+
+    private let store: WidgetArtworkSnapshotStore
+    private let widgetCenter: WidgetCenter
+    private let makeEngine: @Sendable () -> WidgetRefreshEngine
+    private var activeRefreshes: [String: (nonce: Int, task: Task<WidgetRefreshPayload, Error>)] = [:]
+
+    init(
+        store: WidgetArtworkSnapshotStore = .shared,
+        widgetCenter: WidgetCenter = .shared,
+        makeEngine: @escaping @Sendable () -> WidgetRefreshEngine = { WidgetRefreshEngine() }
+    ) {
+        self.store = store
+        self.widgetCenter = widgetCenter
+        self.makeEngine = makeEngine
     }
 
-    static func nextReloadDate(
-        for state: WidgetRefreshDeliveryTracker.State,
-        now: Date
-    ) -> Date? {
-        guard let syncStartedAt = syncStartedAt(for: state) else {
-            return nil
+    func refresh(
+        instanceToken: String,
+        scope: WidgetMuseumScope,
+        logSource: String = "Widget 刷新"
+    ) async {
+        let state = await store.beginRefresh(
+            instanceToken: instanceToken,
+            scopeRawValue: scope.rawValue
+        )
+        let nonce = state.nonce
+
+        if let activeRefresh = activeRefreshes[instanceToken] {
+            activeRefresh.task.cancel()
+            await RequestLogger.shared.logEvent(
+                source: logSource,
+                summary: "实例 \(instanceToken) 收到新的刷新请求，nonce=\(nonce) 抢占旧任务 nonce=\(activeRefresh.nonce)"
+            )
         }
-        return nextReloadDate(syncStartedAt: syncStartedAt, now: now)
+
+        widgetCenter.reloadTimelines(ofKind: SettingsKeys.widgetKind)
+
+        let engine = makeEngine()
+        let task = Task {
+            try await engine.fetchRenderableArtwork(
+                scope: scope,
+                instanceToken: instanceToken,
+                logSource: logSource
+            )
+        }
+        activeRefreshes[instanceToken] = (nonce, task)
+
+        do {
+            let payload = try await task.value
+            _ = await store.markSuccess(
+                instanceToken: instanceToken,
+                expectedNonce: nonce,
+                payload: payload.storedPayload(),
+                imageData: payload.imageData
+            )
+            await RequestLogger.shared.logEvent(
+                source: logSource,
+                summary: "实例 \(instanceToken) 刷新成功：\(payload.museumName) / \(payload.title)"
+            )
+        } catch is CancellationError {
+            await RequestLogger.shared.logEvent(
+                source: logSource,
+                summary: "实例 \(instanceToken) 的旧刷新任务 nonce=\(nonce) 已取消"
+            )
+        } catch let error as WidgetRefreshError {
+            _ = await store.markFailure(
+                instanceToken: instanceToken,
+                expectedNonce: nonce,
+                message: error.localizedDescription
+            )
+            await RequestLogger.shared.logEvent(
+                source: logSource,
+                summary: "实例 \(instanceToken) 刷新失败：\(error.localizedDescription)"
+            )
+        } catch {
+            _ = await store.markFailure(
+                instanceToken: instanceToken,
+                expectedNonce: nonce,
+                message: error.localizedDescription
+            )
+            await RequestLogger.shared.logEvent(
+                source: logSource,
+                summary: "实例 \(instanceToken) 刷新出错：\(error.localizedDescription)"
+            )
+        }
+
+        if activeRefreshes[instanceToken]?.nonce == nonce {
+            activeRefreshes[instanceToken] = nil
+        }
+        widgetCenter.reloadTimelines(ofKind: SettingsKeys.widgetKind)
     }
 
-    static func nextReloadDate(syncStartedAt: Date, now: Date) -> Date? {
-        for offset in checkpointOffsets {
-            let candidate = syncStartedAt.addingTimeInterval(offset)
-            if candidate > now {
-                return candidate
+    func refreshAllKnownInstances(logSource: String = "App 快捷操作") async {
+        let instances = await store.knownInstances()
+        for instance in instances {
+            guard let scope = WidgetMuseumScope(rawValue: instance.scopeRawValue) else {
+                continue
+            }
+            await refresh(
+                instanceToken: instance.instanceToken,
+                scope: scope,
+                logSource: logSource
+            )
+        }
+    }
+}
+
+struct WidgetRefreshEngine {
+    typealias LoaderFactory = @Sendable (MuseumID, [MuseumCategory], (@Sendable (String) async -> Void)?) -> any WidgetArtworkCandidateLoading
+    typealias RandomIndex = @Sendable (Range<Int>) -> Int
+    typealias ImageDataFetcher = @Sendable (URL, Int) async throws -> Data?
+
+    private enum Constants {
+        static let imageRetryLimit = 3
+        static let imageRequestTimeout: TimeInterval = 8
+        static let imageRetryBaseDelayNanoseconds: UInt64 = 400_000_000
+    }
+
+    let settingsReader: WidgetSettingsReader
+    let loaderFactory: LoaderFactory
+    let randomIndex: RandomIndex
+    let imageDataFetcher: ImageDataFetcher?
+    let urlSession: URLSession
+
+    init(
+        settingsReader: WidgetSettingsReader = WidgetSettingsReader(),
+        loaderFactory: LoaderFactory? = nil,
+        randomIndex: @escaping RandomIndex = { range in
+            Int.random(in: range)
+        },
+        imageDataFetcher: ImageDataFetcher? = nil,
+        urlSession: URLSession = .shared
+    ) {
+        self.settingsReader = settingsReader
+        self.loaderFactory = loaderFactory ?? { museumID, categories, onLog in
+            ArtworkBatchLoader(
+                museumID: museumID,
+                categories: categories,
+                randomOrder: true,
+                cachePolicy: MuseumRequestCachePolicy.networkOnly,
+                onLog: onLog
+            )
+        }
+        self.randomIndex = randomIndex
+        self.imageDataFetcher = imageDataFetcher
+        self.urlSession = urlSession
+    }
+
+    func fetchRenderableArtwork(
+        scope: WidgetMuseumScope,
+        instanceToken: String,
+        logSource: String = "Widget 刷新"
+    ) async throws -> WidgetRefreshPayload {
+        var loaders = makeLoaders(
+            for: scope,
+            instanceToken: instanceToken,
+            logSource: logSource
+        )
+        var candidateAttempt = 0
+
+        while true {
+            try Task.checkCancellation()
+
+            let availableMuseumIDs = await selectableMuseumIDs(from: loaders)
+            guard !availableMuseumIDs.isEmpty else {
+                throw WidgetRefreshError.noRenderableArtwork
+            }
+
+            let museumIndex = availableMuseumIDs.count == 1 ? 0 : randomIndex(0..<availableMuseumIDs.count)
+            let selectedMuseumID = availableMuseumIDs[museumIndex]
+            guard let loader = loaders[selectedMuseumID] else {
+                continue
+            }
+
+            let museum = MuseumRepository.museum(for: selectedMuseumID)
+            candidateAttempt += 1
+            await Self.logEvent(
+                logSource: logSource,
+                instanceToken: instanceToken,
+                summary: "开始尝试候选 \(candidateAttempt)：\(museum.displayName)，类别=\(categorySummary(for: selectedMuseumID))"
+            )
+
+            guard let artwork = try await loader.nextCandidateArtwork() else {
+                if await loader.isExhausted() {
+                    await Self.logEvent(
+                        logSource: logSource,
+                        instanceToken: instanceToken,
+                        summary: "候选 \(candidateAttempt) 未产出展品且该博物馆候选已耗尽：\(museum.displayName)"
+                    )
+                    loaders.removeValue(forKey: selectedMuseumID)
+                } else {
+                    await Self.logEvent(
+                        logSource: logSource,
+                        instanceToken: instanceToken,
+                        summary: "候选 \(candidateAttempt) 未产出展品，继续尝试下一个候选"
+                    )
+                }
+                continue
+            }
+
+            await Self.logEvent(
+                logSource: logSource,
+                instanceToken: instanceToken,
+                summary: "候选 \(candidateAttempt) 详情拉取成功：\(artwork.museumID.displayName) / \(artwork.title)"
+            )
+
+            if let payload = try await makePayload(
+                for: artwork,
+                logSource: logSource,
+                instanceToken: instanceToken,
+                candidateAttempt: candidateAttempt
+            ) {
+                await Self.logEvent(
+                    logSource: logSource,
+                    instanceToken: instanceToken,
+                    summary: "候选 \(candidateAttempt) 命中可渲染展品并停止继续拉取：\(payload.museumName) / \(payload.title)"
+                )
+                return payload
+            }
+
+            await Self.logEvent(
+                logSource: logSource,
+                instanceToken: instanceToken,
+                summary: "候选 \(candidateAttempt) 未通过渲染校验，继续尝试下一个候选"
+            )
+        }
+    }
+
+    private func makeLoaders(
+        for scope: WidgetMuseumScope,
+        instanceToken: String,
+        logSource: String
+    ) -> [MuseumID: any WidgetArtworkCandidateLoading] {
+        let logger: @Sendable (String) async -> Void = { message in
+            await Self.logEvent(
+                logSource: logSource,
+                instanceToken: instanceToken,
+                summary: message
+            )
+        }
+
+        switch scope {
+        case .all:
+            return Dictionary(
+                uniqueKeysWithValues: MuseumRepository.widgetSupportedMuseums.map { museum in
+                    let categories = settingsReader.categories(for: museum.id)
+                    return (museum.id, loaderFactory(museum.id, categories, logger))
+                }
+            )
+        case .single(let museumID):
+            return [
+                museumID: loaderFactory(
+                    museumID,
+                    settingsReader.categories(for: museumID),
+                    logger
+                )
+            ]
+        }
+    }
+
+    private func selectableMuseumIDs(
+        from loaders: [MuseumID: any WidgetArtworkCandidateLoading]
+    ) async -> [MuseumID] {
+        var museumIDs: [MuseumID] = []
+        for museumID in loaders.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+            guard let loader = loaders[museumID], !(await loader.isExhausted()) else {
+                continue
+            }
+            museumIDs.append(museumID)
+        }
+        return museumIDs
+    }
+
+    private func makePayload(
+        for artwork: Artwork,
+        logSource: String,
+        instanceToken: String,
+        candidateAttempt: Int
+    ) async throws -> WidgetRefreshPayload? {
+        guard let imageURL = WidgetPreferredImageURLDecision.resolve(
+            for: artwork,
+            museumID: artwork.museumID
+        ) else {
+            await Self.logEvent(
+                logSource: logSource,
+                instanceToken: instanceToken,
+                summary: "候选 \(candidateAttempt) 缺少可用图片，跳过 \(artwork.museumID.displayName) / \(artwork.title)"
+            )
+            return nil
+        }
+
+        guard let imageData = try await fetchImageData(
+            url: imageURL,
+            artwork: artwork,
+            logSource: logSource,
+            instanceToken: instanceToken,
+            candidateAttempt: candidateAttempt
+        ) else {
+            await Self.logEvent(
+                logSource: logSource,
+                instanceToken: instanceToken,
+                summary: "候选 \(candidateAttempt) 图片连续失败 3 次，跳过 \(artwork.museumID.displayName) / \(artwork.title)"
+            )
+            return nil
+        }
+
+        return WidgetRefreshPayload(
+            museumID: artwork.museumID,
+            museumName: artwork.museumID.displayName,
+            title: artwork.title,
+            subtitle: artwork.objectDate,
+            imageData: imageData,
+            appURL: AppDeepLink.artworkURL(
+                reference: ArtworkReference(
+                    museumID: artwork.museumID,
+                    objectID: artwork.objectID,
+                    imageAspectRatio: nil
+                )
+            )
+        )
+    }
+
+    private func fetchImageData(
+        url: URL,
+        artwork: Artwork,
+        logSource: String,
+        instanceToken: String,
+        candidateAttempt: Int
+    ) async throws -> Data? {
+        for attempt in 1...Constants.imageRetryLimit {
+            try Task.checkCancellation()
+            let start = Date()
+
+            do {
+                let data: Data
+                if let imageDataFetcher {
+                    guard let customData = try await imageDataFetcher(url, attempt) else {
+                        throw URLError(.resourceUnavailable)
+                    }
+                    data = customData
+                } else {
+                    let request = WidgetImageRequestPolicy.makeRequest(
+                        url: url,
+                        timeout: Constants.imageRequestTimeout
+                    )
+                    let (responseData, response) = try await urlSession.data(for: request)
+                    try Task.checkCancellation()
+                    guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                        throw URLError(.badServerResponse)
+                    }
+                    data = responseData
+                }
+
+                guard WidgetArtworkSnapshotStore.imageDimensions(from: data) != nil else {
+                    throw URLError(.cannotDecodeContentData)
+                }
+
+                await Self.logEvent(
+                    logSource: logSource,
+                    instanceToken: instanceToken,
+                    summary: "候选 \(candidateAttempt) 图片拉取成功，尝试 \(attempt)/\(Constants.imageRetryLimit)，\(artwork.museumID.displayName) / \(artwork.title)，耗时 \(String(format: "%.2f", Date().timeIntervalSince(start)))s"
+                )
+                return data
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                await Self.logEvent(
+                    logSource: logSource,
+                    instanceToken: instanceToken,
+                    summary: "候选 \(candidateAttempt) 图片拉取失败，尝试 \(attempt)/\(Constants.imageRetryLimit)，\(artwork.museumID.displayName) / \(artwork.title)：\(error.localizedDescription)"
+                )
+
+                guard attempt < Constants.imageRetryLimit else {
+                    return nil
+                }
+
+                let delay = Constants.imageRetryBaseDelayNanoseconds * UInt64(attempt)
+                try await Task.sleep(nanoseconds: delay)
             }
         }
+
         return nil
     }
 
-    static func remainingCheckpointDates(
-        syncStartedAt: Date,
-        now: Date
-    ) -> [Date] {
-        checkpointOffsets
-            .map { syncStartedAt.addingTimeInterval($0) }
-            .filter { $0 > now }
-    }
-
-    static func syncWindowEnd(for state: WidgetRefreshDeliveryTracker.State) -> Date? {
-        guard let syncStartedAt = syncStartedAt(for: state) else {
-            return nil
+    private func categorySummary(for museumID: MuseumID) -> String {
+        let categories = settingsReader.categories(for: museumID)
+        if museumID.areAllFeedCategoriesSelected(categories) {
+            return "全部"
         }
-        return syncStartedAt.addingTimeInterval(syncWindowDuration)
+        return categories.map(\.displayName).joined(separator: "、")
+    }
+
+    private static func logEvent(
+        logSource: String,
+        instanceToken: String,
+        summary: String
+    ) async {
+        await RequestLogger.shared.logEvent(
+            source: logSource,
+            summary: "实例 \(instanceToken) \(summary)"
+        )
     }
 }
 
-enum WidgetImageFetchPolicy {
+enum WidgetImageRequestPolicy {
     private enum Constants {
-        static let regularRequestTimeout: TimeInterval = 8
-        static let regularMaxAttempts = 3
-        static let manualRefreshRequestTimeout: TimeInterval = 3
-        static let manualRefreshMaxAttempts = 1
+        static let safariUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+        static let accept = "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+        static let acceptLanguage = "ja-JP,ja;q=0.9,en-US;q=0.8,zh-CN;q=0.7"
     }
 
-    static func requestTimeout(manualRefreshInProgress: Bool) -> TimeInterval {
-        manualRefreshInProgress ? Constants.manualRefreshRequestTimeout : Constants.regularRequestTimeout
-    }
+    static func makeRequest(url: URL, timeout: TimeInterval) -> URLRequest {
+        var request = URLRequest(url: url, timeoutInterval: timeout)
+        request.httpMethod = "GET"
+        request.cachePolicy = .reloadIgnoringLocalCacheData
 
-    static func maxAttempts(manualRefreshInProgress: Bool) -> Int {
-        manualRefreshInProgress ? Constants.manualRefreshMaxAttempts : Constants.regularMaxAttempts
-    }
-}
-
-enum WidgetManualRefreshFallbackDecision {
-    private enum Constants {
-        static let maxImageFetchFailuresBeforeFallback = 2
-        static let maxElapsedBeforeFallback: TimeInterval = 12
-    }
-
-    static func shouldFallbackToTextOnly(
-        manualRefreshInProgress: Bool,
-        imageFetchFailureCount: Int,
-        elapsed: TimeInterval
-    ) -> Bool {
-        guard manualRefreshInProgress else {
-            return false
+        if requiresBrowserLikeHeaders(url: url) {
+            request.setValue(Constants.safariUserAgent, forHTTPHeaderField: "User-Agent")
+            request.setValue(Constants.accept, forHTTPHeaderField: "Accept")
+            request.setValue(Constants.acceptLanguage, forHTTPHeaderField: "Accept-Language")
+            request.setValue("https://colbase.nich.go.jp/", forHTTPHeaderField: "Referer")
+            request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+            request.setValue("no-cache", forHTTPHeaderField: "Pragma")
         }
 
-        return imageFetchFailureCount >= Constants.maxImageFetchFailuresBeforeFallback
-            || elapsed >= Constants.maxElapsedBeforeFallback
+        return request
     }
-}
 
-enum WidgetValidatedSnapshotResult {
-    case ready(WidgetArtworkSnapshotStore.Snapshot)
-    case missingImage
-    case imageFetchFailed
-    case invalidImageData
+    private static func requiresBrowserLikeHeaders(url: URL) -> Bool {
+        url.host?.contains("colbase.nich.go.jp") == true
+    }
 }
 
 enum WidgetPreferredImageURLDecision {
@@ -566,41 +487,19 @@ enum WidgetPreferredImageURLDecision {
     static func resolveCandidates(for artwork: Artwork, museumID: MuseumID) -> [URL] {
         switch museumID {
         case .tnm:
-            return uniqueURLs([artwork.primaryImageSmallURL, artwork.primaryImageURL])
+            return compactUniqueURLs([artwork.primaryImageSmallURL, artwork.primaryImageURL])
         case .met, .nmc, .shm:
-            return uniqueURLs([artwork.primaryImageSmallURL, artwork.primaryImageURL])
+            return compactUniqueURLs([artwork.primaryImageURL, artwork.primaryImageSmallURL])
         }
     }
 
-    private static func uniqueURLs(_ candidates: [URL?]) -> [URL] {
-        var seen: Set<String> = []
-        return candidates.compactMap { url in
-            guard let url else { return nil }
-            let key = url.absoluteString
-            guard seen.insert(key).inserted else { return nil }
+    private static func compactUniqueURLs(_ urls: [URL?]) -> [URL] {
+        var seen: Set<URL> = []
+        return urls.compactMap { url in
+            guard let url, seen.insert(url).inserted else {
+                return nil
+            }
             return url
         }
-    }
-}
-
-enum WidgetImageSuitabilityDecision {
-    private enum Constants {
-        static let minimumShortSide = 60
-        static let maximumAspectRatio = 4.5
-    }
-
-    static func isAcceptableForWidget(dimensions: WidgetImageDimensions) -> Bool {
-        let shortSide = min(dimensions.width, dimensions.height)
-        let longSide = max(dimensions.width, dimensions.height)
-        guard shortSide >= Constants.minimumShortSide else {
-            return false
-        }
-        return Double(longSide) / Double(shortSide) <= Constants.maximumAspectRatio
-    }
-}
-
-extension CGSize {
-    var widgetLogLabel: String {
-        "\(Int(width.rounded()))x\(Int(height.rounded()))"
     }
 }

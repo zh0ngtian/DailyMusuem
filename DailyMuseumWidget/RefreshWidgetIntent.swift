@@ -1,25 +1,32 @@
 import AppIntents
 import Foundation
-import WidgetKit
 
 struct RefreshWidgetIntent: AppIntent {
     static var title: LocalizedStringResource = "刷新展品"
-    static var openAppWhenRun: Bool = false
+    static var openAppWhenRun = false
 
-    @Parameter(title: "组件尺寸")
-    var familyKey: String
+    @Parameter(title: "实例标识")
+    var instanceToken: String
+
+    @Parameter(title: "展示范围")
+    var museumScope: WidgetConfiguredMuseumScope
 
     init() {
-        familyKey = ""
+        instanceToken = ""
+        museumScope = .all
     }
 
-    init(familyKey: String) {
-        self.familyKey = familyKey
+    init(instanceToken: String, museumScope: WidgetConfiguredMuseumScope) {
+        self.instanceToken = instanceToken
+        self.museumScope = museumScope
     }
 
     func perform() async throws -> some IntentResult {
-        await WidgetManualRefreshRunner(logSource: "Widget 刷新按钮")
-            .perform(familyKey: familyKey)
+        await WidgetRefreshCoordinator.shared.refresh(
+            instanceToken: instanceToken,
+            scope: museumScope.scope,
+            logSource: "Widget 刷新按钮"
+        )
         return .result()
     }
 }
