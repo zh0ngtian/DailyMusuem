@@ -21,218 +21,202 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         try super.tearDownWithError()
     }
 
-    func testLoadLatestMigratesLegacyEmbeddedImageDataToFile() async throws {
-        let baseURL = temporaryBaseURL()
-        let cacheDirectory = baseURL.appendingPathComponent("WidgetCache", isDirectory: true)
-        try FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
-
-        let imageData = Data("legacy-image".utf8)
-        let legacySnapshot = LegacySnapshot(
-            cycleKey: "cycle+/=",
-            museumName: "大都会艺术博物馆",
-            title: "Legacy",
-            subtitle: "2026",
-            imageData: imageData,
-            appURL: URL(string: "dailymuseum://artwork/met/1")
-        )
-        let snapshotURL = cacheDirectory.appendingPathComponent("current-artwork.json")
-        try JSONEncoder().encode(legacySnapshot).write(to: snapshotURL)
-
-        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
-        let migratedSnapshot = await store.loadLatest()
-        let reloadedSnapshot = await store.loadLatest()
-        let migrated = try XCTUnwrap(migratedSnapshot)
-        let reloaded = try XCTUnwrap(reloadedSnapshot)
-
-        let imageFileName = try XCTUnwrap(migrated.imageFileName)
-        XCTAssertFalse(imageFileName.contains("+"))
-        XCTAssertFalse(imageFileName.contains("/"))
-        XCTAssertFalse(imageFileName.contains("="))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: cacheDirectory.appendingPathComponent(imageFileName).path))
-        XCTAssertNil(reloaded.legacyEmbeddedImageData)
-    }
-
-    func testStoreAndLoadLatestRoundTripsSnapshotWithImageFile() async throws {
-        let baseURL = temporaryBaseURL()
-        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
-        let snapshot = WidgetArtworkSnapshotStore.Snapshot(
-            cycleKey: "cycle-1",
-            museumName: "东京国立博物馆",
-            title: "Artwork",
-            subtitle: "2026",
-            imageFileName: nil,
-            appURL: URL(string: "dailymuseum://artwork/tnm/1")
+    func testWidgetSettingsReaderUsesFeedCategoriesFromDefaults() {
+        defaults.set(
+            "modern-art,american-decorative-arts",
+            forKey: SettingsKeys.feedCategoryPrefix + MuseumID.met.rawValue
         )
 
-        let stored = await store.store(snapshot, imageData: Data("image".utf8))
-        let loadedSnapshot = await store.loadLatest()
-        let loaded = try XCTUnwrap(loadedSnapshot)
+        let reader = WidgetSettingsReader(defaults: defaults)
+        let categories = reader.categories(for: .met)
 
-        XCTAssertEqual(loaded.cycleKey, stored.cycleKey)
-        XCTAssertEqual(loaded.museumName, stored.museumName)
-        XCTAssertEqual(loaded.title, stored.title)
-        XCTAssertEqual(loaded.imageFileName, stored.imageFileName)
-        XCTAssertNotNil(loaded.imageFileName)
+        XCTAssertEqual(categories.map(\.id), ["american-decorative-arts", "modern-art"])
     }
 
-    func testTrackerTransitionsDeduplicatesDeliveriesAndCompletesOnMatchingRender() async throws {
-        let tracker = WidgetRefreshDeliveryTracker(baseURL: temporaryBaseURL())
+    func testWidgetInstanceTokenResolverPreservesPersistedToken() {
+        let token = WidgetInstanceTokenResolver.resolve(
+            from: "instance-123",
+            scope: .single(.met),
+            family: .systemLarge
+        )
+
+        XCTAssertEqual(token, "instance-123")
+    }
+
+    func testWidgetInstanceTokenResolverUsesStableLegacyFallbackForMissingToken() {
+        let token = WidgetInstanceTokenResolver.resolve(
+            from: "   ",
+            scope: .single(.tnm),
+            family: .systemMedium
+        )
+
+        XCTAssertEqual(token, "legacy-single-tnm-medium")
+    }
+
+    func testArtworkBatchLoaderLoadsTokyoInTenItemPagesAndAdvancesSearchWindow() async throws {
+        let recorder = WidgetRequestRecorder()
+        let testID = UUID().uuidString
+
+        let session = makeStubSession(testID: testID) { [self] request in
+            let url = try XCTUnwrap(request.url)
+            recorder.record(url)
+
+            if url.path.contains("/item/search/jps-cross") {
+                let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+                let queryItems = Dictionary(
+                    uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") }
+                )
+                XCTAssertEqual(queryItems["size"], "10")
+                let fromValue = queryItems["from"] ?? "0"
+                let ids: [Int]
+                switch fromValue {
+                case "0":
+                    ids = Array(1...10)
+                case "10":
+                    ids = Array(11...20)
+                default:
+                    XCTFail("Unexpected from value: \(fromValue)")
+                    ids = []
+                }
+
+                let list = ids.map {
+                    self.makeJapanSearchItemDictionary(id: "item-\($0)", sortValue: "\($0)")
+                }
+                return self.makeJSONResponse(
+                    url: url,
+                    jsonObject: [
+                        "list": list,
+                        "hit": 20,
+                        "from": Int(fromValue) ?? 0
+                    ]
+                )
+            }
+
+            let itemID = url.lastPathComponent
+            return self.makeJSONResponse(
+                url: url,
+                jsonObject: self.makeJapanSearchItemDictionary(
+                    id: itemID,
+                    sortValue: itemID.replacingOccurrences(of: "item-", with: "")
+                )
+            )
+        }
+
+        let loader = ArtworkBatchLoader(
+            museumID: .tnm,
+            categories: MuseumID.tnm.defaultFeedCategories,
+            randomOrder: false,
+            cachePolicy: .networkOnly,
+            japanSearchAPI: JapanSearchAPI(session: session)
+        )
+
+        let firstBatch = try await loader.nextBatch(count: 10)
+        let secondBatch = try await loader.nextBatch(count: 10)
+
+        XCTAssertEqual(firstBatch.count, 10)
+        XCTAssertEqual(secondBatch.count, 10)
+
+        let searchRequests = recorder.urls.filter { $0.path.contains("/item/search/jps-cross") }
+        let fromValues = searchRequests.map {
+            URLComponents(url: $0, resolvingAgainstBaseURL: false)?
+                .queryItems?
+                .first(where: { $0.name == "from" })?
+                .value ?? "0"
+        }
+        XCTAssertEqual(searchRequests.count, 3)
+        XCTAssertEqual(fromValues, ["0", "0", "10"])
+    }
+
+    func testArtworkBatchLoaderMetIsNotInitiallyExhaustedAndLoadsFirstBatch() async throws {
+        let testID = UUID().uuidString
+
+        let session = makeStubSession(testID: testID) { [self] request in
+            let url = try XCTUnwrap(request.url)
+
+            if url.path.contains("/search") {
+                return self.makeJSONResponse(
+                    url: url,
+                    jsonObject: [
+                        "total": 1,
+                        "objectIDs": [101]
+                    ]
+                )
+            }
+
+            if url.path.contains("/objects/101") {
+                return self.makeJSONResponse(
+                    url: url,
+                    jsonObject: [
+                        "objectID": 101,
+                        "title": "Met Test Artwork",
+                        "artistDisplayName": "Tester",
+                        "objectDate": "2026",
+                        "medium": "Oil on canvas",
+                        "dimensions": "10 x 10 cm",
+                        "department": "Modern Art",
+                        "culture": "Test Culture",
+                        "country": "USA",
+                        "repository": "The Metropolitan Museum of Art",
+                        "primaryImage": "https://example.com/met-101-large.jpg",
+                        "primaryImageSmall": "https://example.com/met-101-small.jpg",
+                        "objectURL": "https://example.com/met-101"
+                    ]
+                )
+            }
+
+            XCTFail("Unexpected URL: \(url.absoluteString)")
+            return self.makeJSONResponse(url: url, jsonObject: [:])
+        }
+
+        let loader = ArtworkBatchLoader(
+            museumID: .met,
+            categories: MuseumID.met.defaultFeedCategories,
+            randomOrder: false,
+            cachePolicy: .networkOnly,
+            metAPI: MetMuseumAPI(session: session)
+        )
+
+        let isInitiallyExhausted = await loader.isExhausted()
+        XCTAssertFalse(isInitiallyExhausted)
+
+        let batch = try await loader.nextBatch(count: 10)
+
+        XCTAssertEqual(batch.count, 1)
+        XCTAssertEqual(batch.first?.museumID, .met)
+        XCTAssertEqual(batch.first?.title, "Met Test Artwork")
+    }
+
+    func testNationalMuseumChinaRequestThrottleEnforcesMinimumInterval() async throws {
+        let throttle = NationalMuseumChinaRequestThrottle(minimumInterval: 0.002)
         let now = Date(timeIntervalSince1970: 1_000)
-        _ = await tracker.begin(
-            nonce: 42,
-            configurationCount: 3,
-            expectedCounts: ["systemSmall": 2, "systemMedium": 1],
-            requestedFamilyKey: WidgetFamily.systemSmall.logKey,
-            startedAt: now
-        )
 
-        let deliveringState = await tracker.completeGeneratedRefresh(
-            nonce: 42,
-            targetRenderID: "render-42",
-            now: now
-        )
-        let delivering = try XCTUnwrap(deliveringState)
-        XCTAssertEqual(delivering.phase, .delivering)
-        XCTAssertEqual(delivering.targetRenderID, "render-42")
+        let firstDelay = try await throttle.waitForTurn(now: now)
+        let secondDelay = try await throttle.waitForTurn(now: now)
+        let thirdDelay = try await throttle.waitForTurn(now: now.addingTimeInterval(0.01))
 
-        let firstDeliveryState = await tracker.recordDelivery(
-            nonce: 42,
-            family: .systemSmall,
-            displaySize: CGSize(width: 100, height: 100),
-            deliveryID: "delivery-1",
-            now: now
-        )
-        let firstDelivery = try XCTUnwrap(firstDeliveryState)
-        XCTAssertEqual(firstDelivery.deliveredCounts["systemSmall"], 1)
-
-        let duplicateDelivery = await tracker.recordDelivery(
-            nonce: 42,
-            family: .systemSmall,
-            displaySize: CGSize(width: 100, height: 100),
-            deliveryID: "delivery-1",
-            now: now
-        )
-        XCTAssertNil(duplicateDelivery)
-
-        let secondDeliveryState = await tracker.recordDelivery(
-            nonce: 42,
-            family: .systemSmall,
-            displaySize: CGSize(width: 200, height: 100),
-            deliveryID: "delivery-2",
-            now: now
-        )
-        let secondDelivery = try XCTUnwrap(secondDeliveryState)
-        XCTAssertEqual(secondDelivery.deliveredCounts["systemSmall"], 2)
-
-        let invalidRender = await tracker.recordRender(family: .systemMedium, renderID: "render-42", now: now)
-        XCTAssertNil(invalidRender)
-
-        let completedState = await tracker.recordRender(
-            family: .systemSmall,
-            renderID: "render-42",
-            now: now
-        )
-        let completed = try XCTUnwrap(completedState)
-        XCTAssertEqual(completed.phase, .completed)
-
-        let status = await tracker.status(for: 42, now: now)
-        guard case .completed(let state) = status else {
-            return XCTFail("Expected completed status.")
-        }
-        XCTAssertTrue(state.isComplete)
+        XCTAssertEqual(firstDelay, 0, accuracy: 0.0001)
+        XCTAssertGreaterThan(secondDelay, 0.001)
+        XCTAssertEqual(thirdDelay, 0, accuracy: 0.0001)
     }
 
-    func testTrackerRemovesStaleState() async throws {
-        let tracker = WidgetRefreshDeliveryTracker(baseURL: temporaryBaseURL())
-        let startedAt = Date(timeIntervalSince1970: 1_000)
-        _ = await tracker.begin(
-            nonce: 7,
-            configurationCount: 1,
-            expectedCounts: ["systemLarge": 1],
-            requestedFamilyKey: WidgetFamily.systemLarge.logKey,
-            startedAt: startedAt
-        )
-
-        let staleCheckDate = startedAt.addingTimeInterval(91)
-        let activeState = await tracker.activeState(expectedNonce: 7, now: staleCheckDate)
-        XCTAssertNil(activeState)
-
-        let status = await tracker.status(for: 7, now: staleCheckDate)
-        guard case .missing = status else {
-            return XCTFail("Expected stale tracker state to be removed.")
-        }
-    }
-
-    func testTrackerReusableTargetRenderIDExpiresAfterGracePeriod() async throws {
-        let tracker = WidgetRefreshDeliveryTracker(baseURL: temporaryBaseURL())
+    func testNationalMuseumChinaRequestThrottleCancelsDuringWait() async throws {
+        let throttle = NationalMuseumChinaRequestThrottle(minimumInterval: 1)
         let now = Date(timeIntervalSince1970: 2_000)
-        _ = await tracker.begin(
-            nonce: 11,
-            configurationCount: 1,
-            expectedCounts: ["systemLarge": 1],
-            requestedFamilyKey: WidgetFamily.systemLarge.logKey,
-            startedAt: now
-        )
-        _ = await tracker.completeGeneratedRefresh(
-            nonce: 11,
-            targetRenderID: "render-11",
-            now: now
-        )
-        _ = await tracker.recordRender(
-            family: .systemLarge,
-            renderID: "render-11",
-            now: now.addingTimeInterval(1)
-        )
+        _ = try await throttle.waitForTurn(now: now)
 
-        let reusableWithinWindow = await tracker.reusableTargetRenderID(
-            expectedNonce: 11,
-            now: now.addingTimeInterval(21)
-        )
-        let reusableAfterWindow = await tracker.reusableTargetRenderID(
-            expectedNonce: 11,
-            now: now.addingTimeInterval(32)
-        )
+        let task = Task {
+            try await throttle.waitForTurn(now: now)
+        }
+        task.cancel()
 
-        XCTAssertEqual(reusableWithinWindow, "render-11")
-        XCTAssertNil(reusableAfterWindow)
-    }
-
-    func testWidgetImageFetchPolicyUsesFastPathDuringManualRefresh() {
-        XCTAssertEqual(WidgetImageFetchPolicy.requestTimeout(manualRefreshInProgress: true), 3)
-        XCTAssertEqual(WidgetImageFetchPolicy.maxAttempts(manualRefreshInProgress: true), 1)
-        XCTAssertEqual(WidgetImageFetchPolicy.requestTimeout(manualRefreshInProgress: false), 8)
-        XCTAssertEqual(WidgetImageFetchPolicy.maxAttempts(manualRefreshInProgress: false), 3)
-    }
-
-    func testWidgetManualRefreshFallbackDecisionFallsBackAfterRepeatedImageFailures() {
-        XCTAssertTrue(
-            WidgetManualRefreshFallbackDecision.shouldFallbackToTextOnly(
-                manualRefreshInProgress: true,
-                imageFetchFailureCount: 2,
-                elapsed: 4
-            )
-        )
-        XCTAssertTrue(
-            WidgetManualRefreshFallbackDecision.shouldFallbackToTextOnly(
-                manualRefreshInProgress: true,
-                imageFetchFailureCount: 1,
-                elapsed: 12
-            )
-        )
-        XCTAssertFalse(
-            WidgetManualRefreshFallbackDecision.shouldFallbackToTextOnly(
-                manualRefreshInProgress: true,
-                imageFetchFailureCount: 1,
-                elapsed: 5
-            )
-        )
-        XCTAssertFalse(
-            WidgetManualRefreshFallbackDecision.shouldFallbackToTextOnly(
-                manualRefreshInProgress: false,
-                imageFetchFailureCount: 3,
-                elapsed: 20
-            )
-        )
+        do {
+            _ = try await task.value
+            XCTFail("Expected cancellation.")
+        } catch is CancellationError {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
 
     func testWidgetPreferredImageURLDecisionUsesThumbnailForTokyoWidget() {
@@ -287,495 +271,280 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertNil(request.value(forHTTPHeaderField: "Accept-Language"))
     }
 
-    func testWidgetSettingsReaderKeepsDeliveringStateActiveForRepeatedManualRefreshReuse() async throws {
-        let tracker = WidgetRefreshDeliveryTracker(baseURL: temporaryBaseURL())
-        let now = Date(timeIntervalSince1970: 3_000)
-        defaults.set(true, forKey: SettingsKeys.widgetManualRefreshInProgress)
-        defaults.set(now.timeIntervalSince1970, forKey: SettingsKeys.widgetManualRefreshStartedAt)
-        defaults.set(23, forKey: SettingsKeys.widgetManualRefreshNonce)
-
-        _ = await tracker.begin(
-            nonce: 23,
-            configurationCount: 2,
-            expectedCounts: ["systemSmall": 1, "systemMedium": 1],
-            requestedFamilyKey: WidgetFamily.systemSmall.logKey,
-            startedAt: now
-        )
-        _ = await tracker.completeGeneratedRefresh(
-            nonce: 23,
-            targetRenderID: "render-23",
-            now: now
+    func testWidgetRefreshEngineSkipsMissingImagesAndRepeatedImageFailures() async throws {
+        let flakyURL = URL(string: "https://example.com/flaky.jpg")!
+        let successURL = URL(string: "https://example.com/success.jpg")!
+        let attempts = AttemptRecorder()
+        let loader = StubBatchLoader(
+            batches: [[
+                makeArtwork(museumID: .met, objectID: "missing", title: "No Image", imageURL: nil),
+                makeArtwork(museumID: .met, objectID: "flaky", title: "Flaky", imageURL: flakyURL),
+                makeArtwork(museumID: .met, objectID: "success", title: "Success", imageURL: successURL),
+            ]]
         )
 
-        let reader = WidgetSettingsReader(defaults: defaults, refreshTracker: tracker)
-        let firstState = await reader.activeManualRefreshDeliveryState(now: now.addingTimeInterval(2))
-        let secondState = await reader.activeManualRefreshDeliveryState(now: now.addingTimeInterval(6))
-        let reusableTargetRenderID = await reader.reusableManualRefreshTargetRenderID(now: now.addingTimeInterval(6))
+        let engine = WidgetRefreshEngine(
+            settingsReader: WidgetSettingsReader(defaults: defaults),
+            loaderFactory: { _, _, _ in
+                loader
+            },
+            randomIndex: { _ in 0 },
+            imageDataFetcher: { url, _ in
+                _ = await attempts.increment(for: url)
+                if url == flakyURL {
+                    throw URLError(.timedOut)
+                }
+                if url == successURL {
+                    return widgetValidPNGData
+                }
+                XCTFail("Unexpected URL: \(url)")
+                return nil
+            }
+        )
 
-        XCTAssertEqual(firstState?.phase, .delivering)
-        XCTAssertEqual(secondState?.phase, .delivering)
-        XCTAssertEqual(firstState?.targetRenderID, "render-23")
-        XCTAssertEqual(secondState?.targetRenderID, "render-23")
-        XCTAssertEqual(reusableTargetRenderID, "render-23")
+        let payload = try await engine.fetchRenderableArtwork(
+            scope: .single(.met),
+            instanceToken: "widget-met",
+            logSource: "WidgetEngineTest"
+        )
+
+        XCTAssertEqual(payload.title, "Success")
+        XCTAssertEqual(payload.museumID, .met)
+        let requestedCandidates = await loader.requestedCandidateCount()
+        let flakyAttempts = await attempts.value(for: flakyURL)
+        let successAttempts = await attempts.value(for: successURL)
+        XCTAssertEqual(requestedCandidates, 3)
+        XCTAssertEqual(flakyAttempts, 3)
+        XCTAssertEqual(successAttempts, 1)
     }
 
-    func testWidgetSettingsReaderBuildsCategorySelectionKeyFromInjectedDefaults() {
-        defaults.set(WidgetMuseumScope.single(.met).rawValue, forKey: SettingsKeys.widgetMuseumScope)
-        defaults.set(
-            "modern-art,american-decorative-arts",
-            forKey: SettingsKeys.feedCategoryPrefix + MuseumID.met.rawValue
+    func testWidgetRefreshEngineStopsAfterFirstRenderableCandidate() async throws {
+        let loader = StubBatchLoader(
+            batches: [[
+                makeArtwork(
+                    museumID: .tnm,
+                    objectID: "first",
+                    title: "First Success",
+                    imageURL: URL(string: "https://example.com/first.jpg")
+                ),
+                makeArtwork(
+                    museumID: .tnm,
+                    objectID: "second",
+                    title: "Second Should Not Load",
+                    imageURL: URL(string: "https://example.com/second.jpg")
+                ),
+            ]]
         )
 
-        let reader = WidgetSettingsReader(defaults: defaults)
-
-        XCTAssertEqual(reader.categorySelectionKey, "met:american-decorative-arts,modern-art")
-    }
-
-    func testWidgetSettingsReaderClearsStaleManualRefreshState() {
-        defaults.set(true, forKey: SettingsKeys.widgetManualRefreshInProgress)
-        defaults.set(
-            Date().addingTimeInterval(-91).timeIntervalSince1970,
-            forKey: SettingsKeys.widgetManualRefreshStartedAt
+        let engine = WidgetRefreshEngine(
+            settingsReader: WidgetSettingsReader(defaults: defaults),
+            loaderFactory: { _, _, _ in
+                loader
+            },
+            randomIndex: { _ in 0 },
+            imageDataFetcher: { _, _ in widgetValidPNGData }
         )
 
-        let reader = WidgetSettingsReader(defaults: defaults)
+        let payload = try await engine.fetchRenderableArtwork(
+            scope: .single(.tnm),
+            instanceToken: "widget-tnm",
+            logSource: "WidgetEngineSingleSuccess"
+        )
 
-        XCTAssertFalse(reader.manualRefreshInProgress)
-        XCTAssertFalse(defaults.bool(forKey: SettingsKeys.widgetManualRefreshInProgress))
-        XCTAssertNil(defaults.object(forKey: SettingsKeys.widgetManualRefreshStartedAt))
+        XCTAssertEqual(payload.title, "First Success")
+        XCTAssertEqual(payload.museumID, .tnm)
+        let requestedCandidates = await loader.requestedCandidateCount()
+        XCTAssertEqual(requestedCandidates, 1)
     }
 
-    func testWidgetManualRefreshInterruptionDecisionInterruptsWhenNonceIsSuperseded() {
-        XCTAssertFalse(
-            WidgetManualRefreshInterruptionDecision.shouldInterrupt(
-                executionNonce: 51,
-                isManualRefreshInProgress: true,
-                activeNonce: 51
+    func testWidgetRefreshEngineAllMuseumsUsesInjectedSelectionOrder() async throws {
+        let selectedRanges = RangeRecorder()
+        let metArtwork = makeArtwork(
+            museumID: .met,
+            objectID: "met-1",
+            title: "Met",
+            imageURL: URL(string: "https://example.com/met.jpg")
+        )
+        let tnmArtwork = makeArtwork(
+            museumID: .tnm,
+            objectID: "tnm-1",
+            title: "TNM",
+            imageURL: URL(string: "https://example.com/tnm.jpg")
+        )
+
+        let engine = WidgetRefreshEngine(
+            settingsReader: WidgetSettingsReader(defaults: defaults),
+            loaderFactory: { museumID, _, _ in
+                switch museumID {
+                case .met:
+                    return StubBatchLoader(batches: [[metArtwork]])
+                case .tnm:
+                    return StubBatchLoader(batches: [[tnmArtwork]])
+                case .nmc, .shm:
+                    return StubBatchLoader(batches: [])
+                }
+            },
+            randomIndex: { range in
+                selectedRanges.record(range)
+                return 1
+            },
+            imageDataFetcher: { _, _ in widgetValidPNGData }
+        )
+
+        let payload = try await engine.fetchRenderableArtwork(
+            scope: .all,
+            instanceToken: "widget-all",
+            logSource: "WidgetEngineAllMuseums"
+        )
+
+        XCTAssertEqual(payload.museumID, .tnm)
+        XCTAssertEqual(selectedRanges.recordedRanges, [0..<2])
+    }
+
+    func testWidgetRefreshCoordinatorPreemptsSameInstanceRefresh() async throws {
+        let baseURL = temporaryBaseURL()
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let factory = SequentialEngineFactory()
+        let coordinator = WidgetRefreshCoordinator(
+            store: store,
+            widgetCenter: .shared,
+            makeEngine: {
+                factory.makeEngine()
+            }
+        )
+
+        let firstTask = Task {
+            await coordinator.refresh(
+                instanceToken: "shared-instance",
+                scope: .single(.met),
+                logSource: "CoordinatorPreempt"
             )
-        )
-        XCTAssertTrue(
-            WidgetManualRefreshInterruptionDecision.shouldInterrupt(
-                executionNonce: 51,
-                isManualRefreshInProgress: true,
-                activeNonce: 52
+        }
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        let secondTask = Task {
+            await coordinator.refresh(
+                instanceToken: "shared-instance",
+                scope: .single(.met),
+                logSource: "CoordinatorPreempt"
             )
-        )
-        XCTAssertTrue(
-            WidgetManualRefreshInterruptionDecision.shouldInterrupt(
-                executionNonce: 51,
-                isManualRefreshInProgress: false,
-                activeNonce: 51
-            )
-        )
+        }
+
+        await firstTask.value
+        await secondTask.value
+
+        let state = await store.state(for: "shared-instance")
+        XCTAssertEqual(state?.phase, .success)
+        XCTAssertEqual(state?.artwork?.title, "Second Result")
     }
 
-    func testWidgetSettingsReaderClearsManualRefreshStateOnlyForMatchingNonce() {
-        defaults.set(true, forKey: SettingsKeys.widgetManualRefreshInProgress)
-        defaults.set(5_000.0, forKey: SettingsKeys.widgetManualRefreshStartedAt)
-        defaults.set(61, forKey: SettingsKeys.widgetManualRefreshNonce)
+    func testWidgetRefreshCoordinatorKeepsInstancesIndependent() async throws {
+        let baseURL = temporaryBaseURL()
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let settingsSuiteName = try XCTUnwrap(defaultsSuiteName)
+        let coordinator = WidgetRefreshCoordinator(
+            store: store,
+            widgetCenter: .shared,
+            makeEngine: { [self] in
+                WidgetRefreshEngine(
+                    settingsReader: WidgetSettingsReader(
+                        defaults: UserDefaults(suiteName: settingsSuiteName) ?? .standard
+                    ),
+                    loaderFactory: { [self] museumID, _, _ in
+                        StubBatchLoader(batches: [[
+                            self.makeArtwork(
+                                museumID: museumID,
+                                objectID: "\(museumID.rawValue)-1",
+                                title: museumID.displayName,
+                                imageURL: URL(string: "https://example.com/\(museumID.rawValue).jpg")
+                            )
+                        ]])
+                    },
+                    randomIndex: { _ in 0 },
+                    imageDataFetcher: { _, _ in widgetValidPNGData }
+                )
+            }
+        )
 
-        let reader = WidgetSettingsReader(defaults: defaults)
-        reader.clearManualRefreshStateIfCurrentNonce(60)
+        async let firstRefresh: Void = coordinator.refresh(
+            instanceToken: "instance-1",
+            scope: .single(.met),
+            logSource: "CoordinatorIndependent"
+        )
+        async let secondRefresh: Void = coordinator.refresh(
+            instanceToken: "instance-2",
+            scope: .single(.tnm),
+            logSource: "CoordinatorIndependent"
+        )
+        _ = await (firstRefresh, secondRefresh)
 
-        XCTAssertTrue(defaults.bool(forKey: SettingsKeys.widgetManualRefreshInProgress))
-        XCTAssertEqual(defaults.double(forKey: SettingsKeys.widgetManualRefreshStartedAt), 5_000.0)
+        let firstState = await store.state(for: "instance-1")
+        let secondState = await store.state(for: "instance-2")
 
-        reader.clearManualRefreshStateIfCurrentNonce(61)
-
-        XCTAssertFalse(defaults.bool(forKey: SettingsKeys.widgetManualRefreshInProgress))
-        XCTAssertNil(defaults.object(forKey: SettingsKeys.widgetManualRefreshStartedAt))
+        XCTAssertEqual(firstState?.artwork?.museumID, .met)
+        XCTAssertEqual(secondState?.artwork?.museumID, .tnm)
+        XCTAssertEqual(firstState?.phase, .success)
+        XCTAssertEqual(secondState?.phase, .success)
     }
 
-    func testWidgetSettingsReaderClearsStaleTrackerWhenManualRefreshFlagIsInactive() async throws {
-        let tracker = WidgetRefreshDeliveryTracker(baseURL: temporaryBaseURL())
-        let now = Date(timeIntervalSince1970: 3_500)
-        defaults.set(false, forKey: SettingsKeys.widgetManualRefreshInProgress)
-        defaults.set(29, forKey: SettingsKeys.widgetManualRefreshNonce)
-
-        _ = await tracker.begin(
-            nonce: 29,
-            configurationCount: 1,
-            expectedCounts: ["systemLarge": 1],
-            requestedFamilyKey: WidgetFamily.systemLarge.logKey,
-            startedAt: now
-        )
-        _ = await tracker.completeGeneratedRefresh(
-            nonce: 29,
-            targetRenderID: "render-29",
-            now: now
-        )
-
-        let reader = WidgetSettingsReader(defaults: defaults, refreshTracker: tracker)
-        let activeState = await reader.activeManualRefreshDeliveryState(now: now.addingTimeInterval(1))
-        let trackerStateAfterRead = await tracker.activeState(expectedNonce: 29, now: now.addingTimeInterval(1))
-
-        XCTAssertNil(activeState)
-        XCTAssertNil(trackerStateAfterRead)
+    private func makeStubSession(
+        testID: String,
+        handler: @escaping @Sendable (URLRequest) throws -> WidgetStubbedResponse
+    ) -> URLSession {
+        WidgetStubURLProtocol.register(handler: handler, for: testID)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [WidgetStubURLProtocol.self]
+        configuration.httpAdditionalHeaders = [WidgetStubURLProtocol.testIDHeader: testID]
+        return URLSession(configuration: configuration)
     }
 
-    func testWidgetSettingsReaderClearsCompletedManualRefreshAfterReuseWindow() async throws {
-        let tracker = WidgetRefreshDeliveryTracker(baseURL: temporaryBaseURL())
-        let now = Date(timeIntervalSince1970: 4_000)
-        defaults.set(true, forKey: SettingsKeys.widgetManualRefreshInProgress)
-        defaults.set(now.timeIntervalSince1970, forKey: SettingsKeys.widgetManualRefreshStartedAt)
-        defaults.set(31, forKey: SettingsKeys.widgetManualRefreshNonce)
-
-        _ = await tracker.begin(
-            nonce: 31,
-            configurationCount: 1,
-            expectedCounts: ["systemLarge": 1],
-            requestedFamilyKey: WidgetFamily.systemLarge.logKey,
-            startedAt: now
-        )
-        _ = await tracker.completeGeneratedRefresh(
-            nonce: 31,
-            targetRenderID: "render-31",
-            now: now
-        )
-        _ = await tracker.recordRender(
-            family: .systemLarge,
-            renderID: "render-31",
-            now: now.addingTimeInterval(1)
-        )
-
-        let reader = WidgetSettingsReader(defaults: defaults, refreshTracker: tracker)
-        let activeState = await reader.activeManualRefreshDeliveryState(now: now.addingTimeInterval(32))
-
-        XCTAssertNil(activeState)
-        XCTAssertFalse(defaults.bool(forKey: SettingsKeys.widgetManualRefreshInProgress))
-        XCTAssertNil(defaults.object(forKey: SettingsKeys.widgetManualRefreshStartedAt))
-    }
-
-    func testWidgetSettingsReaderKeepsCompletedStateActiveWithinDesktopSyncWindow() async throws {
-        let tracker = WidgetRefreshDeliveryTracker(baseURL: temporaryBaseURL())
-        let now = Date(timeIntervalSince1970: 4_500)
-        defaults.set(true, forKey: SettingsKeys.widgetManualRefreshInProgress)
-        defaults.set(now.timeIntervalSince1970, forKey: SettingsKeys.widgetManualRefreshStartedAt)
-        defaults.set(41, forKey: SettingsKeys.widgetManualRefreshNonce)
-
-        _ = await tracker.begin(
-            nonce: 41,
-            configurationCount: 1,
-            expectedCounts: ["systemLarge": 1],
-            requestedFamilyKey: WidgetFamily.systemLarge.logKey,
-            startedAt: now
-        )
-        _ = await tracker.completeGeneratedRefresh(
-            nonce: 41,
-            targetRenderID: "render-41",
-            now: now
-        )
-        _ = await tracker.recordRender(
-            family: .systemLarge,
-            renderID: "render-41",
-            now: now.addingTimeInterval(1)
-        )
-
-        let reader = WidgetSettingsReader(defaults: defaults, refreshTracker: tracker)
-        let activeState = await reader.activeManualRefreshDeliveryState(now: now.addingTimeInterval(21))
-        let reusableTargetRenderID = await reader.reusableManualRefreshTargetRenderID(now: now.addingTimeInterval(21))
-
-        XCTAssertEqual(activeState?.phase, .completed)
-        XCTAssertEqual(activeState?.targetRenderID, "render-41")
-        XCTAssertEqual(reusableTargetRenderID, "render-41")
-        XCTAssertTrue(defaults.bool(forKey: SettingsKeys.widgetManualRefreshInProgress))
-    }
-
-    func testWidgetRenderFollowUpReloadDecisionOnlyTriggersForCompletedTargetFamily() async throws {
-        let tracker = WidgetRefreshDeliveryTracker(baseURL: temporaryBaseURL())
-        let now = Date(timeIntervalSince1970: 5_000)
-        _ = await tracker.begin(
-            nonce: 55,
-            configurationCount: 2,
-            expectedCounts: ["systemLarge": 1, "systemMedium": 1],
-            requestedFamilyKey: WidgetFamily.systemLarge.logKey,
-            startedAt: now
-        )
-
-        let generatingState = await tracker.activeState(expectedNonce: 55, now: now)
-        XCTAssertFalse(
-            WidgetRenderFollowUpReloadDecision.shouldRequestReload(
-                deliveryState: generatingState,
-                familyKey: WidgetFamily.systemLarge.logKey
-            )
-        )
-
-        let deliveringState = await tracker.completeGeneratedRefresh(
-            nonce: 55,
-            targetRenderID: "render-55",
-            now: now
-        )
-        XCTAssertFalse(
-            WidgetRenderFollowUpReloadDecision.shouldRequestReload(
-                deliveryState: deliveringState,
-                familyKey: WidgetFamily.systemLarge.logKey
-            )
-        )
-
-        let completedState = await tracker.recordRender(
-            family: .systemLarge,
-            renderID: "render-55",
-            now: now.addingTimeInterval(1)
-        )
-        XCTAssertTrue(
-            WidgetRenderFollowUpReloadDecision.shouldRequestReload(
-                deliveryState: completedState,
-                familyKey: WidgetFamily.systemLarge.logKey
-            )
-        )
-        XCTAssertFalse(
-            WidgetRenderFollowUpReloadDecision.shouldRequestReload(
-                deliveryState: completedState,
-                familyKey: WidgetFamily.systemMedium.logKey
-            )
+    private func makeJSONResponse(url: URL, jsonObject: Any) -> WidgetStubbedResponse {
+        WidgetStubbedResponse(
+            response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+            data: try! JSONSerialization.data(withJSONObject: jsonObject)
         )
     }
 
-    func testWidgetRenderLoggingDecisionSuppressesCompletedSyncReplayLogsOnly() async throws {
-        let tracker = WidgetRefreshDeliveryTracker(baseURL: temporaryBaseURL())
-        let now = Date(timeIntervalSince1970: 5_500)
-        _ = await tracker.begin(
-            nonce: 56,
-            configurationCount: 1,
-            expectedCounts: ["systemLarge": 1],
-            requestedFamilyKey: WidgetFamily.systemLarge.logKey,
-            startedAt: now
-        )
-        _ = await tracker.completeGeneratedRefresh(
-            nonce: 56,
-            targetRenderID: "render-56",
-            now: now
-        )
-        let completedState = await tracker.recordRender(
-            family: .systemLarge,
-            renderID: "render-56",
-            now: now.addingTimeInterval(1)
-        )
-
-        XCTAssertFalse(
-            WidgetRenderLoggingDecision.shouldSuppressRenderLog(
-                entryRenderID: "render-56",
-                deliveryID: "delivery-base",
-                activeManualRefreshState: completedState
-            )
-        )
-        XCTAssertTrue(
-            WidgetRenderLoggingDecision.shouldSuppressRenderLog(
-                entryRenderID: "render-56",
-                deliveryID: "delivery-base-sync-123",
-                activeManualRefreshState: completedState
-            )
-        )
-        XCTAssertFalse(
-            WidgetRenderLoggingDecision.shouldSuppressRenderLog(
-                entryRenderID: "render-other",
-                deliveryID: "delivery-base-sync-123",
-                activeManualRefreshState: completedState
-            )
-        )
-
-        let deliveringState = await tracker.begin(
-            nonce: 57,
-            configurationCount: 1,
-            expectedCounts: ["systemLarge": 1],
-            requestedFamilyKey: WidgetFamily.systemLarge.logKey,
-            startedAt: now.addingTimeInterval(10)
-        )
-        XCTAssertFalse(
-            WidgetRenderLoggingDecision.shouldSuppressRenderLog(
-                entryRenderID: "render-57",
-                deliveryID: "delivery-base-sync-456",
-                activeManualRefreshState: deliveringState
-            )
-        )
+    private func makeJapanSearchItemDictionary(id: String, sortValue: String) -> [String: Any] {
+        [
+            "id": id,
+            "common": [
+                "id": id,
+                "title": "Title \(id)",
+                "thumbnailUrl": ["https://example.com/\(id).jpg"],
+                "contentsUrl": ["https://example.com/\(id)-content.jpg"],
+                "contributor": ["東京国立博物館"],
+                "temporal": ["2026"],
+                "linkUrl": "https://example.com/\(id)"
+            ],
+            "cobas-16-s": "東京国立博物館",
+            "cobas-22-s": sortValue
+        ]
     }
 
-    func testWidgetRenderLoggingDecisionCollapsesCompletedSyncWindowLogKeyAcrossDeliveries() async throws {
-        let tracker = WidgetRefreshDeliveryTracker(baseURL: temporaryBaseURL())
-        let now = Date(timeIntervalSince1970: 5_800)
-        _ = await tracker.begin(
-            nonce: 58,
-            configurationCount: 1,
-            expectedCounts: ["systemLarge": 1],
-            requestedFamilyKey: WidgetFamily.systemLarge.logKey,
-            startedAt: now
-        )
-        _ = await tracker.completeGeneratedRefresh(
-            nonce: 58,
-            targetRenderID: "render-58",
-            now: now
-        )
-        let completedState = await tracker.recordRender(
-            family: .systemLarge,
-            renderID: "render-58",
-            now: now.addingTimeInterval(1)
-        )
-
-        XCTAssertEqual(
-            WidgetRenderLoggingDecision.renderLogKey(
-                entryRenderID: "render-58",
-                familyKey: WidgetFamily.systemLarge.logKey,
-                deliveryID: "delivery-a",
-                activeManualRefreshState: completedState
-            ),
-            WidgetRenderLoggingDecision.renderLogKey(
-                entryRenderID: "render-58",
-                familyKey: WidgetFamily.systemLarge.logKey,
-                deliveryID: "delivery-b",
-                activeManualRefreshState: completedState
-            )
-        )
-        XCTAssertNotEqual(
-            WidgetRenderLoggingDecision.renderLogKey(
-                entryRenderID: "render-58",
-                familyKey: WidgetFamily.systemLarge.logKey,
-                deliveryID: "delivery-a",
-                activeManualRefreshState: completedState
-            ),
-            WidgetRenderLoggingDecision.renderLogKey(
-                entryRenderID: "render-58",
-                familyKey: WidgetFamily.systemMedium.logKey,
-                deliveryID: "delivery-b",
-                activeManualRefreshState: completedState
-            )
-        )
-    }
-
-    func testWidgetSnapshotReuseDecisionReusesOnlyMatchingCycleKey() {
-        XCTAssertTrue(
-            WidgetSnapshotReuseDecision.shouldReuseLatestSnapshot(
-                latestSnapshotCycleKey: "single:tnm|tnm:all|images|36.0|493431",
-                requestedCycleKey: "single:tnm|tnm:all|images|36.0|493431"
-            )
-        )
-        XCTAssertFalse(
-            WidgetSnapshotReuseDecision.shouldReuseLatestSnapshot(
-                latestSnapshotCycleKey: "single:tnm|tnm:all|images|36.0|493431",
-                requestedCycleKey: "single:tnm|tnm:all|images|37.0|493431"
-            )
-        )
-        XCTAssertFalse(
-            WidgetSnapshotReuseDecision.shouldReuseLatestSnapshot(
-                latestSnapshotCycleKey: nil,
-                requestedCycleKey: "single:tnm|tnm:all|images|37.0|493431"
-            )
-        )
-    }
-
-    func testWidgetImageSuitabilityDecisionRejectsExtremeStripImages() {
-        XCTAssertFalse(
-            WidgetImageSuitabilityDecision.isAcceptableForWidget(
-                dimensions: WidgetImageDimensions(width: 328, height: 30)
-            )
-        )
-        XCTAssertTrue(
-            WidgetImageSuitabilityDecision.isAcceptableForWidget(
-                dimensions: WidgetImageDimensions(width: 328, height: 211)
-            )
-        )
-        XCTAssertTrue(
-            WidgetImageSuitabilityDecision.isAcceptableForWidget(
-                dimensions: WidgetImageDimensions(width: 138, height: 328)
-            )
-        )
-    }
-
-    func testWidgetDesktopSyncScheduleReturnsExpectedCheckpoints() async throws {
-        let tracker = WidgetRefreshDeliveryTracker(baseURL: temporaryBaseURL())
-        let now = Date(timeIntervalSince1970: 6_000)
-        _ = await tracker.begin(
-            nonce: 61,
-            configurationCount: 1,
-            expectedCounts: ["systemLarge": 1],
-            requestedFamilyKey: WidgetFamily.systemLarge.logKey,
-            startedAt: now
-        )
-        _ = await tracker.completeGeneratedRefresh(
-            nonce: 61,
-            targetRenderID: "render-61",
-            now: now
-        )
-        let completedState = await tracker.recordRender(
-            family: .systemLarge,
-            renderID: "render-61",
-            now: now.addingTimeInterval(1)
-        )
-        let state = try XCTUnwrap(completedState)
-
-        let syncStart = Date(timeIntervalSince1970: state.lastUpdatedAt)
-        XCTAssertEqual(
-            WidgetDesktopSyncSchedule.nextReloadDate(for: state, now: syncStart),
-            syncStart.addingTimeInterval(2)
-        )
-        XCTAssertEqual(
-            WidgetDesktopSyncSchedule.nextReloadDate(for: state, now: syncStart.addingTimeInterval(2.5)),
-            syncStart.addingTimeInterval(5)
-        )
-        XCTAssertEqual(
-            WidgetDesktopSyncSchedule.nextReloadDate(for: state, now: syncStart.addingTimeInterval(10.5)),
-            syncStart.addingTimeInterval(20)
-        )
-        XCTAssertEqual(
-            WidgetDesktopSyncSchedule.nextReloadDate(for: state, now: syncStart.addingTimeInterval(20.5)),
-            syncStart.addingTimeInterval(30)
-        )
-        XCTAssertNil(
-            WidgetDesktopSyncSchedule.nextReloadDate(for: state, now: syncStart.addingTimeInterval(30))
-        )
-    }
-
-    func testRenderedArtworkPersistenceDecisionRejectsLoadingEntryDuringManualRefresh() {
-        let activeState = WidgetRefreshDeliveryTracker.State(
-            nonce: 71,
-            startedAt: 7_000,
-            phase: .delivering,
-            configurationCount: 1,
-            expectedCounts: ["systemLarge": 1, "systemMedium": 0, "systemSmall": 0],
-            requestedFamilyKey: WidgetFamily.systemLarge.logKey,
-            deliveredCounts: ["systemLarge": 0, "systemMedium": 0, "systemSmall": 0],
-            deliveredTokens: [:],
-            targetRenderID: "render-71",
-            renderedFamilyRenderIDs: [:],
-            lastUpdatedAt: 7_001
-        )
-
-        XCTAssertFalse(
-            WidgetRenderedArtworkPersistenceDecision.shouldPersist(
-                entryRenderID: "loading-render-70",
-                isRefreshing: true,
-                activeManualRefreshState: activeState
-            )
-        )
-    }
-
-    func testRenderedArtworkPersistenceDecisionRejectsStaleRenderWhenNewerManualRefreshExists() {
-        let activeState = WidgetRefreshDeliveryTracker.State(
-            nonce: 81,
-            startedAt: 8_000,
-            phase: .delivering,
-            configurationCount: 1,
-            expectedCounts: ["systemLarge": 1, "systemMedium": 0, "systemSmall": 0],
-            requestedFamilyKey: WidgetFamily.systemLarge.logKey,
-            deliveredCounts: ["systemLarge": 0, "systemMedium": 0, "systemSmall": 0],
-            deliveredTokens: [:],
-            targetRenderID: "render-81",
-            renderedFamilyRenderIDs: [:],
-            lastUpdatedAt: 8_001
-        )
-
-        XCTAssertFalse(
-            WidgetRenderedArtworkPersistenceDecision.shouldPersist(
-                entryRenderID: "render-79",
-                isRefreshing: false,
-                activeManualRefreshState: activeState
-            )
-        )
-        XCTAssertTrue(
-            WidgetRenderedArtworkPersistenceDecision.shouldPersist(
-                entryRenderID: "render-81",
-                isRefreshing: false,
-                activeManualRefreshState: activeState
-            )
+    private func makeArtwork(
+        museumID: MuseumID,
+        objectID: String,
+        title: String,
+        imageURL: URL?
+    ) -> Artwork {
+        Artwork(
+            id: "\(museumID.rawValue)-\(objectID)",
+            museumID: museumID,
+            objectID: objectID,
+            title: title,
+            artworkDescription: nil,
+            artistDisplayName: nil,
+            objectDate: "2026",
+            medium: nil,
+            dimensions: nil,
+            department: nil,
+            culture: nil,
+            country: nil,
+            repository: museumID.displayName,
+            primaryImageURL: imageURL,
+            primaryImageSmallURL: imageURL,
+            objectURL: URL(string: "https://example.com/\(objectID)")
         )
     }
 
@@ -786,26 +555,176 @@ final class WidgetStateAndSettingsTests: XCTestCase {
     }
 }
 
-private struct LegacySnapshot: Codable {
-    let cycleKey: String
-    let museumName: String
-    let title: String
-    let subtitle: String?
-    let imageData: Data?
-    let appURL: URL?
+private struct WidgetStubbedResponse {
+    let response: HTTPURLResponse
+    let data: Data
 }
 
-extension WidgetFamily {
-    var logKey: String {
-        switch self {
-        case .systemSmall:
-            return "systemSmall"
-        case .systemMedium:
-            return "systemMedium"
-        case .systemLarge:
-            return "systemLarge"
-        default:
-            return String(describing: self)
+private final class WidgetStubURLProtocol: URLProtocol {
+    static let testIDHeader = "X-Widget-Stub-Test-ID"
+
+    private static var handlers: [String: @Sendable (URLRequest) throws -> WidgetStubbedResponse] = [:]
+    private static let lock = NSLock()
+
+    static func register(
+        handler: @escaping @Sendable (URLRequest) throws -> WidgetStubbedResponse,
+        for testID: String
+    ) {
+        lock.lock()
+        handlers[testID] = handler
+        lock.unlock()
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        request.value(forHTTPHeaderField: testIDHeader) != nil
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        guard let testID = request.value(forHTTPHeaderField: Self.testIDHeader) else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badURL))
+            return
+        }
+
+        Self.lock.lock()
+        let handler = Self.handlers[testID]
+        Self.lock.unlock()
+
+        guard let handler else {
+            client?.urlProtocol(self, didFailWithError: URLError(.resourceUnavailable))
+            return
+        }
+
+        do {
+            let stubbed = try handler(request)
+            client?.urlProtocol(self, didReceive: stubbed.response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: stubbed.data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            client?.urlProtocol(self, didFailWithError: error)
         }
     }
+
+    override func stopLoading() {}
 }
+
+private final class WidgetRequestRecorder {
+    private let lock = NSLock()
+    private var storage: [URL] = []
+
+    var urls: [URL] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
+
+    func record(_ url: URL) {
+        lock.lock()
+        storage.append(url)
+        lock.unlock()
+    }
+}
+
+private actor StubBatchLoader: WidgetArtworkCandidateLoading {
+    private var queuedArtworks: [Artwork]
+    private var requestedCandidates = 0
+
+    init(batches: [[Artwork]]) {
+        queuedArtworks = batches.flatMap { $0 }
+    }
+
+    func nextCandidateArtwork() async throws -> Artwork? {
+        requestedCandidates += 1
+        guard !queuedArtworks.isEmpty else {
+            return nil
+        }
+        return queuedArtworks.removeFirst()
+    }
+
+    func isExhausted() async -> Bool {
+        queuedArtworks.isEmpty
+    }
+
+    func requestedCandidateCount() async -> Int {
+        requestedCandidates
+    }
+}
+
+private actor AttemptRecorder {
+    private var storage: [URL: Int] = [:]
+
+    func increment(for url: URL) -> Int {
+        storage[url, default: 0] += 1
+        return storage[url, default: 0]
+    }
+
+    func value(for url: URL) -> Int {
+        storage[url, default: 0]
+    }
+}
+
+private final class RangeRecorder {
+    private let lock = NSLock()
+    private var storage: [Range<Int>] = []
+
+    func record(_ range: Range<Int>) {
+        lock.lock()
+        storage.append(range)
+        lock.unlock()
+    }
+
+    var recordedRanges: [Range<Int>] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
+}
+
+private final class SequentialEngineFactory {
+    private let lock = NSLock()
+    private var creationCount = 0
+
+    func makeEngine() -> WidgetRefreshEngine {
+        lock.lock()
+        creationCount += 1
+        let index = creationCount
+        lock.unlock()
+
+        return WidgetRefreshEngine(
+            loaderFactory: { museumID, _, _ in
+                StubBatchLoader(batches: [[
+                    Artwork(
+                        id: "\(museumID.rawValue)-\(index)",
+                        museumID: museumID,
+                        objectID: "\(index)",
+                        title: index == 1 ? "First Result" : "Second Result",
+                        artworkDescription: nil,
+                        artistDisplayName: nil,
+                        objectDate: "2026",
+                        medium: nil,
+                        dimensions: nil,
+                        department: nil,
+                        culture: nil,
+                        country: nil,
+                        repository: museumID.displayName,
+                        primaryImageURL: URL(string: "https://example.com/\(index).png"),
+                        primaryImageSmallURL: URL(string: "https://example.com/\(index).png"),
+                        objectURL: URL(string: "https://example.com/\(index)")
+                    )
+                ]])
+            },
+            randomIndex: { _ in 0 },
+            imageDataFetcher: { _, _ in
+                if index == 1 {
+                    try await Task.sleep(nanoseconds: 2_000_000_000)
+                }
+                return widgetValidPNGData
+            }
+        )
+    }
+}
+
+private let widgetValidPNGData = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7+Gk0AAAAASUVORK5CYII=")!

@@ -57,15 +57,6 @@ final class SettingsStore: ObservableObject {
 
     private let defaults: UserDefaults
 
-    @AppStorage(SettingsKeys.widgetRefreshIntervalMinutes, store: UserDefaults(suiteName: SettingsKeys.appGroupID))
-    var widgetRefreshIntervalMinutes: Int = WidgetRefreshInterval.oneHour.rawValue
-
-    @AppStorage(SettingsKeys.widgetMuseumScope, store: UserDefaults(suiteName: SettingsKeys.appGroupID))
-    var widgetMuseumScopeRawValue: String = WidgetMuseumScope.all.rawValue
-
-    @AppStorage(SettingsKeys.widgetPreferHasImages, store: UserDefaults(suiteName: SettingsKeys.appGroupID))
-    var widgetPreferHasImages: Bool = true
-
     @AppStorage(SettingsKeys.feedRandomOrder, store: UserDefaults(suiteName: SettingsKeys.appGroupID))
     var feedRandomOrder: Bool = true
 
@@ -81,53 +72,27 @@ final class SettingsStore: ObservableObject {
     private init() {
         defaults = UserDefaults(suiteName: SettingsKeys.appGroupID) ?? .standard
         migrateLegacyDefaultsIfNeeded()
-        normalizeWidgetSettingsIfNeeded()
         tencentTranslationConfigured = tencentTranslationCredentials() != nil
         miniMaxTranslationConfigured = miniMaxTranslationCredentials() != nil
     }
 
-    func widgetMuseumScope() -> WidgetMuseumScope {
-        let scope = WidgetMuseumScope(rawValue: widgetMuseumScopeRawValue) ?? .all
-        if scope.isSupportedForWidget {
-            return scope
-        }
-        return .all
-    }
-
     func requestWidgetReload(invalidateContent: Bool = false) {
         defaults.synchronize()
-        if invalidateContent {
-            let nextNonce = defaults.double(forKey: SettingsKeys.widgetManualRefreshNonce) + 1
-            defaults.set(nextNonce, forKey: SettingsKeys.widgetManualRefreshNonce)
-            defaults.synchronize()
-        }
         WidgetCenter.shared.reloadTimelines(ofKind: SettingsKeys.widgetKind)
     }
 
     func forceRefreshAllWidgets(logSource: String = "App 快捷操作") {
-        defaults.set(false, forKey: SettingsKeys.widgetManualRefreshInProgress)
-        defaults.removeObject(forKey: SettingsKeys.widgetManualRefreshStartedAt)
-
-        let nextNonce = defaults.double(forKey: SettingsKeys.widgetManualRefreshNonce) + 1
-        defaults.set(nextNonce, forKey: SettingsKeys.widgetManualRefreshNonce)
-        defaults.synchronize()
-
         Task {
             await RequestLogger.shared.logEvent(
                 source: logSource,
-                summary: "触发强制刷新所有小组件，nonce=\(Int(nextNonce))"
+                summary: "触发刷新全部已登记的小组件实例"
             )
+            await WidgetRefreshCoordinator.shared.refreshAllKnownInstances(logSource: logSource)
         }
-        WidgetCenter.shared.reloadTimelines(ofKind: SettingsKeys.widgetKind)
-        WidgetCenter.shared.reloadAllTimelines()
     }
 
     func orderedMuseums() -> [Museum] {
         MuseumRepository.museums(inPreferredOrder: orderedMuseumIDs())
-    }
-
-    func orderedWidgetMuseums() -> [Museum] {
-        MuseumRepository.widgetMuseums(inPreferredOrder: orderedMuseumIDs())
     }
 
     func feedCategories(for museumID: MuseumID) -> [MuseumCategory] {
@@ -138,19 +103,6 @@ final class SettingsStore: ObservableObject {
         let normalized = museumID.normalizedFeedCategories(categories)
         defaults.set(museumID.feedCategoryStorageValue(for: normalized), forKey: feedCategoryKey(for: museumID))
         defaults.synchronize()
-
-        if museumID.supportsWidgetContent {
-            requestWidgetReload(invalidateContent: true)
-        }
-    }
-
-    func widgetCategories(for museumID: MuseumID) -> [MuseumCategory] {
-        feedCategories(for: museumID)
-    }
-
-    func saveWidgetCategories(_ categories: [MuseumCategory], for museumID: MuseumID) {
-        saveFeedCategories(categories, for: museumID)
-        objectWillChange.send()
     }
 
     func feedCategory(for museumID: MuseumID) -> MuseumCategory {
@@ -209,13 +161,6 @@ final class SettingsStore: ObservableObject {
                 break
             }
         }
-    }
-
-    private func normalizeWidgetSettingsIfNeeded() {
-        let scope = WidgetMuseumScope(rawValue: defaults.string(forKey: SettingsKeys.widgetMuseumScope) ?? "") ?? .all
-        guard !scope.isSupportedForWidget else { return }
-        defaults.set(WidgetMuseumScope.all.rawValue, forKey: SettingsKeys.widgetMuseumScope)
-        defaults.synchronize()
     }
 
     func translationEngine() -> TranslationEngine {
@@ -377,17 +322,6 @@ final class SettingsStore: ObservableObject {
 
     private func normalizedCredentialValue(_ value: String) -> String {
         value.replacingOccurrences(of: "\\s+", with: "", options: .regularExpression)
-    }
-}
-
-private extension WidgetMuseumScope {
-    var isSupportedForWidget: Bool {
-        switch self {
-        case .all:
-            return true
-        case .single(let museumID):
-            return museumID.supportsWidgetContent
-        }
     }
 }
 

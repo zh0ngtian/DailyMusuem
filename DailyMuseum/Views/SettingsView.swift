@@ -20,27 +20,11 @@ struct SettingsView: View {
                 Toggle("随机展示展品", isOn: $settings.feedRandomOrder)
             }
             Section {
-                Picker("刷新间隔", selection: $settings.widgetRefreshIntervalMinutes) {
-                    ForEach(WidgetRefreshInterval.allCases) { interval in
-                        Text(interval.displayName).tag(interval.rawValue)
-                    }
-                }
-                Picker("展示范围", selection: $settings.widgetMuseumScopeRawValue) {
-                    Text("所有博物馆").tag(WidgetMuseumScope.all.rawValue)
-                    ForEach(settings.orderedWidgetMuseums()) { museum in
-                        Text(museum.displayName).tag(WidgetMuseumScope.single(museum.id).rawValue)
-                    }
-                }
-                Toggle("优先只展示有图片的展品", isOn: $settings.widgetPreferHasImages)
-            } header: {
-                Text("小组件")
-            } footer: {
-                Text("展示类别会直接跟随各博物馆二级页中的页面设置。")
-            }
-            Section {
-                Text("提示：WidgetKit 不保证按设定精确刷新，系统会根据电量和使用情况进行调整。")
+                Text("小组件已改为仅支持手动刷新。展示范围在桌面上的每个小组件实例内单独配置，类别继续跟随各博物馆二级页的页面设置。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+            } header: {
+                Text("小组件")
             }
             Section("翻译") {
                 Picker("翻译引擎", selection: $settings.translationEngineRawValue) {
@@ -126,15 +110,6 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("设置")
-        .onChange(of: settings.widgetRefreshIntervalMinutes) { _, _ in
-            settings.requestWidgetReload(invalidateContent: true)
-        }
-        .onChange(of: settings.widgetMuseumScopeRawValue) { _, _ in
-            settings.requestWidgetReload(invalidateContent: true)
-        }
-        .onChange(of: settings.widgetPreferHasImages) { _, _ in
-            settings.requestWidgetReload(invalidateContent: true)
-        }
         .task {
             loadTranslationCredentials()
         }

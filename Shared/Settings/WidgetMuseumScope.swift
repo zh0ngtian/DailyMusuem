@@ -1,4 +1,5 @@
 import Foundation
+import WidgetKit
 
 enum WidgetMuseumScope: Hashable, Codable {
     case all
@@ -28,3 +29,37 @@ extension WidgetMuseumScope {
     }
 }
 
+struct WidgetInstanceTokenResolver {
+    static func resolve(
+        from rawValue: String,
+        scope: WidgetMuseumScope,
+        family: WidgetFamily?
+    ) -> String {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            return trimmed
+        }
+
+        // Legacy widgets created before the hidden token stabilized can arrive without
+        // a persisted instance token. Fall back to a deterministic per-scope/family key
+        // so the same on-screen widget can keep reading the state written by its refreshes.
+        let scopeKey = scope.rawValue.replacingOccurrences(of: ":", with: "-")
+        let familyKey = family?.debugToken ?? "unknown"
+        return "legacy-\(scopeKey)-\(familyKey)"
+    }
+}
+
+extension WidgetFamily {
+    var debugToken: String {
+        switch self {
+        case .systemSmall:
+            return "small"
+        case .systemMedium:
+            return "medium"
+        case .systemLarge:
+            return "large"
+        default:
+            return "other"
+        }
+    }
+}

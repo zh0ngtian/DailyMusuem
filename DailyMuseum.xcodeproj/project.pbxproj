@@ -31,6 +31,7 @@
 		AA000000000000000000001F /* WidgetRefreshInterval.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58A211D35AE0E3261DEDD024 /* WidgetRefreshInterval.swift */; };
 		AA0000000000000000000020 /* WidgetRefreshDeliveryTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5C2D137F4A14D27A0010002 /* WidgetRefreshDeliveryTracker.swift */; };
 		AA0000000000000000000021 /* WidgetSettingsReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFEC49CE4C55DCDEA5364224 /* WidgetSettingsReader.swift */; };
+		AA0000000000000000000040 /* ShanghaiMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13F0E36D4A24301B00C1003 /* ShanghaiMuseumAPI.swift */; };
 		AA0000000000000000000031 /* WidgetManualRefreshRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000030 /* WidgetManualRefreshRunner.swift */; };
 		AA0000000000000000000032 /* WidgetManualRefreshRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000030 /* WidgetManualRefreshRunner.swift */; };
 		AA0000000000000000000033 /* WidgetArtworkService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDB91ABFDF5059FE1FCE0687 /* WidgetArtworkService.swift */; };
@@ -533,6 +534,7 @@
 				AA000000000000000000001C /* MetMuseumPersistentCache.swift in Sources */,
 				AA0000000000000000000016 /* Museum.swift in Sources */,
 				AA000000000000000000001D /* NationalMuseumChinaAPI.swift in Sources */,
+				AA0000000000000000000040 /* ShanghaiMuseumAPI.swift in Sources */,
 				AA0000000000000000000013 /* ParsingAndAPITests.swift in Sources */,
 				AA000000000000000000000E /* RequestLogger.swift in Sources */,
 				AA000000000000000000000F /* SettingsKeys.swift in Sources */,

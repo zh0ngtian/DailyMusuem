@@ -29,54 +29,58 @@ final class ShanghaiMuseumAPI {
     func searchArtworkCodes(
         subtypes: [String]? = nil,
         minimumCount: Int = Constants.pageSize,
+        cachePolicy: MuseumRequestCachePolicy = .useCaches,
         onLog: (@Sendable (String) async -> Void)? = nil
     ) async throws -> SearchPoolSnapshot {
         let logger = RequestLogger.shared
         let cacheKey = searchCacheKey(for: subtypes)
-
-        await onLog?("检查上海博物馆展品编码内存缓存...")
 
         var artworkCodes: [String] = []
         var summaryArtworks: [Artwork] = []
         var nextPage = 1
         var hasMore = true
 
-        if let cached = await responseCache.searchState(forKey: cacheKey), !cached.artworkCodes.isEmpty {
-            artworkCodes = cached.artworkCodes
-            nextPage = cached.nextPage
-            hasMore = cached.hasMore
-            await logger.logEvent(source: "上海博物馆搜索", summary: "命中内存缓存，复用 \(cached.artworkCodes.count) 条展品编码")
-            await onLog?("已命中内存缓存，直接复用 \(cached.artworkCodes.count) 条展品编码。")
-            if cached.artworkCodes.count >= minimumCount || !cached.hasMore {
-                return SearchPoolSnapshot(artworkCodes: cached.artworkCodes, hasMoreRemoteItems: cached.hasMore)
+        if cachePolicy.usesCaches {
+            await onLog?("检查上海博物馆展品编码内存缓存...")
+            if let cached = await responseCache.searchState(forKey: cacheKey), !cached.artworkCodes.isEmpty {
+                artworkCodes = cached.artworkCodes
+                nextPage = cached.nextPage
+                hasMore = cached.hasMore
+                await logger.logEvent(source: "上海博物馆搜索", summary: "命中内存缓存，复用 \(cached.artworkCodes.count) 条展品编码")
+                await onLog?("已命中内存缓存，直接复用 \(cached.artworkCodes.count) 条展品编码。")
+                if cached.artworkCodes.count >= minimumCount || !cached.hasMore {
+                    return SearchPoolSnapshot(artworkCodes: cached.artworkCodes, hasMoreRemoteItems: cached.hasMore)
+                }
+                await onLog?("现有上海博物馆缓存不足 \(minimumCount) 条，继续拉取下一页...")
             }
-            await onLog?("现有上海博物馆缓存不足 \(minimumCount) 条，继续拉取下一页...")
-        }
 
-        if artworkCodes.isEmpty {
-            await onLog?("未命中内存缓存，检查上海博物馆本地缓存...")
-            if let persisted = await persistentCache.searchSnapshot(forKey: cacheKey), !persisted.artworkCodes.isEmpty {
-                artworkCodes = persisted.artworkCodes
-                summaryArtworks = persisted.summaryArtworks
-                nextPage = persisted.nextPage
-                hasMore = persisted.hasMore
-                await responseCache.setSearchState(
-                    artworkCodes: persisted.artworkCodes,
-                    nextPage: persisted.nextPage,
-                    hasMore: persisted.hasMore,
-                    forKey: cacheKey
-                )
-                if !persisted.summaryArtworks.isEmpty {
-                    await responseCache.setArtworks(persisted.summaryArtworks)
-                    await onLog?("已从本地缓存恢复 \(persisted.summaryArtworks.count) 条上海博物馆摘要数据。")
+            if artworkCodes.isEmpty {
+                await onLog?("未命中内存缓存，检查上海博物馆本地缓存...")
+                if let persisted = await persistentCache.searchSnapshot(forKey: cacheKey), !persisted.artworkCodes.isEmpty {
+                    artworkCodes = persisted.artworkCodes
+                    summaryArtworks = persisted.summaryArtworks
+                    nextPage = persisted.nextPage
+                    hasMore = persisted.hasMore
+                    await responseCache.setSearchState(
+                        artworkCodes: persisted.artworkCodes,
+                        nextPage: persisted.nextPage,
+                        hasMore: persisted.hasMore,
+                        forKey: cacheKey
+                    )
+                    if !persisted.summaryArtworks.isEmpty {
+                        await responseCache.setArtworks(persisted.summaryArtworks)
+                        await onLog?("已从本地缓存恢复 \(persisted.summaryArtworks.count) 条上海博物馆摘要数据。")
+                    }
+                    await logger.logEvent(source: "上海博物馆搜索", summary: "命中本地缓存，复用 \(persisted.artworkCodes.count) 条展品编码")
+                    await onLog?("已命中本地缓存，读取到 \(persisted.artworkCodes.count) 条展品编码。")
+                    if persisted.artworkCodes.count >= minimumCount || !persisted.hasMore {
+                        return SearchPoolSnapshot(artworkCodes: persisted.artworkCodes, hasMoreRemoteItems: persisted.hasMore)
+                    }
+                    await onLog?("本地缓存条目不足 \(minimumCount) 条，继续拉取下一页...")
                 }
-                await logger.logEvent(source: "上海博物馆搜索", summary: "命中本地缓存，复用 \(persisted.artworkCodes.count) 条展品编码")
-                await onLog?("已命中本地缓存，读取到 \(persisted.artworkCodes.count) 条展品编码。")
-                if persisted.artworkCodes.count >= minimumCount || !persisted.hasMore {
-                    return SearchPoolSnapshot(artworkCodes: persisted.artworkCodes, hasMoreRemoteItems: persisted.hasMore)
-                }
-                await onLog?("本地缓存条目不足 \(minimumCount) 条，继续拉取下一页...")
             }
+        } else {
+            await onLog?("网络直连模式，跳过上海博物馆搜索缓存读取。")
         }
 
         if artworkCodes.isEmpty {
@@ -105,8 +109,10 @@ final class ShanghaiMuseumAPI {
             artworkCodes.append(contentsOf: pageArtworks.map(\.objectID))
             summaryArtworks.append(contentsOf: pageArtworks)
 
-            await responseCache.setArtworks(pageArtworks)
-            await persistentCache.setArtworks(pageArtworks)
+            if cachePolicy.usesCaches {
+                await responseCache.setArtworks(pageArtworks)
+                await persistentCache.setArtworks(pageArtworks)
+            }
 
             let currentPage = nextPage
             nextPage += 1
@@ -114,6 +120,30 @@ final class ShanghaiMuseumAPI {
 
             await onLog?("上海博物馆已缓存 \(artworkCodes.count) 条展品编码，后续按需继续拉取。")
 
+            if cachePolicy.usesCaches {
+                await responseCache.setSearchState(
+                    artworkCodes: artworkCodes,
+                    nextPage: nextPage,
+                    hasMore: hasMore,
+                    forKey: cacheKey
+                )
+                await persistentCache.setSearchSnapshot(
+                    artworkCodes: artworkCodes,
+                    summaryArtworks: summaryArtworks,
+                    nextPage: nextPage,
+                    hasMore: hasMore,
+                    forKey: cacheKey
+                )
+            }
+        }
+
+        guard !artworkCodes.isEmpty else {
+            await logger.logEvent(source: "上海博物馆搜索", summary: "搜索结果为空，忽略空缓存并返回空数组")
+            await onLog?("上海博物馆未返回任何展品编码，本次不写入空缓存。")
+            return SearchPoolSnapshot(artworkCodes: [], hasMoreRemoteItems: false)
+        }
+
+        if cachePolicy.usesCaches {
             await responseCache.setSearchState(
                 artworkCodes: artworkCodes,
                 nextPage: nextPage,
@@ -127,38 +157,31 @@ final class ShanghaiMuseumAPI {
                 hasMore: hasMore,
                 forKey: cacheKey
             )
+            await onLog?("上海博物馆展品编码已就绪，当前缓存 \(artworkCodes.count) 条。")
+        } else {
+            await onLog?("上海博物馆展品编码已就绪，共 \(artworkCodes.count) 条，网络直连模式不写入缓存。")
         }
-
-        guard !artworkCodes.isEmpty else {
-            await logger.logEvent(source: "上海博物馆搜索", summary: "搜索结果为空，忽略空缓存并返回空数组")
-            await onLog?("上海博物馆未返回任何展品编码，本次不写入空缓存。")
-            return SearchPoolSnapshot(artworkCodes: [], hasMoreRemoteItems: false)
-        }
-
-        await responseCache.setSearchState(
-            artworkCodes: artworkCodes,
-            nextPage: nextPage,
-            hasMore: hasMore,
-            forKey: cacheKey
-        )
-        await persistentCache.setSearchSnapshot(
-            artworkCodes: artworkCodes,
-            summaryArtworks: summaryArtworks,
-            nextPage: nextPage,
-            hasMore: hasMore,
-            forKey: cacheKey
-        )
-        await onLog?("上海博物馆展品编码已就绪，当前缓存 \(artworkCodes.count) 条。")
         return SearchPoolSnapshot(artworkCodes: artworkCodes, hasMoreRemoteItems: hasMore)
     }
 
-    func allArtworkCodes(subtypes: [String]? = nil) async throws -> [String] {
+    func allArtworkCodes(
+        subtypes: [String]? = nil,
+        cachePolicy: MuseumRequestCachePolicy = .useCaches
+    ) async throws -> [String] {
         var minimumCount = Constants.pageSize
-        var snapshot = try await searchArtworkCodes(subtypes: subtypes, minimumCount: minimumCount)
+        var snapshot = try await searchArtworkCodes(
+            subtypes: subtypes,
+            minimumCount: minimumCount,
+            cachePolicy: cachePolicy
+        )
 
         while snapshot.hasMoreRemoteItems {
             minimumCount = snapshot.artworkCodes.count + Constants.pageSize
-            snapshot = try await searchArtworkCodes(subtypes: subtypes, minimumCount: minimumCount)
+            snapshot = try await searchArtworkCodes(
+                subtypes: subtypes,
+                minimumCount: minimumCount,
+                cachePolicy: cachePolicy
+            )
         }
 
         return snapshot.artworkCodes
@@ -170,18 +193,23 @@ final class ShanghaiMuseumAPI {
         await persistentCache.removeSearchSnapshot(forKey: key)
     }
 
-    func fetchArtwork(objectCode: String) async throws -> Artwork {
+    func fetchArtwork(
+        objectCode: String,
+        cachePolicy: MuseumRequestCachePolicy = .useCaches
+    ) async throws -> Artwork {
         let logger = RequestLogger.shared
 
-        if let cached = await responseCache.artwork(forCode: objectCode) {
-            await logger.logEvent(source: "上海博物馆详情", summary: "命中内存缓存，code=\(objectCode)")
-            return cached
-        }
+        if cachePolicy.usesCaches {
+            if let cached = await responseCache.artwork(forCode: objectCode) {
+                await logger.logEvent(source: "上海博物馆详情", summary: "命中内存缓存，code=\(objectCode)")
+                return cached
+            }
 
-        if let persisted = await persistentCache.artwork(forCode: objectCode) {
-            await responseCache.setArtwork(persisted, forCode: objectCode)
-            await logger.logEvent(source: "上海博物馆详情", summary: "命中本地缓存，code=\(objectCode)")
-            return persisted
+            if let persisted = await persistentCache.artwork(forCode: objectCode) {
+                await responseCache.setArtwork(persisted, forCode: objectCode)
+                await logger.logEvent(source: "上海博物馆详情", summary: "命中本地缓存，code=\(objectCode)")
+                return persisted
+            }
         }
 
         let page = try await fetchArticlePage(objectCode: objectCode)
@@ -205,8 +233,10 @@ final class ShanghaiMuseumAPI {
             repositoryName: Constants.repositoryName,
             countryName: Constants.countryName
         )
-        await responseCache.setArtwork(artwork, forCode: objectCode)
-        await persistentCache.setArtwork(artwork, forCode: objectCode)
+        if cachePolicy.usesCaches {
+            await responseCache.setArtwork(artwork, forCode: objectCode)
+            await persistentCache.setArtwork(artwork, forCode: objectCode)
+        }
         return artwork
     }
 
@@ -227,7 +257,7 @@ final class ShanghaiMuseumAPI {
             limit: limit
         )
         let logger = RequestLogger.shared
-        let throttleDelay = await Self.requestThrottle.waitForTurn()
+        let throttleDelay = try await Self.requestThrottle.waitForTurn()
         if throttleDelay > 0 {
             let delayText = String(format: "%.2f", throttleDelay)
             await logger.logEvent(
@@ -274,7 +304,7 @@ final class ShanghaiMuseumAPI {
             referer: collectionURL()
         )
         let logger = RequestLogger.shared
-        let throttleDelay = await Self.requestThrottle.waitForTurn()
+        let throttleDelay = try await Self.requestThrottle.waitForTurn()
         if throttleDelay > 0 {
             let delayText = String(format: "%.2f", throttleDelay)
             await logger.logEvent(
@@ -324,7 +354,7 @@ final class ShanghaiMuseumAPI {
             referer: articleURL(objectCode: objectCode)
         )
         let logger = RequestLogger.shared
-        let throttleDelay = await Self.requestThrottle.waitForTurn()
+        let throttleDelay = try await Self.requestThrottle.waitForTurn()
         if throttleDelay > 0 {
             let delayText = String(format: "%.2f", throttleDelay)
             await logger.logEvent(
@@ -1034,7 +1064,7 @@ private actor ShanghaiMuseumRequestThrottle {
         self.minimumInterval = minimumInterval
     }
 
-    func waitForTurn(now: Date = Date()) async -> TimeInterval {
+    func waitForTurn(now: Date = Date()) async throws -> TimeInterval {
         let scheduledTime = max(now, nextAllowedRequestTime)
         let delay = max(0, scheduledTime.timeIntervalSince(now))
         nextAllowedRequestTime = scheduledTime.addingTimeInterval(minimumInterval)
@@ -1044,7 +1074,7 @@ private actor ShanghaiMuseumRequestThrottle {
         }
 
         let nanoseconds = UInt64(delay * 1_000_000_000)
-        try? await Task.sleep(nanoseconds: nanoseconds)
+        try await Task.sleep(nanoseconds: nanoseconds)
         return delay
     }
 }

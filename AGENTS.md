@@ -336,6 +336,30 @@
   - App 在后台
   - App 冷启动
 
+## 小组件刷新常见坑
+
+- 不能把 provider 返回 `success` 误判为“桌面一定已正常显示”：
+  - `Widget Provider` 日志只能说明 timeline 已生成。
+  - 真正的验收仍然要看 SpringBoard 桌面截图。
+- 小组件成功态如果直接使用远端原始大图，容易触发 WidgetKit/Chrono 归档失败：
+  - 常见系统日志关键字包括：
+    - `Widget archival failed due to image being too large`
+    - `imageTooLarge`
+  - 成功态背景图必须先按小组件目标比例裁剪，并降采样到受控像素尺寸后再渲染。
+- 当 widget 配置里的隐藏 `instanceToken` 缺失、变化或未正确回传时：
+  - provider 可能只能按 `scope` 收养最近一次可展示状态。
+  - 这类回退逻辑必须优先采用最近一次 `success`，不能优先采用较新的 `refreshing`，否则桌面容易长期停在“刷新中”。
+- 用 `scope` 级别调试刷新时，同 scope 的多个实例可能被一起触发：
+  - 容易污染日志。
+  - 也容易让当前可见桌面实例被后续刷新覆盖。
+  - 需要稳定复现时，优先按 `instanceToken` 定向触发。
+- SpringBoard 和 WidgetKit 都存在快照缓存：
+  - 代码修好后，桌面仍可能短时间继续显示旧占位态或旧快照。
+  - 这时需要结合重新安装 App、重新拉起 App、重新请求 timeline、必要时重启模拟器或强制回桌面后再次截图来判断。
+- 小组件“刷新中”能显示，不代表“成功态”也一定能显示：
+  - 这两条渲染路径不同。
+  - 成功态往往才会暴露图片归档、图片尺寸、图片解码和状态回退等问题。
+
 ## 文案要求
 
 - 博物馆名称使用中文：
@@ -370,6 +394,49 @@
     - 真机构建成功
     - 真机安装成功
     - 真机启动成功
+
+### 小组件截图闭环测试
+
+- 验证小组件问题时，默认要形成“构建/安装/启动 + 日志 + 桌面截图 + 系统日志”的闭环，不接受只看 provider 日志就下结论。
+- 模拟器推荐链路：
+  - `xcodebuild -project DailyMuseum.xcodeproj -scheme DailyMuseumTests -destination 'platform=iOS Simulator,id=<SIMULATOR_ID>' -derivedDataPath .deriveddata-sim build-for-testing`
+  - `xcrun simctl install <SIMULATOR_ID> .deriveddata-sim/Build/Products/Debug-iphonesimulator/DailyMuseum.app`
+  - `xcrun simctl launch <SIMULATOR_ID> tech.zh0ngtian.DailyMuseum`
+- 仓库内现有日志脚本：
+  - `scripts/pull_simulator_request_logs.sh`
+  - 常用参数：
+    - `--udid <SIMULATOR_ID>`：指定模拟器
+    - `--clear`：清空旧日志
+    - `--trigger-refresh`：触发 `dailymuseum://debug/widget-refresh`
+    - `--instance-token <TOKEN>`：按实例定向触发刷新
+    - `--scope-raw-value <RAW>`：按 scope 触发刷新，例如 `single:shm`
+    - `--wait <SECONDS>`：刷新后等待
+    - `--tail <N>`：输出最后 N 条日志
+    - `--instances`：输出 `instances.json`
+    - `--screenshot-path <PATH>`：保存截图
+    - `--home-screen`：截图前尝试回到桌面
+- 推荐闭环步骤：
+  - 1. `build-for-testing + install + launch`
+  - 2. 用 `scripts/pull_simulator_request_logs.sh --instances` 确认当前 widget 实例和 `instanceToken`
+  - 3. 优先用 `--instance-token` 定向触发当前可见实例刷新，避免同 scope 多实例互相污染
+  - 4. 用脚本或 `xcrun simctl io ... screenshot` 抓图
+  - 5. 检查 request logs，确认：
+    - 候选拉取顺序符合预期
+    - 成功后没有继续多拉
+    - provider 至少生成过对应 family 的 timeline
+  - 6. 再查系统日志，确认没有 `imageTooLarge`、归档失败或 Chrono 渲染错误
+  - 7. 最后以桌面截图作为最终验收证据
+- 常用日志命令：
+  - `zsh scripts/pull_simulator_request_logs.sh --udid <SIMULATOR_ID> --clear --trigger-refresh --instance-token <TOKEN> --wait 8 --tail 120`
+  - `zsh scripts/pull_simulator_request_logs.sh --udid <SIMULATOR_ID> --instances`
+  - `xcrun simctl spawn <SIMULATOR_ID> log show --style compact --last 10m --predicate 'eventMessage CONTAINS[c] "imageTooLarge" OR eventMessage CONTAINS[c] "Widget archival failed due to image being too large" OR process == "DailyMuseumWidgetExtension"'`
+- 截图注意事项：
+  - `--home-screen` 或 `notifyutil` 回桌面不一定每次都可靠，截图前必须确认 Simulator 当前真的在 SpringBoard。
+  - 如果脚本截图截到的是前台 App，而不是桌面，可改用激活 `Simulator` 后发送 `Shift-Command-H` 再截图。
+  - 验收 widget 是否修好时，必须保留一张最终桌面成功态截图，不能只保留 App 前台截图。
+- 如果这轮验证中运行了 `xcodebuild test`：
+  - 需要预期模拟器可能被接管、重建或关闭。
+  - 跑完后通常要重新 `boot/install/launch`，再重新做一轮桌面截图验证。
 
 ## 当前阶段范围说明
 

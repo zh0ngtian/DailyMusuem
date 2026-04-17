@@ -31,11 +31,11 @@ final class JapanSearchAPI {
         preferHasImages: Bool,
         categoryTypeCode: String? = nil,
         minimumCount: Int = Constants.pageSize,
+        cachePolicy: MuseumRequestCachePolicy = .useCaches,
         onLog: (@Sendable (String) async -> Void)? = nil
     ) async throws -> SearchPoolSnapshot {
         let logger = RequestLogger.shared
         let cacheKey = cacheKey(preferHasImages: preferHasImages, categoryTypeCode: categoryTypeCode)
-        await onLog?("检查东京国立博物馆 itemIDs 内存缓存...")
 
         var itemIDs: [String] = []
         var summaryArtworks: [Artwork] = []
@@ -43,45 +43,50 @@ final class JapanSearchAPI {
         var hasMore = true
         var usedContributorFilter = true
 
-        if let cached = await responseCache.searchState(forKey: cacheKey), !cached.itemIDs.isEmpty {
-            itemIDs = cached.itemIDs
-            nextFrom = cached.nextFrom
-            hasMore = cached.hasMore
-            usedContributorFilter = cached.usedContributorFilter
-            await logger.logEvent(source: "东京国立博物馆搜索", summary: "命中内存缓存，复用 \(cached.itemIDs.count) 条 itemIDs")
-            await onLog?("已命中内存缓存，直接复用 \(cached.itemIDs.count) 条 itemIDs。")
-            if cached.itemIDs.count >= minimumCount || !cached.hasMore {
-                return SearchPoolSnapshot(itemIDs: cached.itemIDs, hasMoreRemoteItems: cached.hasMore)
+        if cachePolicy.usesCaches {
+            await onLog?("检查东京国立博物馆 itemIDs 内存缓存...")
+            if let cached = await responseCache.searchState(forKey: cacheKey), !cached.itemIDs.isEmpty {
+                itemIDs = cached.itemIDs
+                nextFrom = cached.nextFrom
+                hasMore = cached.hasMore
+                usedContributorFilter = cached.usedContributorFilter
+                await logger.logEvent(source: "东京国立博物馆搜索", summary: "命中内存缓存，复用 \(cached.itemIDs.count) 条 itemIDs")
+                await onLog?("已命中内存缓存，直接复用 \(cached.itemIDs.count) 条 itemIDs。")
+                if cached.itemIDs.count >= minimumCount || !cached.hasMore {
+                    return SearchPoolSnapshot(itemIDs: cached.itemIDs, hasMoreRemoteItems: cached.hasMore)
+                }
+                await onLog?("现有东京国立博物馆缓存不足 \(minimumCount) 条，继续拉取下一页...")
             }
-            await onLog?("现有东京国立博物馆缓存不足 \(minimumCount) 条，继续拉取下一页...")
-        }
 
-        if itemIDs.isEmpty {
-            await onLog?("未命中内存缓存，检查东京国立博物馆本地缓存...")
-            if let persisted = await persistentCache.searchSnapshot(forKey: cacheKey), !persisted.itemIDs.isEmpty {
-                itemIDs = persisted.itemIDs
-                summaryArtworks = persisted.summaryArtworks
-                nextFrom = persisted.nextFrom
-                hasMore = persisted.hasMore
-                usedContributorFilter = persisted.usedContributorFilter
-                await responseCache.setSearchState(
-                    itemIDs: persisted.itemIDs,
-                    nextFrom: persisted.nextFrom,
-                    hasMore: persisted.hasMore,
-                    usedContributorFilter: persisted.usedContributorFilter,
-                    forKey: cacheKey
-                )
-                if !persisted.summaryArtworks.isEmpty {
-                    await responseCache.setSearchArtworks(persisted.summaryArtworks)
-                    await onLog?("已从本地缓存恢复 \(persisted.summaryArtworks.count) 条东京国立博物馆摘要数据。")
+            if itemIDs.isEmpty {
+                await onLog?("未命中内存缓存，检查东京国立博物馆本地缓存...")
+                if let persisted = await persistentCache.searchSnapshot(forKey: cacheKey), !persisted.itemIDs.isEmpty {
+                    itemIDs = persisted.itemIDs
+                    summaryArtworks = persisted.summaryArtworks
+                    nextFrom = persisted.nextFrom
+                    hasMore = persisted.hasMore
+                    usedContributorFilter = persisted.usedContributorFilter
+                    await responseCache.setSearchState(
+                        itemIDs: persisted.itemIDs,
+                        nextFrom: persisted.nextFrom,
+                        hasMore: persisted.hasMore,
+                        usedContributorFilter: persisted.usedContributorFilter,
+                        forKey: cacheKey
+                    )
+                    if !persisted.summaryArtworks.isEmpty {
+                        await responseCache.setSearchArtworks(persisted.summaryArtworks)
+                        await onLog?("已从本地缓存恢复 \(persisted.summaryArtworks.count) 条东京国立博物馆摘要数据。")
+                    }
+                    await logger.logEvent(source: "东京国立博物馆搜索", summary: "命中本地缓存，复用 \(persisted.itemIDs.count) 条 itemIDs")
+                    await onLog?("已命中本地缓存，读取到 \(persisted.itemIDs.count) 条 itemIDs。")
+                    if persisted.itemIDs.count >= minimumCount || !persisted.hasMore {
+                        return SearchPoolSnapshot(itemIDs: persisted.itemIDs, hasMoreRemoteItems: persisted.hasMore)
+                    }
+                    await onLog?("本地缓存条目不足 \(minimumCount) 条，继续拉取下一页...")
                 }
-                await logger.logEvent(source: "东京国立博物馆搜索", summary: "命中本地缓存，复用 \(persisted.itemIDs.count) 条 itemIDs")
-                await onLog?("已命中本地缓存，读取到 \(persisted.itemIDs.count) 条 itemIDs。")
-                if persisted.itemIDs.count >= minimumCount || !persisted.hasMore {
-                    return SearchPoolSnapshot(itemIDs: persisted.itemIDs, hasMoreRemoteItems: persisted.hasMore)
-                }
-                await onLog?("本地缓存条目不足 \(minimumCount) 条，继续拉取下一页...")
             }
+        } else {
+            await onLog?("网络直连模式，跳过东京国立博物馆搜索缓存读取。")
         }
 
         if itemIDs.isEmpty {
@@ -122,12 +127,44 @@ final class JapanSearchAPI {
             itemIDs.append(contentsOf: orderedPageItems.map(\.id))
             let pageSummaries = orderedPageItems.map { $0.toArtwork() }
             summaryArtworks.append(contentsOf: pageSummaries)
-            await responseCache.setSearchArtworks(pageSummaries)
+            if cachePolicy.usesCaches {
+                await responseCache.setSearchArtworks(pageSummaries)
+            }
 
             nextFrom += response.list.count
             hasMore = response.list.count >= Constants.pageSize && nextFrom < response.hit
             await onLog?("东京国立博物馆已缓存 \(itemIDs.count) 条 itemIDs，后续按需继续拉取。")
 
+            if cachePolicy.usesCaches {
+                await responseCache.setSearchState(
+                    itemIDs: itemIDs,
+                    nextFrom: nextFrom,
+                    hasMore: hasMore,
+                    usedContributorFilter: usedContributorFilter,
+                    forKey: cacheKey
+                )
+                await persistentCache.setSearchSnapshot(
+                    itemIDs: itemIDs,
+                    summaryArtworks: summaryArtworks,
+                    nextFrom: nextFrom,
+                    hasMore: hasMore,
+                    usedContributorFilter: usedContributorFilter,
+                    forKey: cacheKey
+                )
+            }
+
+            if response.list.count < Constants.pageSize || nextFrom >= response.hit {
+                hasMore = false
+            }
+        }
+
+        guard !itemIDs.isEmpty else {
+            await logger.logEvent(source: "东京国立博物馆搜索", summary: "搜索结果为空，忽略空缓存并返回空数组")
+            await onLog?("东京国立博物馆未返回任何 itemIDs，本次不写入空缓存。")
+            return SearchPoolSnapshot(itemIDs: [], hasMoreRemoteItems: false)
+        }
+
+        if cachePolicy.usesCaches {
             await responseCache.setSearchState(
                 itemIDs: itemIDs,
                 nextFrom: nextFrom,
@@ -143,34 +180,10 @@ final class JapanSearchAPI {
                 usedContributorFilter: usedContributorFilter,
                 forKey: cacheKey
             )
-
-            if response.list.count < Constants.pageSize || nextFrom >= response.hit {
-                hasMore = false
-            }
+            await onLog?("东京国立博物馆 itemIDs 已就绪，当前缓存 \(itemIDs.count) 条。")
+        } else {
+            await onLog?("东京国立博物馆 itemIDs 已就绪，共 \(itemIDs.count) 条，网络直连模式不写入缓存。")
         }
-
-        guard !itemIDs.isEmpty else {
-            await logger.logEvent(source: "东京国立博物馆搜索", summary: "搜索结果为空，忽略空缓存并返回空数组")
-            await onLog?("东京国立博物馆未返回任何 itemIDs，本次不写入空缓存。")
-            return SearchPoolSnapshot(itemIDs: [], hasMoreRemoteItems: false)
-        }
-
-        await responseCache.setSearchState(
-            itemIDs: itemIDs,
-            nextFrom: nextFrom,
-            hasMore: hasMore,
-            usedContributorFilter: usedContributorFilter,
-            forKey: cacheKey
-        )
-        await persistentCache.setSearchSnapshot(
-            itemIDs: itemIDs,
-            summaryArtworks: summaryArtworks,
-            nextFrom: nextFrom,
-            hasMore: hasMore,
-            usedContributorFilter: usedContributorFilter,
-            forKey: cacheKey
-        )
-        await onLog?("东京国立博物馆 itemIDs 已就绪，当前缓存 \(itemIDs.count) 条。")
         return SearchPoolSnapshot(itemIDs: itemIDs, hasMoreRemoteItems: hasMore)
     }
 
@@ -180,11 +193,16 @@ final class JapanSearchAPI {
         await persistentCache.removeSearchSnapshot(forKey: key)
     }
 
-    func fetchItem(itemID: String) async throws -> JapanSearchItem {
+    func fetchItem(
+        itemID: String,
+        cachePolicy: MuseumRequestCachePolicy = .useCaches
+    ) async throws -> JapanSearchItem {
         let logger = RequestLogger.shared
-        if let cached = await responseCache.item(forID: itemID) {
-            await logger.logEvent(source: "东京国立博物馆详情", summary: "命中内存缓存，itemID=\(itemID)")
-            return cached
+        if cachePolicy.usesCaches {
+            if let cached = await responseCache.item(forID: itemID) {
+                await logger.logEvent(source: "东京国立博物馆详情", summary: "命中内存缓存，itemID=\(itemID)")
+                return cached
+            }
         }
 
         let url = baseURL.appending(path: "item").appending(path: itemID)
@@ -192,7 +210,9 @@ final class JapanSearchAPI {
         await logger.logRequestStart(source: "东京国立博物馆详情", url: url)
 
         do {
-            let (data, response) = try await session.data(from: url)
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            let (data, response) = try await session.data(for: request)
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
             try validate(response: response)
             let item = try JSONDecoder().decode(JapanSearchItem.self, from: data)
@@ -203,7 +223,9 @@ final class JapanSearchAPI {
                 duration: Date().timeIntervalSince(start),
                 responseBytes: data.count
             )
-            await responseCache.setItem(item, forID: itemID)
+            if cachePolicy.usesCaches {
+                await responseCache.setItem(item, forID: itemID)
+            }
             return item
         } catch {
             await logger.logRequestFailure(
