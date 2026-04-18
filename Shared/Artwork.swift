@@ -1,5 +1,10 @@
 import Foundation
 
+enum TextPunctuationStyle {
+    case western
+    case chinese
+}
+
 enum TranslationToolbarState: Equatable {
     case original(hasCachedTranslation: Bool)
     case translating
@@ -107,7 +112,7 @@ struct Artwork: Identifiable, Hashable, Codable {
             .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
             .components(separatedBy: .newlines)
             .map(Self.cleanDescriptionLine)
-            .map { $0.decodingCommonHTMLEntities() }
+            .map { $0.decodingCommonHTMLEntities(punctuationStyle: museumID.punctuationStyle) }
             .filter { !$0.isEmpty }
             .joined(separator: "\n")
             .replacingOccurrences(of: "\\n{3,}", with: "\n\n", options: .regularExpression)
@@ -173,23 +178,23 @@ struct Artwork: Identifiable, Hashable, Codable {
 }
 
 extension String {
-    func decodingCommonHTMLEntities() -> String {
+    func decodingCommonHTMLEntities(punctuationStyle: TextPunctuationStyle = .western) -> String {
         let namedEntities: [(String, String)] = [
             ("&nbsp;", " "),
             ("&amp;", "&"),
             ("&lt;", "<"),
             ("&gt;", ">"),
-            ("&quot;", "\""),
-            ("&apos;", "'"),
-            ("&#39;", "'"),
-            ("&#x27;", "'"),
-            ("&ldquo;", "\""),
-            ("&rdquo;", "\""),
-            ("&lsquo;", "'"),
-            ("&rsquo;", "'"),
-            ("&ndash;", "–"),
-            ("&mdash;", "—"),
-            ("&hellip;", "…"),
+            ("&quot;", punctuationStyle == .chinese ? "\"" : "\""),
+            ("&apos;", punctuationStyle == .chinese ? "'" : "'"),
+            ("&#39;", punctuationStyle == .chinese ? "'" : "'"),
+            ("&#x27;", punctuationStyle == .chinese ? "'" : "'"),
+            ("&ldquo;", punctuationStyle == .chinese ? "“" : "\""),
+            ("&rdquo;", punctuationStyle == .chinese ? "”" : "\""),
+            ("&lsquo;", punctuationStyle == .chinese ? "‘" : "'"),
+            ("&rsquo;", punctuationStyle == .chinese ? "’" : "'"),
+            ("&ndash;", punctuationStyle == .chinese ? "——" : "–"),
+            ("&mdash;", punctuationStyle == .chinese ? "——" : "—"),
+            ("&hellip;", punctuationStyle == .chinese ? "……" : "…"),
             ("&middot;", "·")
         ]
 
@@ -231,6 +236,46 @@ extension String {
             decoded.replaceSubrange(entityRange, with: String(scalar))
         }
 
-        return decoded
+        guard punctuationStyle == .chinese else {
+            return decoded
+        }
+
+        return decoded.applyingChinesePunctuationConventions()
+    }
+
+    private func applyingChinesePunctuationConventions() -> String {
+        var result = self
+        result = result.replacingOccurrences(of: "…+", with: "……", options: .regularExpression)
+        result = result.replacingOccurrences(of: "[—–]+", with: "——", options: .regularExpression)
+        result = result.replacingOccurrences(of: "\"", withPairedQuotesOpen: "“", close: "”")
+        result = result.replacingOccurrences(of: "'", withPairedQuotesOpen: "‘", close: "’")
+        return result
+    }
+
+    private func replacingOccurrences(
+        of target: Character,
+        withPairedQuotesOpen openQuote: Character,
+        close closeQuote: Character
+    ) -> String {
+        var shouldUseOpenQuote = true
+        var transformed = String()
+        transformed.reserveCapacity(count)
+
+        for character in self {
+            if character == target {
+                transformed.append(shouldUseOpenQuote ? openQuote : closeQuote)
+                shouldUseOpenQuote.toggle()
+            } else {
+                transformed.append(character)
+            }
+        }
+
+        return transformed
+    }
+}
+
+private extension MuseumID {
+    var punctuationStyle: TextPunctuationStyle {
+        usesChinesePunctuation ? .chinese : .western
     }
 }

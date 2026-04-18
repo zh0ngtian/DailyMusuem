@@ -538,7 +538,7 @@ private actor NationalMuseumChinaPersistentCache {
 private extension String {
     var htmlDecodedText: String {
         self
-            .decodingCommonHTMLEntities()
+            .decodingCommonHTMLEntities(punctuationStyle: .chinese)
             .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
     }
 

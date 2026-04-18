@@ -73,7 +73,7 @@ struct ArtworkDetailView: View {
                         .padding(.bottom, 4)
                     }
 
-                    InfoRow(label: "艺术家", value: artwork.artistDisplayName)
+                    InfoRow(label: "作者", value: artwork.artistDisplayName)
                     InfoRow(label: "年代", value: artwork.objectDate)
                     InfoRow(label: "材质", value: artwork.medium)
                     InfoRow(label: "尺寸", value: artwork.dimensions)
