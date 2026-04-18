@@ -169,9 +169,6 @@ struct ArtworkFeedView: View {
                 }
             )
         }
-        .onChange(of: settings.feedRandomOrder) { _, _ in
-            Task { await viewModel.reload() }
-        }
     }
 
     private var isCategorySelectionDisabled: Bool {

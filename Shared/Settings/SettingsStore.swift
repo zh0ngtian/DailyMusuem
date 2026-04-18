@@ -57,9 +57,6 @@ final class SettingsStore: ObservableObject {
 
     private let defaults: UserDefaults
 
-    @AppStorage(SettingsKeys.feedRandomOrder, store: UserDefaults(suiteName: SettingsKeys.appGroupID))
-    var feedRandomOrder: Bool = true
-
     @AppStorage(SettingsKeys.museumDisplayOrder, store: UserDefaults(suiteName: SettingsKeys.appGroupID))
     var museumDisplayOrderRawValue: String = ""
 
