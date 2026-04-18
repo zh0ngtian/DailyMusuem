@@ -10,9 +10,7 @@ struct ArtworkDetailView: View {
     let artwork: Artwork
     let placeholderAspectRatio: CGFloat
     let imageReloadToken: Int
-    let showsTranslationButton: Bool
-    let translationButtonTitle: String
-    let translationButtonDisabled: Bool
+    let translationToolbarState: TranslationToolbarState?
     let onTranslationButtonTap: () async -> Void
     let onRefresh: () async -> Void
 
@@ -81,17 +79,16 @@ struct ArtworkDetailView: View {
         .toolbar {
             if let url = artwork.objectURL {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Link("官网", destination: url)
+                    Link(destination: url) {
+                        Label("官网", systemImage: "safari")
+                            .labelStyle(.iconOnly)
+                    }
+                    .accessibilityLabel("打开官网")
                 }
             }
-            if showsTranslationButton {
+            if let translationToolbarState {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(translationButtonTitle) {
-                        Task {
-                            await onTranslationButtonTap()
-                        }
-                    }
-                    .disabled(translationButtonDisabled)
+                    translationToolbarButton(for: translationToolbarState)
                 }
             }
         }
@@ -106,6 +103,25 @@ struct ArtworkDetailView: View {
         }
         .onChange(of: imageReloadToken) { _, _ in
             loadedPreviewImage = nil
+        }
+    }
+
+    @ViewBuilder
+    private func translationToolbarButton(for state: TranslationToolbarState) -> some View {
+        let button = Button {
+            Task {
+                await onTranslationButtonTap()
+            }
+        } label: {
+            Image(systemName: state.systemImageName)
+        }
+        .disabled(state.isDisabled)
+        .accessibilityLabel(state.accessibilityLabel)
+
+        if let accessibilityHint = state.accessibilityHint {
+            button.accessibilityHint(accessibilityHint)
+        } else {
+            button
         }
     }
 

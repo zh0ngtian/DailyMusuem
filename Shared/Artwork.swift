@@ -1,5 +1,51 @@
 import Foundation
 
+enum TranslationToolbarState: Equatable {
+    case original(hasCachedTranslation: Bool)
+    case translating
+    case translated
+
+    var systemImageName: String {
+        switch self {
+        case .original:
+            return "globe"
+        case .translating:
+            return "globe.badge.clock"
+        case .translated:
+            return "globe.badge.chevron.backward"
+        }
+    }
+
+    var isDisabled: Bool {
+        if case .translating = self {
+            return true
+        }
+        return false
+    }
+
+    var accessibilityLabel: String {
+        switch self {
+        case .original:
+            return "原文"
+        case .translating:
+            return "翻译中"
+        case .translated:
+            return "译文"
+        }
+    }
+
+    var accessibilityHint: String? {
+        switch self {
+        case .original(let hasCachedTranslation):
+            return hasCachedTranslation ? "点按显示译文" : "点按翻译并显示译文"
+        case .translating:
+            return nil
+        case .translated:
+            return "点按显示原文"
+        }
+    }
+}
+
 struct Artwork: Identifiable, Hashable, Codable {
     let id: String
     let museumID: MuseumID
