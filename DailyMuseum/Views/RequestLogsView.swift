@@ -156,7 +156,7 @@ struct RequestLogsView: View {
                 Text(entry.source)
                     .font(.headline)
                 Spacer(minLength: 8)
-                Text(Self.timestampFormatter.string(from: entry.timestamp))
+                Text(LogTimestampFormatter.requestLogTimestamp(from: entry.timestamp))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -184,10 +184,4 @@ struct RequestLogsView: View {
         }
         .padding(.vertical, 4)
     }
-
-    private static let timestampFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MM-dd HH:mm:ss"
-        return formatter
-    }()
 }

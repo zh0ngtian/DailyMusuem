@@ -163,6 +163,65 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertEqual(item.sortValue, 314)
     }
 
+    func testRequestLogTimestampIncludesSixDigitMicroseconds() throws {
+        let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let date = try makeDate(
+            year: 2024,
+            month: 4,
+            day: 18,
+            hour: 6,
+            minute: 20,
+            second: 34,
+            nanosecond: 123_456_000,
+            timeZone: timeZone
+        )
+
+        let formatted = LogTimestampFormatter.requestLogTimestamp(from: date, timeZone: timeZone)
+
+        XCTAssertEqual(formatted, "04-18 06:20:34.123456")
+    }
+
+    func testFeedLogTimestampLeftPadsMicroseconds() throws {
+        let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let date = try makeDate(
+            year: 2024,
+            month: 4,
+            day: 18,
+            hour: 6,
+            minute: 20,
+            second: 34,
+            nanosecond: 42_000,
+            timeZone: timeZone
+        )
+
+        let formatted = LogTimestampFormatter.feedLogTimestamp(from: date, timeZone: timeZone)
+
+        XCTAssertEqual(formatted, "06:20:34.000042")
+    }
+
+    func testRequestAndFeedLogTimestampsKeepExpectedLayout() throws {
+        let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let date = try makeDate(
+            year: 2024,
+            month: 12,
+            day: 31,
+            hour: 23,
+            minute: 59,
+            second: 1,
+            nanosecond: 900_001_000,
+            timeZone: timeZone
+        )
+
+        XCTAssertEqual(
+            LogTimestampFormatter.requestLogTimestamp(from: date, timeZone: timeZone),
+            "12-31 23:59:01.900001"
+        )
+        XCTAssertEqual(
+            LogTimestampFormatter.feedLogTimestamp(from: date, timeZone: timeZone),
+            "23:59:01.900001"
+        )
+    }
+
     private func makeArtwork(museumID: MuseumID, title: String, description: String?) -> Artwork {
         Artwork(
             id: "\(museumID.rawValue)-1",
@@ -186,5 +245,30 @@ final class CoreLogicTests: XCTestCase {
 
     private func decodeJapanSearchItem(_ json: String) throws -> JapanSearchItem {
         try JSONDecoder().decode(JapanSearchItem.self, from: Data(json.utf8))
+    }
+
+    private func makeDate(
+        year: Int,
+        month: Int,
+        day: Int,
+        hour: Int,
+        minute: Int,
+        second: Int,
+        nanosecond: Int,
+        timeZone: TimeZone
+    ) throws -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let components = DateComponents(
+            timeZone: timeZone,
+            year: year,
+            month: month,
+            day: day,
+            hour: hour,
+            minute: minute,
+            second: second,
+            nanosecond: nanosecond
+        )
+        return try XCTUnwrap(calendar.date(from: components))
     }
 }

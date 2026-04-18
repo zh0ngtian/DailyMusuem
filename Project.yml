@@ -82,6 +82,7 @@ targets:
       - path: Shared/AppDeepLink.swift
       - path: Shared/Artwork.swift
       - path: Shared/Museum.swift
+      - path: Shared/Logging/LogTimestampFormatter.swift
       - path: Shared/Logging/RequestLogger.swift
       - path: Shared/JapanSearch/JapanSearchAPI.swift
       - path: Shared/JapanSearch/JapanSearchModels.swift

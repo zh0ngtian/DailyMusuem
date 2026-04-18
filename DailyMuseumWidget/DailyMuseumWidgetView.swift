@@ -139,7 +139,7 @@ struct DailyMuseumWidgetView: View {
     private var displaySubtitle: String? {
         switch entry.phase {
         case .idle:
-            return "每个实例单独刷新"
+            return "长按小组件并选择「编辑小组件-展示范围」以激活小组件"
         case .refreshing:
             return entry.subtitle ?? "正在拉取新展品"
         case .success:

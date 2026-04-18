@@ -358,19 +358,13 @@ final class ArtworkFeedViewModel: ObservableObject {
     }
 
     fileprivate func appendLoadingLog(_ message: String) {
-        let timestamp = Self.logTimeFormatter.string(from: Date())
+        let timestamp = LogTimestampFormatter.feedLogTimestamp(from: Date())
         loadingLogs.append("[\(timestamp)] \(message)")
         let source = "\(museum.displayName) 展品流"
         Task {
             await RequestLogger.shared.logEvent(source: source, summary: message)
         }
     }
-
-    private static let logTimeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm:ss"
-        return formatter
-    }()
 }
 
 @MainActor

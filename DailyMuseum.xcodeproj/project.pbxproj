@@ -11,6 +11,9 @@
 		0B60E7E46431A00100000001 /* NationalMuseumChinaAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B60E7E46431A00100000005 /* NationalMuseumChinaAPI.swift */; };
 		0B60E7E46431A00100000002 /* NationalMuseumChinaAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B60E7E46431A00100000005 /* NationalMuseumChinaAPI.swift */; };
 		AA0000000000000000000003 /* WidgetArtworkSnapshotStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000001 /* WidgetArtworkSnapshotStoreTests.swift */; };
+		C1A2B3C4D5E6F708192A3B4D /* LogTimestampFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A2B3C4D5E6F708192A3B4C /* LogTimestampFormatter.swift */; };
+		C1A2B3C4D5E6F708192A3B4E /* LogTimestampFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A2B3C4D5E6F708192A3B4C /* LogTimestampFormatter.swift */; };
+		C1A2B3C4D5E6F708192A3B4F /* LogTimestampFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A2B3C4D5E6F708192A3B4C /* LogTimestampFormatter.swift */; };
 		AA000000000000000000000E /* RequestLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0773F3ED0D9C2C7D00381424 /* RequestLogger.swift */; };
 		AA000000000000000000000F /* SettingsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD5690663479FBDA165A96B /* SettingsKeys.swift */; };
 		AA0000000000000000000010 /* WidgetArtworkSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C479641DC62C47615D086EE /* WidgetArtworkSnapshotStore.swift */; };
@@ -138,6 +141,7 @@
 
 /* Begin PBXFileReference section */
 		0773F3ED0D9C2C7D00381424 /* RequestLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestLogger.swift; sourceTree = "<group>"; };
+		C1A2B3C4D5E6F708192A3B4C /* LogTimestampFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogTimestampFormatter.swift; sourceTree = "<group>"; };
 		0ACA67A0EFEEB5748BD15991 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		1B7AF25AA60373F1FEF52146 /* DailyMuseumWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DailyMuseumWidget.entitlements; sourceTree = "<group>"; };
 		217B48EE2D107B1146488C81 /* AppDeepLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDeepLink.swift; sourceTree = "<group>"; };
@@ -222,6 +226,7 @@
 		2D9E1AB212E9EA83BCC2C332 /* Logging */ = {
 			isa = PBXGroup;
 			children = (
+				C1A2B3C4D5E6F708192A3B4C /* LogTimestampFormatter.swift */,
 				0773F3ED0D9C2C7D00381424 /* RequestLogger.swift */,
 			);
 			path = Logging;
@@ -530,6 +535,7 @@
 				AA0000000000000000000016 /* Museum.swift in Sources */,
 				AA000000000000000000001D /* NationalMuseumChinaAPI.swift in Sources */,
 				AA0000000000000000000040 /* ShanghaiMuseumAPI.swift in Sources */,
+				C1A2B3C4D5E6F708192A3B4F /* LogTimestampFormatter.swift in Sources */,
 				AA0000000000000000000013 /* ParsingAndAPITests.swift in Sources */,
 				AA000000000000000000000E /* RequestLogger.swift in Sources */,
 				AA000000000000000000000F /* SettingsKeys.swift in Sources */,
@@ -566,6 +572,7 @@
 				EC1E9A6F5E8D8396F9E74410 /* Museum.swift in Sources */,
 				0B60E7E46431A00100000001 /* NationalMuseumChinaAPI.swift in Sources */,
 				A13F0E36D4A24301B00C1001 /* ShanghaiMuseumAPI.swift in Sources */,
+				C1A2B3C4D5E6F708192A3B4E /* LogTimestampFormatter.swift in Sources */,
 				5CC00FF6639BCA691EC911D4 /* RefreshWidgetIntent.swift in Sources */,
 				39EF46DCBA1A93ADAB139396 /* RequestLogger.swift in Sources */,
 				25F50C06099559E4DBB10D2C /* SettingsKeys.swift in Sources */,
@@ -608,6 +615,7 @@
 				048A14DA9BBF5DC796231307 /* MuseumListView.swift in Sources */,
 				0B60E7E46431A00100000002 /* NationalMuseumChinaAPI.swift in Sources */,
 				A13F0E36D4A24301B00C1002 /* ShanghaiMuseumAPI.swift in Sources */,
+				C1A2B3C4D5E6F708192A3B4D /* LogTimestampFormatter.swift in Sources */,
 				626A4F3FABA4F40BF4F5B669 /* RequestLogger.swift in Sources */,
 				2580F721762415DE7E4269A9 /* RequestLogsView.swift in Sources */,
 				47875A95039007E1D161ABF1 /* RootView.swift in Sources */,
