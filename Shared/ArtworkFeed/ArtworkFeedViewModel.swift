@@ -3,7 +3,6 @@ import SwiftUI
 
 @MainActor
 protocol ArtworkFeedSettingsProviding: AnyObject {
-    var feedRandomOrder: Bool { get }
     func feedCategories(for museumID: MuseumID) -> [MuseumCategory]
     func saveFeedCategories(_ categories: [MuseumCategory], for museumID: MuseumID)
 }
@@ -282,7 +281,7 @@ final class ArtworkFeedViewModel: ObservableObject {
     }
 
     private var isRandomOrder: Bool {
-        settings.feedRandomOrder
+        true
     }
 
     private var categorySelectionKey: String {
