@@ -68,17 +68,25 @@ struct MuseumListView: View {
             museums = settings.orderedMuseums()
         }
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                if isSorting {
+            if isSorting {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             isSorting = false
                         }
                     }
-                } else {
+                }
+            } else {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    NavigationLink(value: Route.favorites) {
+                        Image(systemName: "star")
+                    }
+                    .accessibilityLabel("收藏夹")
+
                     NavigationLink(value: Route.settings) {
                         Image(systemName: "gear")
                     }
+                    .accessibilityLabel("设置")
                 }
             }
         }

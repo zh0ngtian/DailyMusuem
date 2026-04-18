@@ -355,7 +355,10 @@ struct ArtworkFeedView: View {
             LazyVStack(spacing: 12) {
                 ForEach(viewModel.items) { item in
                     artworkNavigationLink(for: item) {
-                        ArtworkListRowView(item: item) { aspectRatio in
+                        ArtworkListRowCardView(
+                            artwork: item.artwork,
+                            footerText: item.artwork.museumID.displayName
+                        ) { aspectRatio in
                             viewModel.updateAspectRatio(for: item.id, aspectRatio: aspectRatio)
                         }
                     }
@@ -408,80 +411,5 @@ private struct BottomLoadTriggerFramePreferenceKey: PreferenceKey {
 
     static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
         value = nextValue()
-    }
-}
-
-private struct ArtworkListRowView: View {
-    private enum Constants {
-        static let previewSize = CGSize(width: 108, height: 108)
-        static let cornerRadius: CGFloat = 16
-    }
-
-    let item: ArtworkFeedItem
-    let onAspectRatioKnown: (CGFloat) -> Void
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            CachedAsyncImage(url: item.artwork.primaryImageSmallURL) { image in
-                image
-                    .resizable()
-                    .scaledToFill()
-            } placeholder: {
-                placeholderImage
-            } onImageSize: { size in
-                guard size.width > 0, size.height > 0 else { return }
-                onAspectRatioKnown(size.width / size.height)
-            }
-            .frame(width: Constants.previewSize.width, height: Constants.previewSize.height)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text(item.artwork.title)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                    .lineLimit(3)
-
-                if let subtitle = item.artwork.subtitle {
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-
-                Spacer(minLength: 0)
-
-                Text(item.artwork.museumID.displayName)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: 0)
-
-            Image(systemName: "chevron.right")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.tertiary)
-                .padding(.top, 4)
-        }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: Constants.cornerRadius, style: .continuous)
-                .fill(.background)
-                .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 6)
-        )
-    }
-
-    private var placeholderImage: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color(.systemGray5))
-
-            VStack(spacing: 8) {
-                Image(systemName: "photo")
-                    .font(.system(size: 20, weight: .medium))
-                Text("加载图片中")
-                    .font(.caption2)
-            }
-            .foregroundStyle(.secondary)
-        }
     }
 }

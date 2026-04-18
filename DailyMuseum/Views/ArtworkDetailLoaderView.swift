@@ -3,6 +3,7 @@ import SwiftUI
 struct ArtworkDetailLoaderView: View {
     let reference: ArtworkReference
 
+    @StateObject private var favorites = FavoritesStore.shared
     @State private var artwork: Artwork?
     @State private var translatedArtwork: Artwork?
     @State private var showsTranslatedArtwork = false
@@ -25,9 +26,12 @@ struct ArtworkDetailLoaderView: View {
                     artwork: displayedArtwork,
                     placeholderAspectRatio: detailPlaceholderAspectRatio,
                     imageReloadToken: imageReloadToken,
-                    translationToolbarState: artwork?.supportsTranslation == true ? translationToolbarState : nil
+                    translationToolbarState: artwork?.supportsTranslation == true ? translationToolbarState : nil,
+                    isFavorite: isFavorite
                 ) {
                     await handleTranslationButtonTap()
+                } onFavoriteButtonTap: {
+                    toggleFavorite()
                 } onRefresh: {
                     await refresh()
                 }
@@ -187,6 +191,24 @@ struct ArtworkDetailLoaderView: View {
             return 0.8
         }
         return CGFloat(imageAspectRatio)
+    }
+
+    private var isFavorite: Bool {
+        guard let artwork else {
+            return false
+        }
+        return favorites.isFavorite(museumID: artwork.museumID, objectID: artwork.objectID)
+    }
+
+    private func toggleFavorite() {
+        guard let artwork else {
+            return
+        }
+
+        favorites.toggleFavorite(
+            artwork: artwork,
+            imageAspectRatio: reference.imageAspectRatio
+        )
     }
 }
 

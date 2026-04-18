@@ -11,7 +11,9 @@ struct ArtworkDetailView: View {
     let placeholderAspectRatio: CGFloat
     let imageReloadToken: Int
     let translationToolbarState: TranslationToolbarState?
+    let isFavorite: Bool
     let onTranslationButtonTap: () async -> Void
+    let onFavoriteButtonTap: () -> Void
     let onRefresh: () async -> Void
 
     @State private var isShowingImagePreview = false
@@ -77,19 +79,23 @@ struct ArtworkDetailView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if let url = artwork.objectURL {
-                ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                if let url = artwork.objectURL {
                     Link(destination: url) {
                         Label("官网", systemImage: "safari")
                             .labelStyle(.iconOnly)
                     }
                     .accessibilityLabel("打开官网")
                 }
-            }
-            if let translationToolbarState {
-                ToolbarItem(placement: .topBarTrailing) {
+
+                if let translationToolbarState {
                     translationToolbarButton(for: translationToolbarState)
                 }
+
+                Button(action: onFavoriteButtonTap) {
+                    Image(systemName: isFavorite ? "star.fill" : "star")
+                }
+                .accessibilityLabel(isFavorite ? "取消收藏" : "收藏")
             }
         }
         .fullScreenCover(isPresented: $isShowingImagePreview) {

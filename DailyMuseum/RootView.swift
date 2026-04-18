@@ -34,6 +34,8 @@ struct RootView: View {
             ArtworkFeedView(museum: museum)
         case .artwork(let reference):
             ArtworkDetailLoaderView(reference: reference)
+        case .favorites:
+            FavoritesView()
         case .settings:
             SettingsView()
         }
@@ -58,5 +60,6 @@ struct RootView: View {
 enum Route: Hashable {
     case museum(Museum)
     case artwork(ArtworkReference)
+    case favorites
     case settings
 }

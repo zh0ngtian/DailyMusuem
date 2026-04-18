@@ -15,6 +15,9 @@ targets:
           enabled: 1
     sources:
       - path: DailyMuseum
+      - path: DailyMuseumWidget/WidgetArtworkSnapshotStore.swift
+      - path: DailyMuseumWidget/WidgetRefreshDeliveryTracker.swift
+      - path: DailyMuseumWidget/WidgetSettingsReader.swift
       - path: Shared
     info:
       path: DailyMuseum/Info.plist
@@ -26,11 +29,18 @@ targets:
           - CFBundleURLName: DailyMuseumDeepLink
             CFBundleURLSchemes:
               - dailymuseum
+        NSPhotoLibraryAddUsageDescription: 允许保存展品图片到系统相册
+        UIApplicationShortcutItems:
+          - UIApplicationShortcutItemIconType: UIApplicationShortcutIconTypeUpdate
+            UIApplicationShortcutItemType: tech.zh0ngtian.DailyMuseum.shortcuts.forceRefreshAllWidgets
+            UIApplicationShortcutItemTitle: 强制刷新所有小组件
         UILaunchStoryboardName: LaunchScreen
         UIApplicationSupportsIndirectInputEvents: true
         UISupportedInterfaceOrientations~iphone:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         UISupportedInterfaceOrientations~ipad:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown
@@ -82,6 +92,7 @@ targets:
       - path: Shared/AppDeepLink.swift
       - path: Shared/Artwork.swift
       - path: Shared/Museum.swift
+      - path: Shared/MuseumRequestCachePolicy.swift
       - path: Shared/Logging/LogTimestampFormatter.swift
       - path: Shared/Logging/RequestLogger.swift
       - path: Shared/JapanSearch/JapanSearchAPI.swift
@@ -91,6 +102,8 @@ targets:
       - path: Shared/MetMuseum/MetMuseumModels.swift
       - path: Shared/MetMuseum/MetMuseumPersistentCache.swift
       - path: Shared/NationalMuseumChina/NationalMuseumChinaAPI.swift
+      - path: Shared/ShanghaiMuseum/ShanghaiMuseumAPI.swift
+      - path: Shared/Settings/FavoritesStore.swift
       - path: Shared/Settings/SettingsKeys.swift
       - path: Shared/Settings/WidgetMuseumScope.swift
       - path: DailyMuseumWidget/WidgetArtworkSnapshotStore.swift
