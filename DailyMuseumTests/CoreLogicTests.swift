@@ -159,6 +159,44 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertFalse(state.isDisabled)
     }
 
+    func testMuseumCopyrightNoticeUsesExpectedFormat() {
+        XCTAssertEqual(MuseumID.met.copyrightNotice, "©大都会艺术博物馆 版权所有")
+        XCTAssertEqual(MuseumID.tnm.copyrightNotice, "©东京国立博物馆 版权所有")
+        XCTAssertEqual(MuseumID.nmc.copyrightNotice, "©中国国家博物馆 版权所有")
+        XCTAssertEqual(MuseumID.shm.copyrightNotice, "©上海博物馆 版权所有")
+    }
+
+    func testArtworkShareContentUsesUnifiedShareTextFormat() throws {
+        let officialURL = try XCTUnwrap(URL(string: "https://example.com/object/1"))
+        let artwork = makeArtwork(
+            museumID: .met,
+            title: "睡莲",
+            description: nil,
+            objectURL: officialURL
+        )
+        let content = try XCTUnwrap(ArtworkShareContent(artwork: artwork))
+
+        XCTAssertEqual(
+            content.plainText,
+            "睡莲｜大都会艺术博物馆｜https://example.com/object/1"
+        )
+    }
+
+    func testArtworkShareContentUsesArtworkTitleAndOfficialURLForMetadata() throws {
+        let officialURL = try XCTUnwrap(URL(string: "https://example.com/object/3"))
+        let artwork = makeArtwork(
+            museumID: .nmc,
+            title: "后母戊鼎",
+            description: nil,
+            objectURL: officialURL
+        )
+        let content = try XCTUnwrap(ArtworkShareContent(artwork: artwork))
+
+        XCTAssertEqual(content.shareSheetSubject, "后母戊鼎")
+        XCTAssertEqual(content.linkMetadataTitle, "后母戊鼎")
+        XCTAssertEqual(content.officialURL, officialURL)
+    }
+
     func testJapanSearchItemSortValueAndArtworkMapping() throws {
         let item = try decodeJapanSearchItem(
             """
@@ -254,6 +292,24 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertEqual(formatted, "06:20:34.000042")
     }
 
+    func testFeedLogTimestampRoundsMicrosecondsIntoNextSecond() throws {
+        let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let date = try makeDate(
+            year: 2024,
+            month: 4,
+            day: 18,
+            hour: 6,
+            minute: 20,
+            second: 34,
+            nanosecond: 999_999_600,
+            timeZone: timeZone
+        )
+
+        let formatted = LogTimestampFormatter.feedLogTimestamp(from: date, timeZone: timeZone)
+
+        XCTAssertEqual(formatted, "06:20:35.000000")
+    }
+
     func testRequestAndFeedLogTimestampsKeepExpectedLayout() throws {
         let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
         let date = try makeDate(
@@ -277,7 +333,12 @@ final class CoreLogicTests: XCTestCase {
         )
     }
 
-    private func makeArtwork(museumID: MuseumID, title: String, description: String?) -> Artwork {
+    private func makeArtwork(
+        museumID: MuseumID,
+        title: String,
+        description: String?,
+        objectURL: URL? = nil
+    ) -> Artwork {
         Artwork(
             id: "\(museumID.rawValue)-1",
             museumID: museumID,
@@ -294,7 +355,7 @@ final class CoreLogicTests: XCTestCase {
             repository: nil,
             primaryImageURL: nil,
             primaryImageSmallURL: nil,
-            objectURL: nil
+            objectURL: objectURL
         )
     }
 

@@ -268,8 +268,8 @@ final class MetMuseumAPI {
 
         let normalizedLines = withoutTags
             .components(separatedBy: .newlines)
-            .map(cleanDescriptionLine)
             .map { $0.decodingCommonHTMLEntities() }
+            .map(cleanDescriptionLine)
             .filter { !$0.isEmpty }
             .joined(separator: "\n")
 

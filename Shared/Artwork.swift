@@ -177,6 +177,38 @@ struct Artwork: Identifiable, Hashable, Codable {
     }
 }
 
+struct ArtworkShareContent: Identifiable, Hashable {
+    let museumID: MuseumID
+    let title: String
+    let officialURL: URL
+
+    init?(artwork: Artwork) {
+        guard let officialURL = artwork.objectURL else {
+            return nil
+        }
+
+        museumID = artwork.museumID
+        title = artwork.title
+        self.officialURL = officialURL
+    }
+
+    var id: String {
+        "\(museumID.rawValue)::\(officialURL.absoluteString)"
+    }
+
+    var shareSheetSubject: String {
+        title
+    }
+
+    var linkMetadataTitle: String {
+        title
+    }
+
+    var plainText: String {
+        "\(title)｜\(museumID.displayName)｜\(officialURL.absoluteString)"
+    }
+}
+
 extension String {
     func decodingCommonHTMLEntities(punctuationStyle: TextPunctuationStyle = .western) -> String {
         let namedEntities: [(String, String)] = [
