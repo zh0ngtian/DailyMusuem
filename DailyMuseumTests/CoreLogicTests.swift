@@ -89,7 +89,24 @@ final class CoreLogicTests: XCTestCase {
             """
             First line
             Second line
-            &gt; Third line'
+            > Third line'
+            """
+        )
+    }
+
+    func testArtworkNormalizedDescriptionTextDecodesPunctuationEntities() {
+        let artwork = makeArtwork(
+            museumID: .met,
+            title: "Test",
+            description: """
+            <p>&ldquo;Quoted&rdquo; text&nbsp;&mdash;&#8212;&#x2013;&rsquo;</p>
+            """
+        )
+
+        XCTAssertEqual(
+            artwork.normalizedDescriptionText,
+            """
+            "Quoted" text ——–'
             """
         )
     }

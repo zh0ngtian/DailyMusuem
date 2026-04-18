@@ -266,10 +266,10 @@ final class MetMuseumAPI {
             options: .regularExpression
         )
 
-        let decoded = decodeHTMLEntities(withoutTags)
-        let normalizedLines = decoded
+        let normalizedLines = withoutTags
             .components(separatedBy: .newlines)
             .map(cleanDescriptionLine)
+            .map { $0.decodingCommonHTMLEntities() }
             .filter { !$0.isEmpty }
             .joined(separator: "\n")
 
@@ -357,14 +357,7 @@ final class MetMuseumAPI {
     }
 
     private static func decodeHTMLEntities(_ value: String) -> String {
-        value
-            .replacingOccurrences(of: "&quot;", with: "\"")
-            .replacingOccurrences(of: "&#39;", with: "'")
-            .replacingOccurrences(of: "&#x27;", with: "'")
-            .replacingOccurrences(of: "&amp;", with: "&")
-            .replacingOccurrences(of: "&lt;", with: "<")
-            .replacingOccurrences(of: "&gt;", with: ">")
-            .replacingOccurrences(of: "&nbsp;", with: " ")
+        value.decodingCommonHTMLEntities()
     }
 }
 
