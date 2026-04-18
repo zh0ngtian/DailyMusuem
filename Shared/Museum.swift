@@ -114,6 +114,15 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    var usesChinesePunctuation: Bool {
+        switch self {
+        case .nmc, .shm:
+            return true
+        case .met, .tnm:
+            return false
+        }
+    }
+
     var availableFeedCategories: [MuseumCategory] {
         switch self {
         case .met:

@@ -1082,7 +1082,7 @@ private actor ShanghaiMuseumRequestThrottle {
 private extension String {
     var htmlDecodedText: String {
         self
-            .decodingCommonHTMLEntities()
+            .decodingCommonHTMLEntities(punctuationStyle: .chinese)
             .replacingOccurrences(of: "<br\\s*/?>", with: "\n", options: .regularExpression)
             .replacingOccurrences(of: "</p>", with: "\n", options: .regularExpression)
             .replacingOccurrences(of: "</li>", with: "\n", options: .regularExpression)

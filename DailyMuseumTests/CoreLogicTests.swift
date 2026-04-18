@@ -111,6 +111,23 @@ final class CoreLogicTests: XCTestCase {
         )
     }
 
+    func testArtworkNormalizedDescriptionTextUsesChinesePunctuationForChineseMuseums() {
+        let artwork = makeArtwork(
+            museumID: .nmc,
+            title: "Test",
+            description: """
+            <p>&ldquo;引号&rdquo;&nbsp;&mdash;&#8212;&#x2013;&hellip;&lsquo;内嵌&rsquo;</p>
+            """
+        )
+
+        XCTAssertEqual(
+            artwork.normalizedDescriptionText,
+            """
+            “引号” ——……‘内嵌’
+            """
+        )
+    }
+
     func testArtworkSupportsTranslationRequiresSupportedMuseumAndMeaningfulContent() {
         let translatable = makeArtwork(museumID: .met, title: "Water Lilies", description: nil)
         let unsupportedMuseum = makeArtwork(museumID: .nmc, title: "后母戊鼎", description: nil)
