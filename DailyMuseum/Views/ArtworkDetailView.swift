@@ -19,6 +19,8 @@ struct ArtworkDetailView: View {
     @State private var isShowingImagePreview = false
     @State private var loadedPreviewImage: UIImage?
     @State private var loadedImageAspectRatio: CGFloat?
+    @State private var shareDestinationContent: ArtworkShareContent?
+    @State private var systemShareContent: ArtworkShareContent?
 
     var body: some View {
         ScrollView {
@@ -82,6 +84,12 @@ struct ArtworkDetailView: View {
                     InfoRow(label: "国家", value: artwork.country)
                     InfoRow(label: "馆藏", value: artwork.repository)
 
+                    Text(artwork.museumID.copyrightNotice)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 8)
+                        .frame(maxWidth: .infinity)
+                        .multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -90,6 +98,16 @@ struct ArtworkDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                if let shareContent = ArtworkShareContent(artwork: artwork) {
+                    Button {
+                        shareDestinationContent = shareContent
+                    } label: {
+                        Label("分享", systemImage: "square.and.arrow.up")
+                            .labelStyle(.iconOnly)
+                    }
+                    .accessibilityLabel("分享")
+                }
+
                 if let url = artwork.objectURL {
                     Link(destination: url) {
                         Label("官网", systemImage: "safari")
@@ -113,6 +131,18 @@ struct ArtworkDetailView: View {
                 initialImage: loadedPreviewImage,
                 imageURL: artwork.primaryImageURL ?? artwork.primaryImageSmallURL
             )
+        }
+        .sheet(item: $shareDestinationContent) { shareContent in
+            ArtworkShareDestinationSheet(content: shareContent) { selectedContent in
+                DispatchQueue.main.async {
+                    systemShareContent = selectedContent
+                }
+            }
+            .presentationDetents([.height(260)])
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $systemShareContent) { shareContent in
+            ArtworkOtherAppsShareSheet(text: shareContent.plainText)
         }
         .refreshable {
             await onRefresh()
@@ -172,6 +202,132 @@ struct ArtworkDetailView: View {
         }
         return loadedImageAspectRatio
     }
+}
+
+private struct ArtworkShareDestinationSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let content: ArtworkShareContent
+    let onShareToOtherApps: (ArtworkShareContent) -> Void
+
+    @State private var alertState: ShareActionAlertState?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("分享")
+                .font(.headline)
+
+            Text(content.plainText)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            shareButton(
+                title: "微信",
+                subtitle: "复制文案到剪贴板并跳转到微信",
+                systemImage: "message.fill",
+                tint: .green,
+                action: shareToWeChat
+            )
+
+            shareButton(
+                title: "其他 App",
+                subtitle: "以纯文本打开系统分享面板",
+                systemImage: "square.and.arrow.up",
+                tint: .accentColor
+            ) {
+                dismiss()
+                onShareToOtherApps(content)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(20)
+        .alert(item: $alertState) { state in
+            Alert(
+                title: Text(state.title),
+                message: Text(state.message),
+                dismissButton: .default(Text("知道了"))
+            )
+        }
+    }
+
+    private func shareButton(
+        title: String,
+        subtitle: String,
+        systemImage: String,
+        tint: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: systemImage)
+                    .font(.title3.weight(.semibold))
+                    .frame(width: 24)
+                    .foregroundStyle(tint)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Text(subtitle)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+            }
+            .padding(14)
+            .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func shareToWeChat() {
+        UIPasteboard.general.string = content.plainText
+
+        guard let weChatURL = URL(string: "weixin://") else {
+            return
+        }
+
+        guard UIApplication.shared.canOpenURL(weChatURL) else {
+            alertState = ShareActionAlertState(
+                title: "无法打开微信",
+                message: "分享内容已复制到剪贴板，请手动打开微信粘贴发送。"
+            )
+            return
+        }
+
+        dismiss()
+        UIApplication.shared.open(weChatURL)
+    }
+}
+
+private struct ArtworkOtherAppsShareSheet: UIViewControllerRepresentable {
+    let text: String
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(
+            activityItems: [text],
+            applicationActivities: nil
+        )
+        controller.excludedActivityTypes = [
+            UIActivity.ActivityType("com.tencent.xin.session"),
+            UIActivity.ActivityType("com.tencent.xin.sharetimeline")
+        ]
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+private struct ShareActionAlertState: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
 }
 
 private struct ArtworkImagePreviewView: View {

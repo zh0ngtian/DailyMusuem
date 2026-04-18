@@ -85,6 +85,10 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    var copyrightNotice: String {
+        "©\(displayName) 版权所有"
+    }
+
     var defaultTranslationSourceLanguage: String {
         switch self {
         case .met:

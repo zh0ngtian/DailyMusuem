@@ -4,7 +4,7 @@ enum LogTimestampFormatter {
     private static let formattingLocale = Locale(identifier: "en_US_POSIX")
 
     static func requestLogTimestamp(from date: Date, timeZone: TimeZone = .autoupdatingCurrent) -> String {
-        let components = dateComponents(for: date, timeZone: timeZone)
+        let (components, microseconds) = normalizedTimeParts(for: date, timeZone: timeZone)
         return String(
             format: "%02d-%02d %02d:%02d:%02d.%06d",
             locale: formattingLocale,
@@ -13,19 +13,19 @@ enum LogTimestampFormatter {
             components.hour ?? 0,
             components.minute ?? 0,
             components.second ?? 0,
-            microseconds(from: components.nanosecond)
+            microseconds
         )
     }
 
     static func feedLogTimestamp(from date: Date, timeZone: TimeZone = .autoupdatingCurrent) -> String {
-        let components = dateComponents(for: date, timeZone: timeZone)
+        let (components, microseconds) = normalizedTimeParts(for: date, timeZone: timeZone)
         return String(
             format: "%02d:%02d:%02d.%06d",
             locale: formattingLocale,
             components.hour ?? 0,
             components.minute ?? 0,
             components.second ?? 0,
-            microseconds(from: components.nanosecond)
+            microseconds
         )
     }
 
@@ -39,8 +39,19 @@ enum LogTimestampFormatter {
         )
     }
 
+    private static func normalizedTimeParts(for date: Date, timeZone: TimeZone) -> (DateComponents, Int) {
+        let components = dateComponents(for: date, timeZone: timeZone)
+        let roundedMicroseconds = microseconds(from: components.nanosecond)
+        guard roundedMicroseconds == 1_000_000 else {
+            return (components, roundedMicroseconds)
+        }
+
+        let carriedDate = date.addingTimeInterval(1)
+        return (dateComponents(for: carriedDate, timeZone: timeZone), 0)
+    }
+
     private static func microseconds(from nanosecond: Int?) -> Int {
-        let value = (nanosecond ?? 0) / 1_000
-        return min(max(value, 0), 999_999)
+        let value = Int((Double(nanosecond ?? 0) / 1_000).rounded())
+        return min(max(value, 0), 1_000_000)
     }
 }
