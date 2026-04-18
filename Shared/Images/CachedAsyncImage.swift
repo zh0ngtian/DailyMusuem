@@ -6,6 +6,7 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
     private let content: (Image) -> Content
     private let placeholder: () -> Placeholder
     private let onImageSize: ((CGSize) -> Void)?
+    private let onUIImageLoaded: ((UIImage) -> Void)?
 
     @StateObject private var loader: ImageLoader
     @Environment(\.scenePhase) private var scenePhase
@@ -14,12 +15,14 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
         url: URL?,
         @ViewBuilder content: @escaping (Image) -> Content,
         @ViewBuilder placeholder: @escaping () -> Placeholder,
-        onImageSize: ((CGSize) -> Void)? = nil
+        onImageSize: ((CGSize) -> Void)? = nil,
+        onUIImageLoaded: ((UIImage) -> Void)? = nil
     ) {
         self.url = url
         self.content = content
         self.placeholder = placeholder
         self.onImageSize = onImageSize
+        self.onUIImageLoaded = onUIImageLoaded
         _loader = StateObject(wrappedValue: ImageLoader(url: url))
     }
 
@@ -29,17 +32,28 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
                 let size = uiImage.size
                 content(Image(uiImage: uiImage))
                     .onAppear {
-                        onImageSize?(size)
+                        handleLoadedImage(uiImage, size: size)
                     }
             } else {
                 placeholder()
             }
         }
         .onAppear { loader.load() }
+        .onReceive(loader.$image) { newImage in
+            guard let newImage else {
+                return
+            }
+            handleLoadedImage(newImage, size: newImage.size)
+        }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 loader.retryIfNeeded()
             }
         }
+    }
+
+    private func handleLoadedImage(_ uiImage: UIImage, size: CGSize) {
+        onImageSize?(size)
+        onUIImageLoaded?(uiImage)
     }
 }
