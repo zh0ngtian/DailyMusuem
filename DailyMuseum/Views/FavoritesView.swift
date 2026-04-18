@@ -1,6 +1,11 @@
 import SwiftUI
 
 struct FavoritesView: View {
+    private enum Constants {
+        static let horizontalPadding: CGFloat = 12
+        static let rowVerticalPadding: CGFloat = 6
+    }
+
     @StateObject private var favorites = FavoritesStore.shared
     @StateObject private var settings = SettingsStore.shared
     @State private var selectedArtworkReference: ArtworkReference?
@@ -23,30 +28,32 @@ struct FavoritesView: View {
             } else {
                 List {
                     ForEach(sections) { section in
-                        Section(section.title) {
+                        Section {
                             ForEach(section.items) { snapshot in
-                                Button {
-                                    selectedArtworkReference = snapshot.reference
-                                } label: {
-                                    ArtworkListRowCardView(artwork: snapshot.artwork)
-                                }
-                                .buttonStyle(.plain)
-                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                    Button(role: .destructive) {
-                                        removeFavorite(snapshot)
-                                    } label: {
-                                        Label("取消收藏", systemImage: "trash")
-                                    }
-                                }
-                                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.clear)
+                                favoriteButton(for: snapshot)
+                                    .listRowInsets(
+                                        EdgeInsets(
+                                            top: Constants.rowVerticalPadding,
+                                            leading: Constants.horizontalPadding,
+                                            bottom: Constants.rowVerticalPadding,
+                                            trailing: Constants.horizontalPadding
+                                        )
+                                    )
+                                    .listRowSeparator(.hidden)
+                                    .listRowBackground(Color.clear)
                             }
+                        } header: {
+                            Text(section.title)
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                                .textCase(nil)
+                                .padding(.leading, 4)
                         }
                     }
                 }
-                .listStyle(.insetGrouped)
+                .listStyle(.plain)
                 .scrollContentBackground(.hidden)
+                .contentMargins(.top, 12, for: .scrollContent)
                 .background(Color(.systemGroupedBackground))
             }
         }
@@ -64,5 +71,21 @@ struct FavoritesView: View {
         }
 
         favorites.removeFavorite(museumID: snapshot.museumID, objectID: snapshot.objectID)
+    }
+
+    private func favoriteButton(for snapshot: FavoriteArtworkSnapshot) -> some View {
+        Button {
+            selectedArtworkReference = snapshot.reference
+        } label: {
+            ArtworkListRowCardView(artwork: snapshot.artwork)
+        }
+        .buttonStyle(.plain)
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button(role: .destructive) {
+                removeFavorite(snapshot)
+            } label: {
+                Label("取消收藏", systemImage: "trash")
+            }
+        }
     }
 }

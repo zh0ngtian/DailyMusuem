@@ -18,6 +18,7 @@ struct ArtworkDetailView: View {
 
     @State private var isShowingImagePreview = false
     @State private var loadedPreviewImage: UIImage?
+    @State private var loadedImageAspectRatio: CGFloat?
 
     var body: some View {
         ScrollView {
@@ -31,11 +32,20 @@ struct ArtworkDetailView: View {
                             image
                                 .resizable()
                                 .scaledToFit()
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .contentShape(Rectangle())
                         .buttonStyle(.plain)
                     },
                     placeholder: {
                         detailPlaceholderImage
+                    },
+                    onImageSize: { size in
+                        guard size.width > 0, size.height > 0 else {
+                            return
+                        }
+                        loadedImageAspectRatio = size.width / size.height
                     },
                     onUIImageLoaded: { uiImage in
                         loadedPreviewImage = uiImage
@@ -45,7 +55,7 @@ struct ArtworkDetailView: View {
                 .accessibilityAddTraits(.isButton)
                 .id(imageReloadToken)
                 .frame(maxWidth: .infinity)
-                .aspectRatio(effectivePlaceholderAspectRatio, contentMode: .fit)
+                .aspectRatio(effectiveImageAspectRatio, contentMode: .fit)
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 10) {
@@ -109,6 +119,7 @@ struct ArtworkDetailView: View {
         }
         .onChange(of: imageReloadToken) { _, _ in
             loadedPreviewImage = nil
+            loadedImageAspectRatio = nil
         }
     }
 
@@ -151,6 +162,15 @@ struct ArtworkDetailView: View {
             return Constants.placeholderAspectRatio
         }
         return placeholderAspectRatio
+    }
+
+    private var effectiveImageAspectRatio: CGFloat {
+        guard let loadedImageAspectRatio,
+              loadedImageAspectRatio.isFinite,
+              loadedImageAspectRatio > 0 else {
+            return effectivePlaceholderAspectRatio
+        }
+        return loadedImageAspectRatio
     }
 }
 

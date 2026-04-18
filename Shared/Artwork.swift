@@ -105,11 +105,9 @@ struct Artwork: Identifiable, Hashable, Codable {
             .replacingOccurrences(of: "(?i)</p>", with: "\n\n", options: .regularExpression)
             .replacingOccurrences(of: "(?i)<p[^>]*>", with: "", options: .regularExpression)
             .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "&nbsp;", with: " ")
-            .replacingOccurrences(of: "&#39;", with: "'")
-            .replacingOccurrences(of: "&#x27;", with: "'")
             .components(separatedBy: .newlines)
             .map(Self.cleanDescriptionLine)
+            .map { $0.decodingCommonHTMLEntities() }
             .filter { !$0.isEmpty }
             .joined(separator: "\n")
             .replacingOccurrences(of: "\\n{3,}", with: "\n\n", options: .regularExpression)
@@ -171,5 +169,68 @@ struct Artwork: Identifiable, Hashable, Codable {
         )
 
         return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+extension String {
+    func decodingCommonHTMLEntities() -> String {
+        let namedEntities: [(String, String)] = [
+            ("&nbsp;", " "),
+            ("&amp;", "&"),
+            ("&lt;", "<"),
+            ("&gt;", ">"),
+            ("&quot;", "\""),
+            ("&apos;", "'"),
+            ("&#39;", "'"),
+            ("&#x27;", "'"),
+            ("&ldquo;", "\""),
+            ("&rdquo;", "\""),
+            ("&lsquo;", "'"),
+            ("&rsquo;", "'"),
+            ("&ndash;", "–"),
+            ("&mdash;", "—"),
+            ("&hellip;", "…"),
+            ("&middot;", "·")
+        ]
+
+        let replacedNamedEntities = namedEntities.reduce(self) { partialResult, entity in
+            partialResult.replacingOccurrences(of: entity.0, with: entity.1)
+        }
+
+        guard let regex = try? NSRegularExpression(pattern: #"&#(x?[0-9A-Fa-f]+);"#) else {
+            return replacedNamedEntities
+        }
+
+        let fullRange = NSRange(replacedNamedEntities.startIndex..., in: replacedNamedEntities)
+        let matches = regex.matches(in: replacedNamedEntities, options: [], range: fullRange)
+
+        guard !matches.isEmpty else {
+            return replacedNamedEntities
+        }
+
+        var decoded = replacedNamedEntities
+        for match in matches.reversed() {
+            guard let entityRange = Range(match.range(at: 0), in: decoded),
+                  let valueRange = Range(match.range(at: 1), in: decoded) else {
+                continue
+            }
+
+            let rawValue = String(decoded[valueRange])
+            let scalarValue: UInt32?
+            if rawValue.lowercased().hasPrefix("x") {
+                scalarValue = UInt32(rawValue.dropFirst(), radix: 16)
+            } else {
+                scalarValue = UInt32(rawValue, radix: 10)
+            }
+
+            guard let scalarValue,
+                  let scalar = UnicodeScalar(scalarValue) else {
+                continue
+            }
+
+            decoded.replaceSubrange(entityRange, with: String(scalar))
+        }
+
+        return decoded
     }
 }

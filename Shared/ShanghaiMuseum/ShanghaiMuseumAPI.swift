@@ -1082,16 +1082,7 @@ private actor ShanghaiMuseumRequestThrottle {
 private extension String {
     var htmlDecodedText: String {
         self
-            .replacingOccurrences(of: "&nbsp;", with: " ")
-            .replacingOccurrences(of: "&amp;", with: "&")
-            .replacingOccurrences(of: "&lt;", with: "<")
-            .replacingOccurrences(of: "&gt;", with: ">")
-            .replacingOccurrences(of: "&quot;", with: "\"")
-            .replacingOccurrences(of: "&#39;", with: "'")
-            .replacingOccurrences(of: "&#x27;", with: "'")
-            .replacingOccurrences(of: "&ldquo;", with: "\"")
-            .replacingOccurrences(of: "&rdquo;", with: "\"")
-            .replacingOccurrences(of: "&middot;", with: "·")
+            .decodingCommonHTMLEntities()
             .replacingOccurrences(of: "<br\\s*/?>", with: "\n", options: .regularExpression)
             .replacingOccurrences(of: "</p>", with: "\n", options: .regularExpression)
             .replacingOccurrences(of: "</li>", with: "\n", options: .regularExpression)
