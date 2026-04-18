@@ -3,113 +3,121 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 63;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
 		010B92CC939F14CA27C2A0FB /* JapanSearchPersistentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81AF35BA5DF051D95514488B /* JapanSearchPersistentCache.swift */; };
-		0B60E7E46431A00100000001 /* NationalMuseumChinaAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B60E7E46431A00100000005 /* NationalMuseumChinaAPI.swift */; };
-		0B60E7E46431A00100000002 /* NationalMuseumChinaAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B60E7E46431A00100000005 /* NationalMuseumChinaAPI.swift */; };
-		AA0000000000000000000003 /* WidgetArtworkSnapshotStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000001 /* WidgetArtworkSnapshotStoreTests.swift */; };
-		C1A2B3C4D5E6F708192A3B4D /* LogTimestampFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A2B3C4D5E6F708192A3B4C /* LogTimestampFormatter.swift */; };
-		C1A2B3C4D5E6F708192A3B4E /* LogTimestampFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A2B3C4D5E6F708192A3B4C /* LogTimestampFormatter.swift */; };
-		C1A2B3C4D5E6F708192A3B4F /* LogTimestampFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A2B3C4D5E6F708192A3B4C /* LogTimestampFormatter.swift */; };
-		AA000000000000000000000E /* RequestLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0773F3ED0D9C2C7D00381424 /* RequestLogger.swift */; };
-		AA000000000000000000000F /* SettingsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD5690663479FBDA165A96B /* SettingsKeys.swift */; };
-		AA0000000000000000000010 /* WidgetArtworkSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C479641DC62C47615D086EE /* WidgetArtworkSnapshotStore.swift */; };
-		AA0000000000000000000011 /* CoreLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000022 /* CoreLogicTests.swift */; };
-		AA0000000000000000000012 /* WidgetStateAndSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000023 /* WidgetStateAndSettingsTests.swift */; };
-		AA0000000000000000000013 /* ParsingAndAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000024 /* ParsingAndAPITests.swift */; };
-		AA0000000000000000000014 /* AppDeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 217B48EE2D107B1146488C81 /* AppDeepLink.swift */; };
-		AA0000000000000000000015 /* Artwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6236876208BA288526D7D379 /* Artwork.swift */; };
-		AA0000000000000000000016 /* Museum.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22F7ECE0FEA6838A9CA48031 /* Museum.swift */; };
-		AA0000000000000000000017 /* JapanSearchAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFDCEFCEFAE0A60F402972CF /* JapanSearchAPI.swift */; };
-		AA0000000000000000000018 /* JapanSearchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9000674963F093B5BC9FE7 /* JapanSearchModels.swift */; };
-		AA0000000000000000000019 /* JapanSearchPersistentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81AF35BA5DF051D95514488B /* JapanSearchPersistentCache.swift */; };
-		AA000000000000000000001A /* MetMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DE3B16D47B38730CD4475CE /* MetMuseumAPI.swift */; };
-		AA000000000000000000001B /* MetMuseumModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63E587269ECC706F1F22C266 /* MetMuseumModels.swift */; };
-		AA000000000000000000001C /* MetMuseumPersistentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B767DED860727F7B1D106D3E /* MetMuseumPersistentCache.swift */; };
-		AA000000000000000000001D /* NationalMuseumChinaAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B60E7E46431A00100000005 /* NationalMuseumChinaAPI.swift */; };
-		AA000000000000000000001E /* WidgetMuseumScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 785DF258A9365EE2171A1EDA /* WidgetMuseumScope.swift */; };
-		AA0000000000000000000020 /* WidgetRefreshDeliveryTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5C2D137F4A14D27A0010002 /* WidgetRefreshDeliveryTracker.swift */; };
-		AA0000000000000000000021 /* WidgetSettingsReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFEC49CE4C55DCDEA5364224 /* WidgetSettingsReader.swift */; };
-		AA0000000000000000000040 /* ShanghaiMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13F0E36D4A24301B00C1003 /* ShanghaiMuseumAPI.swift */; };
-		AA0000000000000000000031 /* WidgetManualRefreshRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000030 /* WidgetManualRefreshRunner.swift */; };
-		AA0000000000000000000032 /* WidgetManualRefreshRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000030 /* WidgetManualRefreshRunner.swift */; };
-		AA0000000000000000000033 /* WidgetArtworkService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDB91ABFDF5059FE1FCE0687 /* WidgetArtworkService.swift */; };
-		AA0000000000000000000034 /* WidgetArtworkSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C479641DC62C47615D086EE /* WidgetArtworkSnapshotStore.swift */; };
-		AA0000000000000000000035 /* WidgetRefreshDeliveryTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5C2D137F4A14D27A0010002 /* WidgetRefreshDeliveryTracker.swift */; };
-		AA0000000000000000000036 /* WidgetSettingsReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFEC49CE4C55DCDEA5364224 /* WidgetSettingsReader.swift */; };
-		AA0000000000000000000038 /* WidgetManualRefreshSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000037 /* WidgetManualRefreshSupport.swift */; };
-		AA0000000000000000000029 /* met-overview.html in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000026 /* met-overview.html */; };
-		AA000000000000000000002A /* met-meta-fallback.html in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000027 /* met-meta-fallback.html */; };
-		AA000000000000000000002B /* nmc-detail.html in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000028 /* nmc-detail.html */; };
-		A13F0E36D4A24301B00C1001 /* ShanghaiMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13F0E36D4A24301B00C1003 /* ShanghaiMuseumAPI.swift */; };
-		A13F0E36D4A24301B00C1002 /* ShanghaiMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13F0E36D4A24301B00C1003 /* ShanghaiMuseumAPI.swift */; };
+		014375A5D184F881FD7070C1 /* WidgetManualRefreshRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5BCD57FB86FC7D9454A8587 /* WidgetManualRefreshRunner.swift */; };
+		0221CE15D7D3E4EDE27D79FC /* ArtworkListRowCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B534D07A84678EB11A2A0F5 /* ArtworkListRowCardView.swift */; };
 		048A14DA9BBF5DC796231307 /* MuseumListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB101B5E24D3739851DC6A22 /* MuseumListView.swift */; };
 		076F9714F7BD5FF4BB3C9548 /* DailyMuseumWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 677E368A7DD1F542B480E2C3 /* DailyMuseumWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		07D7736A77F39CB6028E891B /* ArtworkFeedItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71CBDD45FB2452D4E907C758 /* ArtworkFeedItem.swift */; };
+		090F68A2DF9313C3F0E986FC /* RequestLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0773F3ED0D9C2C7D00381424 /* RequestLogger.swift */; };
 		09B43AA4EB71B869B66F2569 /* MetMuseumPersistentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B767DED860727F7B1D106D3E /* MetMuseumPersistentCache.swift */; };
 		0C29EBB7118BA7DA8620B6F1 /* ArtworkCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3069A0CBA34322E131468A6 /* ArtworkCardView.swift */; };
 		10425B44D3DC479F9D20FE9C /* MetMuseumModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63E587269ECC706F1F22C266 /* MetMuseumModels.swift */; };
 		10BFA44C9A4240C5EBF57018 /* SettingsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD5690663479FBDA165A96B /* SettingsKeys.swift */; };
+		14B082D6FFDB65D6DA0F9EB7 /* WidgetStateAndSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E85039D52D33451509A0868 /* WidgetStateAndSettingsTests.swift */; };
+		164B18A892946803105F93B3 /* nmc-detail.html in Resources */ = {isa = PBXBuildFile; fileRef = BD550F604C3CC2B156729689 /* nmc-detail.html */; };
 		19972E0AC511408E6B230C44 /* ArtworkFeedCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EC70DA2766D6FFD98283BC4 /* ArtworkFeedCache.swift */; };
+		1A5FF2DFAC46F3920B6A67E4 /* AppDeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 217B48EE2D107B1146488C81 /* AppDeepLink.swift */; };
+		1E1E769E8F11B29392A69DE5 /* met-meta-fallback.html in Resources */ = {isa = PBXBuildFile; fileRef = C48CE0EBDA0C27F939506A95 /* met-meta-fallback.html */; };
+		1F31599DB4A916708584C85F /* LogTimestampFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63B74CA27ECF1DE6E23D8E0F /* LogTimestampFormatter.swift */; };
+		202A66A894794C852608588A /* LogTimestampFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63B74CA27ECF1DE6E23D8E0F /* LogTimestampFormatter.swift */; };
+		207957B9F0BC89033407E721 /* ShanghaiMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04279914561DC56D5FA7C7E0 /* ShanghaiMuseumAPI.swift */; };
 		23C3A7F80D86D0CE04456893 /* MetMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DE3B16D47B38730CD4475CE /* MetMuseumAPI.swift */; };
+		2504A1D7A159B9476755E503 /* WidgetRefreshDeliveryTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30FEFFA3E3CD614C956FEA98 /* WidgetRefreshDeliveryTracker.swift */; };
 		2580F721762415DE7E4269A9 /* RequestLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F3052397EB170BF0730F5B4 /* RequestLogsView.swift */; };
 		25F50C06099559E4DBB10D2C /* SettingsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD5690663479FBDA165A96B /* SettingsKeys.swift */; };
+		26E380BEA06C51547FE13415 /* MuseumRequestCachePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B261DB738D9FD5711A2D6ED /* MuseumRequestCachePolicy.swift */; };
 		27A16A60F3963299A690DE5E /* JapanSearchAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFDCEFCEFAE0A60F402972CF /* JapanSearchAPI.swift */; };
+		2DF453C26258E1256FC88944 /* SettingsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD5690663479FBDA165A96B /* SettingsKeys.swift */; };
 		359187C2F581E0B49E2DFE3F /* MetMuseumPersistentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B767DED860727F7B1D106D3E /* MetMuseumPersistentCache.swift */; };
 		39EF46DCBA1A93ADAB139396 /* RequestLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0773F3ED0D9C2C7D00381424 /* RequestLogger.swift */; };
+		3C76032D89CE9DB40E9A91B5 /* WidgetManualRefreshRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5BCD57FB86FC7D9454A8587 /* WidgetManualRefreshRunner.swift */; };
+		3CEB39B09A6657F163706A4B /* MuseumRequestCachePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B261DB738D9FD5711A2D6ED /* MuseumRequestCachePolicy.swift */; };
 		3E9E2BDFE01616ACE8B45CE8 /* DailyMuseumApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66FE9D0B5E8CBC6277FA891B /* DailyMuseumApp.swift */; };
+		45F068DBFB984692247FF054 /* FavoritesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3101F293FCA2DD99BB88661C /* FavoritesView.swift */; };
+		46D15A1FFC5F33AEF41388A2 /* JapanSearchAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFDCEFCEFAE0A60F402972CF /* JapanSearchAPI.swift */; };
+		4763B0241317625657255B1E /* WidgetArtworkSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C479641DC62C47615D086EE /* WidgetArtworkSnapshotStore.swift */; };
 		47875A95039007E1D161ABF1 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EEE448C8964D21F694014F7 /* RootView.swift */; };
+		48ADEC2F139C0580ECCD8474 /* WidgetRefreshDeliveryTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30FEFFA3E3CD614C956FEA98 /* WidgetRefreshDeliveryTracker.swift */; };
+		4A52AADAA05E981E758DC0CB /* FavoritesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59C380E89F1FC0CACD45A21B /* FavoritesStore.swift */; };
+		4B2F819053D552D94899A3A0 /* FavoritesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59C380E89F1FC0CACD45A21B /* FavoritesStore.swift */; };
 		4CDB8F310780177AFF08146B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D2E9FEFE6D6787330AAA0104 /* Assets.xcassets */; };
 		5601240D9836EF70D90487A0 /* ArtworkFeedViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27983725A26AC36A5EA28756 /* ArtworkFeedViewModel.swift */; };
+		5610487BA191F1B6C6E8AE02 /* WidgetSettingsReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFEC49CE4C55DCDEA5364224 /* WidgetSettingsReader.swift */; };
 		5875B0F754457BC5643B7F8B /* JapanSearchAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFDCEFCEFAE0A60F402972CF /* JapanSearchAPI.swift */; };
 		5CC00FF6639BCA691EC911D4 /* RefreshWidgetIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DB226201B7F579BFCF07E7A /* RefreshWidgetIntent.swift */; };
 		5CD44E4C3C51F0C9DC86B62C /* ArtworkFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56BD6F2F27B9A4E39394EB50 /* ArtworkFeedView.swift */; };
+		604D80758FBC9229EF6232A3 /* NationalMuseumChinaAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 197FEFC5FEC3B51DB5E4F537 /* NationalMuseumChinaAPI.swift */; };
+		613EB3DC359C2C75B6798013 /* JapanSearchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9000674963F093B5BC9FE7 /* JapanSearchModels.swift */; };
 		626A4F3FABA4F40BF4F5B669 /* RequestLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0773F3ED0D9C2C7D00381424 /* RequestLogger.swift */; };
+		6C7D299EDB5EEBF0D7E2492A /* NationalMuseumChinaAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 197FEFC5FEC3B51DB5E4F537 /* NationalMuseumChinaAPI.swift */; };
+		6DAE6E8652B53C8FAB50973F /* WidgetMuseumScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 785DF258A9365EE2171A1EDA /* WidgetMuseumScope.swift */; };
 		6E98875786462837438D5333 /* ImageMemoryCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFBFD7C33C4CE48C10423B05 /* ImageMemoryCache.swift */; };
 		752579CACD31E606674EED80 /* Museum.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22F7ECE0FEA6838A9CA48031 /* Museum.swift */; };
 		768CB71B07681723D487B0E7 /* Artwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6236876208BA288526D7D379 /* Artwork.swift */; };
 		7D49ED0C055B49ADF0BB67BA /* ArtworkFeedCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EC70DA2766D6FFD98283BC4 /* ArtworkFeedCache.swift */; };
 		7D7B4261C7FDB3E5EF55DC31 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D567DE125D65B4BF7B005CEA /* SettingsStore.swift */; };
+		828BB63598930EDF4CE1D542 /* ParsingAndAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AB578154F6CB44C5B73D6FD /* ParsingAndAPITests.swift */; };
 		85112783CD28996B11A9101D /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D567DE125D65B4BF7B005CEA /* SettingsStore.swift */; };
+		85717FAD517234673788BBE6 /* WidgetSettingsReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFEC49CE4C55DCDEA5364224 /* WidgetSettingsReader.swift */; };
 		85FB6736A90863BAE99FAC83 /* JapanSearchPersistentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81AF35BA5DF051D95514488B /* JapanSearchPersistentCache.swift */; };
+		871AEAA835A3CAEF21587F92 /* WidgetArtworkSnapshotStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE70EA404100D32A48865F90 /* WidgetArtworkSnapshotStoreTests.swift */; };
 		87F6CECE8690A90AE55AC7B8 /* JapanSearchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9000674963F093B5BC9FE7 /* JapanSearchModels.swift */; };
+		8AA9F4124D1ECEB6AE2B42BC /* MetMuseumPersistentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B767DED860727F7B1D106D3E /* MetMuseumPersistentCache.swift */; };
 		8CC0195C8ECB3BBE91FA8E12 /* ArtworkFeedViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27983725A26AC36A5EA28756 /* ArtworkFeedViewModel.swift */; };
+		96F201E336F9C153509002C3 /* CoreLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5EEE2EB1580589947A6FEDA /* CoreLogicTests.swift */; };
 		9DA9630412EDAEFDE3EAC41E /* AppRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D49DEAE0ACDF038EE933986B /* AppRouter.swift */; };
-		A1B2C3D4E5F60718293A4B5C /* AppShortcutHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5D /* AppShortcutHandler.swift */; };
+		A160B9CD7430EE891181FA94 /* met-overview.html in Resources */ = {isa = PBXBuildFile; fileRef = 15CC322130D2C36A4D586EC3 /* met-overview.html */; };
+		A38484C2185A31CF1C746E1F /* FavoritesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59C380E89F1FC0CACD45A21B /* FavoritesStore.swift */; };
 		A9A3F24657BDD51957EA848B /* DailyMuseumWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41E30B7CB5F9A6C88D27C0C2 /* DailyMuseumWidgetView.swift */; };
 		A9EFC7883E19EBC1EF52F69D /* ArtworkDetailLoaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B2A7EA64F8C40563153939F /* ArtworkDetailLoaderView.swift */; };
-		B5C2D137F4A14D27A0010001 /* WidgetRefreshDeliveryTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5C2D137F4A14D27A0010002 /* WidgetRefreshDeliveryTracker.swift */; };
 		AC4FDD416DF8E33F134AD066 /* ImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BA863EC7AE41653AA5A9382 /* ImageLoader.swift */; };
+		AC9A30889523ECD67B0C6F2E /* WidgetArtworkSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C479641DC62C47615D086EE /* WidgetArtworkSnapshotStore.swift */; };
 		ACA3EEF08B67CEBD295D3A96 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FABED403F7CD2A9A4E6D1FEB /* LaunchScreen.storyboard */; };
+		B7533C6D8A41BD65DC1B91C7 /* ShanghaiMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04279914561DC56D5FA7C7E0 /* ShanghaiMuseumAPI.swift */; };
 		BA503B583A43593254FC7A8E /* ArtworkFeedItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71CBDD45FB2452D4E907C758 /* ArtworkFeedItem.swift */; };
 		BB4EB0811A3E804BBA440AEF /* CachedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7C1FAD7D063813D4D6C9F2A /* CachedAsyncImage.swift */; };
 		BCB4A26C7A84A6F6DA20EF02 /* ImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BA863EC7AE41653AA5A9382 /* ImageLoader.swift */; };
 		BE339BFB1CB1E63EA1C63F84 /* WidgetMuseumScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 785DF258A9365EE2171A1EDA /* WidgetMuseumScope.swift */; };
+		C196A854993FEC75D12539BE /* JapanSearchPersistentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81AF35BA5DF051D95514488B /* JapanSearchPersistentCache.swift */; };
+		C807F84E57178E093DE6064D /* WidgetRefreshDeliveryTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30FEFFA3E3CD614C956FEA98 /* WidgetRefreshDeliveryTracker.swift */; };
 		CED1F1FA337791BFC579A74C /* JapanSearchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9000674963F093B5BC9FE7 /* JapanSearchModels.swift */; };
 		D196A25010220D77782341EC /* DailyMuseumWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA2C496990992A4623A8A9C9 /* DailyMuseumWidgetBundle.swift */; };
+		D222D68A2DF97D3D2721196A /* ShanghaiMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04279914561DC56D5FA7C7E0 /* ShanghaiMuseumAPI.swift */; };
+		D42C8238EF8C0D8582535336 /* MetMuseumModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63E587269ECC706F1F22C266 /* MetMuseumModels.swift */; };
+		D6F07A89D69991764AEC6902 /* FavoritesStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 090F116BD2F05BC2CB7C3DC7 /* FavoritesStoreTests.swift */; };
 		D70FAF2FDD8A6B78C62DDA9D /* Artwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6236876208BA288526D7D379 /* Artwork.swift */; };
 		D7688FF2CCD4DDF0F7F6544D /* WidgetMuseumScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 785DF258A9365EE2171A1EDA /* WidgetMuseumScope.swift */; };
+		D8DA575A29B99005AD6A590F /* WidgetManualRefreshSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 966F79E2EE781E007C0663DE /* WidgetManualRefreshSupport.swift */; };
 		D92BF8CACC23E37738349E04 /* CachedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7C1FAD7D063813D4D6C9F2A /* CachedAsyncImage.swift */; };
+		E1CA2063A268CDC49E0512CB /* NationalMuseumChinaAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 197FEFC5FEC3B51DB5E4F537 /* NationalMuseumChinaAPI.swift */; };
+		E22BD293BEBC5DE722E82E26 /* Museum.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22F7ECE0FEA6838A9CA48031 /* Museum.swift */; };
 		E5A1A6D3D86B31E82DCADD4A /* ImageMemoryCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFBFD7C33C4CE48C10423B05 /* ImageMemoryCache.swift */; };
 		E6F45083BBEDF96C8635C070 /* WidgetArtworkSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C479641DC62C47615D086EE /* WidgetArtworkSnapshotStore.swift */; };
 		E7F14E6F91CEB38C95CF47CA /* MetMuseumModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63E587269ECC706F1F22C266 /* MetMuseumModels.swift */; };
+		E899CA41ABFEE0CC2009E85B /* MuseumRequestCachePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B261DB738D9FD5711A2D6ED /* MuseumRequestCachePolicy.swift */; };
 		EC1E9A6F5E8D8396F9E74410 /* Museum.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22F7ECE0FEA6838A9CA48031 /* Museum.swift */; };
 		EC267A915D0BAB50AE179CE6 /* AppDeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 217B48EE2D107B1146488C81 /* AppDeepLink.swift */; };
+		ECEEB099502FBD99207B7915 /* Artwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6236876208BA288526D7D379 /* Artwork.swift */; };
 		EDB9E6F8888D36C995A222B3 /* WidgetArtworkService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDB91ABFDF5059FE1FCE0687 /* WidgetArtworkService.swift */; };
 		EDCA33ABA853CDF8C3FE7FA5 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ACA67A0EFEEB5748BD15991 /* SettingsView.swift */; };
 		EE309BCCC53ECF316CA57CF3 /* DailyMuseumWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9F9F5A9C19616F19DCE43E /* DailyMuseumWidget.swift */; };
+		EF41EA911A12CAEEFA2C4BBA /* LogTimestampFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63B74CA27ECF1DE6E23D8E0F /* LogTimestampFormatter.swift */; };
 		F0AE0A1C3CC1749CBE7B804F /* WaterfallGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64A154303832F3F9AF23F141 /* WaterfallGrid.swift */; };
 		F47332D90352D1E9E64D26C4 /* ArtworkDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F45F7D1EF6D115D013098444 /* ArtworkDetailView.swift */; };
 		F5399D305E02913A1EC5AB10 /* MetMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DE3B16D47B38730CD4475CE /* MetMuseumAPI.swift */; };
+		F5F3A8D0A90A4DA91148C6BF /* MetMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DE3B16D47B38730CD4475CE /* MetMuseumAPI.swift */; };
 		FA0D5BE2C5BFAD512BE486C0 /* AppDeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 217B48EE2D107B1146488C81 /* AppDeepLink.swift */; };
+		FA1DFAF26C30C3811D3EE7D2 /* AppShortcutHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BFE471F94A682558E6A71A9 /* AppShortcutHandler.swift */; };
 		FA61C66FE799EE5EE5329728 /* WidgetSettingsReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFEC49CE4C55DCDEA5364224 /* WidgetSettingsReader.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		AA0000000000000000000007 /* PBXContainerItemProxy */ = {
+		3247B4B6829141B0AAC91498 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 18FE775B9DBF9FFF4EBCEC51 /* Project object */;
 			proxyType = 1;
@@ -140,66 +148,72 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		04279914561DC56D5FA7C7E0 /* ShanghaiMuseumAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShanghaiMuseumAPI.swift; sourceTree = "<group>"; };
 		0773F3ED0D9C2C7D00381424 /* RequestLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestLogger.swift; sourceTree = "<group>"; };
-		C1A2B3C4D5E6F708192A3B4C /* LogTimestampFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogTimestampFormatter.swift; sourceTree = "<group>"; };
+		090F116BD2F05BC2CB7C3DC7 /* FavoritesStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesStoreTests.swift; sourceTree = "<group>"; };
 		0ACA67A0EFEEB5748BD15991 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		15CC322130D2C36A4D586EC3 /* met-overview.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "met-overview.html"; sourceTree = "<group>"; };
+		197FEFC5FEC3B51DB5E4F537 /* NationalMuseumChinaAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NationalMuseumChinaAPI.swift; sourceTree = "<group>"; };
 		1B7AF25AA60373F1FEF52146 /* DailyMuseumWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DailyMuseumWidget.entitlements; sourceTree = "<group>"; };
+		1CA69050D6181865B9708213 /* DailyMuseumTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = DailyMuseumTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		217B48EE2D107B1146488C81 /* AppDeepLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDeepLink.swift; sourceTree = "<group>"; };
 		22F7ECE0FEA6838A9CA48031 /* Museum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Museum.swift; sourceTree = "<group>"; };
 		24DBCD6E661D8383B4C5F9E3 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		27983725A26AC36A5EA28756 /* ArtworkFeedViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkFeedViewModel.swift; sourceTree = "<group>"; };
+		30FEFFA3E3CD614C956FEA98 /* WidgetRefreshDeliveryTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetRefreshDeliveryTracker.swift; sourceTree = "<group>"; };
+		3101F293FCA2DD99BB88661C /* FavoritesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesView.swift; sourceTree = "<group>"; };
+		3AB578154F6CB44C5B73D6FD /* ParsingAndAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsingAndAPITests.swift; sourceTree = "<group>"; };
 		3EC70DA2766D6FFD98283BC4 /* ArtworkFeedCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkFeedCache.swift; sourceTree = "<group>"; };
 		41E30B7CB5F9A6C88D27C0C2 /* DailyMuseumWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyMuseumWidgetView.swift; sourceTree = "<group>"; };
 		4B2A7EA64F8C40563153939F /* ArtworkDetailLoaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkDetailLoaderView.swift; sourceTree = "<group>"; };
 		4E9000674963F093B5BC9FE7 /* JapanSearchModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JapanSearchModels.swift; sourceTree = "<group>"; };
 		56BD6F2F27B9A4E39394EB50 /* ArtworkFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkFeedView.swift; sourceTree = "<group>"; };
+		59C380E89F1FC0CACD45A21B /* FavoritesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesStore.swift; sourceTree = "<group>"; };
+		5B534D07A84678EB11A2A0F5 /* ArtworkListRowCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkListRowCardView.swift; sourceTree = "<group>"; };
 		5BA863EC7AE41653AA5A9382 /* ImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageLoader.swift; sourceTree = "<group>"; };
 		5BD5690663479FBDA165A96B /* SettingsKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsKeys.swift; sourceTree = "<group>"; };
 		6236876208BA288526D7D379 /* Artwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Artwork.swift; sourceTree = "<group>"; };
+		63B74CA27ECF1DE6E23D8E0F /* LogTimestampFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogTimestampFormatter.swift; sourceTree = "<group>"; };
 		63E587269ECC706F1F22C266 /* MetMuseumModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetMuseumModels.swift; sourceTree = "<group>"; };
 		64A154303832F3F9AF23F141 /* WaterfallGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaterfallGrid.swift; sourceTree = "<group>"; };
 		66FE9D0B5E8CBC6277FA891B /* DailyMuseumApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyMuseumApp.swift; sourceTree = "<group>"; };
-		677E368A7DD1F542B480E2C3 /* DailyMuseumWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DailyMuseumWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		677E368A7DD1F542B480E2C3 /* DailyMuseumWidgetExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = DailyMuseumWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		6B261DB738D9FD5711A2D6ED /* MuseumRequestCachePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuseumRequestCachePolicy.swift; sourceTree = "<group>"; };
 		71CBDD45FB2452D4E907C758 /* ArtworkFeedItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkFeedItem.swift; sourceTree = "<group>"; };
 		785DF258A9365EE2171A1EDA /* WidgetMuseumScope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetMuseumScope.swift; sourceTree = "<group>"; };
+		7BFE471F94A682558E6A71A9 /* AppShortcutHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShortcutHandler.swift; sourceTree = "<group>"; };
 		7C479641DC62C47615D086EE /* WidgetArtworkSnapshotStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetArtworkSnapshotStore.swift; sourceTree = "<group>"; };
 		81AF35BA5DF051D95514488B /* JapanSearchPersistentCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JapanSearchPersistentCache.swift; sourceTree = "<group>"; };
 		8EEE448C8964D21F694014F7 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		966F79E2EE781E007C0663DE /* WidgetManualRefreshSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetManualRefreshSupport.swift; sourceTree = "<group>"; };
 		9DB226201B7F579BFCF07E7A /* RefreshWidgetIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshWidgetIntent.swift; sourceTree = "<group>"; };
 		9DE3B16D47B38730CD4475CE /* MetMuseumAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetMuseumAPI.swift; sourceTree = "<group>"; };
+		9E85039D52D33451509A0868 /* WidgetStateAndSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetStateAndSettingsTests.swift; sourceTree = "<group>"; };
 		9F3052397EB170BF0730F5B4 /* RequestLogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestLogsView.swift; sourceTree = "<group>"; };
-		AA0000000000000000000001 /* WidgetArtworkSnapshotStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetArtworkSnapshotStoreTests.swift; sourceTree = "<group>"; };
-		AA0000000000000000000002 /* DailyMuseumTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DailyMuseumTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		AA0000000000000000000022 /* CoreLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreLogicTests.swift; sourceTree = "<group>"; };
-		AA0000000000000000000023 /* WidgetStateAndSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetStateAndSettingsTests.swift; sourceTree = "<group>"; };
-		AA0000000000000000000024 /* ParsingAndAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsingAndAPITests.swift; sourceTree = "<group>"; };
-		AA0000000000000000000026 /* met-overview.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "met-overview.html"; sourceTree = "<group>"; };
-		AA0000000000000000000027 /* met-meta-fallback.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "met-meta-fallback.html"; sourceTree = "<group>"; };
-		AA0000000000000000000028 /* nmc-detail.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "nmc-detail.html"; sourceTree = "<group>"; };
-		AA0000000000000000000030 /* WidgetManualRefreshRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetManualRefreshRunner.swift; sourceTree = "<group>"; };
-		AA0000000000000000000037 /* WidgetManualRefreshSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetManualRefreshSupport.swift; sourceTree = "<group>"; };
-		0B60E7E46431A00100000005 /* NationalMuseumChinaAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NationalMuseumChinaAPI.swift; sourceTree = "<group>"; };
 		A49931525A891BFC0604633C /* DailyMuseum.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DailyMuseum.entitlements; sourceTree = "<group>"; };
-		A1B2C3D4E5F60718293A4B5D /* AppShortcutHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShortcutHandler.swift; sourceTree = "<group>"; };
+		A5EEE2EB1580589947A6FEDA /* CoreLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreLogicTests.swift; sourceTree = "<group>"; };
 		AFEC49CE4C55DCDEA5364224 /* WidgetSettingsReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSettingsReader.swift; sourceTree = "<group>"; };
 		B3069A0CBA34322E131468A6 /* ArtworkCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkCardView.swift; sourceTree = "<group>"; };
-		B5C2D137F4A14D27A0010002 /* WidgetRefreshDeliveryTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetRefreshDeliveryTracker.swift; sourceTree = "<group>"; };
 		B767DED860727F7B1D106D3E /* MetMuseumPersistentCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetMuseumPersistentCache.swift; sourceTree = "<group>"; };
 		B7C1FAD7D063813D4D6C9F2A /* CachedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedAsyncImage.swift; sourceTree = "<group>"; };
+		BD550F604C3CC2B156729689 /* nmc-detail.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "nmc-detail.html"; sourceTree = "<group>"; };
 		BDB91ABFDF5059FE1FCE0687 /* WidgetArtworkService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetArtworkService.swift; sourceTree = "<group>"; };
 		BE28917A141154DC14C0AD37 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		BE9F9F5A9C19616F19DCE43E /* DailyMuseumWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyMuseumWidget.swift; sourceTree = "<group>"; };
-		CE050719A8E48E3DE4D76BBB /* DailyMuseum.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DailyMuseum.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C48CE0EBDA0C27F939506A95 /* met-meta-fallback.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "met-meta-fallback.html"; sourceTree = "<group>"; };
+		C5BCD57FB86FC7D9454A8587 /* WidgetManualRefreshRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetManualRefreshRunner.swift; sourceTree = "<group>"; };
+		CE050719A8E48E3DE4D76BBB /* DailyMuseum.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = DailyMuseum.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CFBFD7C33C4CE48C10423B05 /* ImageMemoryCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageMemoryCache.swift; sourceTree = "<group>"; };
 		D2E9FEFE6D6787330AAA0104 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		D49DEAE0ACDF038EE933986B /* AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouter.swift; sourceTree = "<group>"; };
 		D567DE125D65B4BF7B005CEA /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
+		D8FB41405B2CD9B79DB7E63A /* DailyMuseumWidgetAppGroup.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DailyMuseumWidgetAppGroup.entitlements; sourceTree = "<group>"; };
 		DA2C496990992A4623A8A9C9 /* DailyMuseumWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyMuseumWidgetBundle.swift; sourceTree = "<group>"; };
 		DB101B5E24D3739851DC6A22 /* MuseumListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuseumListView.swift; sourceTree = "<group>"; };
 		DFDCEFCEFAE0A60F402972CF /* JapanSearchAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JapanSearchAPI.swift; sourceTree = "<group>"; };
-		A13F0E36D4A24301B00C1003 /* ShanghaiMuseumAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShanghaiMuseumAPI.swift; sourceTree = "<group>"; };
 		F45F7D1EF6D115D013098444 /* ArtworkDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkDetailView.swift; sourceTree = "<group>"; };
 		FABED403F7CD2A9A4E6D1FEB /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		FE70EA404100D32A48865F90 /* WidgetArtworkSnapshotStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetArtworkSnapshotStoreTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -226,24 +240,16 @@
 		2D9E1AB212E9EA83BCC2C332 /* Logging */ = {
 			isa = PBXGroup;
 			children = (
-				C1A2B3C4D5E6F708192A3B4C /* LogTimestampFormatter.swift */,
+				63B74CA27ECF1DE6E23D8E0F /* LogTimestampFormatter.swift */,
 				0773F3ED0D9C2C7D00381424 /* RequestLogger.swift */,
 			);
 			path = Logging;
 			sourceTree = "<group>";
 		};
-		0B60E7E46431A00100000007 /* NationalMuseumChina */ = {
+		310C6DBA23F91DFEA7C144BB /* ShanghaiMuseum */ = {
 			isa = PBXGroup;
 			children = (
-				0B60E7E46431A00100000005 /* NationalMuseumChinaAPI.swift */,
-			);
-			path = NationalMuseumChina;
-			sourceTree = "<group>";
-		};
-		A13F0E36D4A24301B00C1004 /* ShanghaiMuseum */ = {
-			isa = PBXGroup;
-			children = (
-				A13F0E36D4A24301B00C1003 /* ShanghaiMuseumAPI.swift */,
+				04279914561DC56D5FA7C7E0 /* ShanghaiMuseumAPI.swift */,
 			);
 			path = ShanghaiMuseum;
 			sourceTree = "<group>";
@@ -252,8 +258,8 @@
 			isa = PBXGroup;
 			children = (
 				CE050719A8E48E3DE4D76BBB /* DailyMuseum.app */,
+				1CA69050D6181865B9708213 /* DailyMuseumTests.xctest */,
 				677E368A7DD1F542B480E2C3 /* DailyMuseumWidgetExtension.appex */,
-				AA0000000000000000000002 /* DailyMuseumTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -271,15 +277,15 @@
 		540C4352AA99A790037E6727 /* DailyMuseum */ = {
 			isa = PBXGroup;
 			children = (
-				A1B2C3D4E5F60718293A4B5D /* AppShortcutHandler.swift */,
 				D49DEAE0ACDF038EE933986B /* AppRouter.swift */,
+				7BFE471F94A682558E6A71A9 /* AppShortcutHandler.swift */,
 				D2E9FEFE6D6787330AAA0104 /* Assets.xcassets */,
 				A49931525A891BFC0604633C /* DailyMuseum.entitlements */,
 				66FE9D0B5E8CBC6277FA891B /* DailyMuseumApp.swift */,
 				BE28917A141154DC14C0AD37 /* Info.plist */,
 				FABED403F7CD2A9A4E6D1FEB /* LaunchScreen.storyboard */,
 				8EEE448C8964D21F694014F7 /* RootView.swift */,
-				AA0000000000000000000037 /* WidgetManualRefreshSupport.swift */,
+				966F79E2EE781E007C0663DE /* WidgetManualRefreshSupport.swift */,
 				96410B48990ECD7B7D8727C1 /* Views */,
 			);
 			path = DailyMuseum;
@@ -291,50 +297,42 @@
 				217B48EE2D107B1146488C81 /* AppDeepLink.swift */,
 				6236876208BA288526D7D379 /* Artwork.swift */,
 				22F7ECE0FEA6838A9CA48031 /* Museum.swift */,
-				AA0000000000000000000030 /* WidgetManualRefreshRunner.swift */,
+				6B261DB738D9FD5711A2D6ED /* MuseumRequestCachePolicy.swift */,
+				C5BCD57FB86FC7D9454A8587 /* WidgetManualRefreshRunner.swift */,
 				5225386D7CA9D444567A323F /* ArtworkFeed */,
 				A68417A79F9D150D53ED0C41 /* Images */,
 				0F8ACE05F507B92A0E80653D /* JapanSearch */,
 				2D9E1AB212E9EA83BCC2C332 /* Logging */,
 				24F54B3AB67BE88EFFFE3CE4 /* MetMuseum */,
-				0B60E7E46431A00100000007 /* NationalMuseumChina */,
-				A13F0E36D4A24301B00C1004 /* ShanghaiMuseum */,
+				E0117BA06A7E99FBF2FCBB83 /* NationalMuseumChina */,
 				B3F7EF00803CBE83E17F964E /* Settings */,
+				310C6DBA23F91DFEA7C144BB /* ShanghaiMuseum */,
 			);
 			path = Shared;
+			sourceTree = "<group>";
+		};
+		72AA4F9933BC8BED3C4E0266 /* DailyMuseumTests */ = {
+			isa = PBXGroup;
+			children = (
+				A5EEE2EB1580589947A6FEDA /* CoreLogicTests.swift */,
+				090F116BD2F05BC2CB7C3DC7 /* FavoritesStoreTests.swift */,
+				3AB578154F6CB44C5B73D6FD /* ParsingAndAPITests.swift */,
+				FE70EA404100D32A48865F90 /* WidgetArtworkSnapshotStoreTests.swift */,
+				9E85039D52D33451509A0868 /* WidgetStateAndSettingsTests.swift */,
+				BF84778B15C0E848B1773BFC /* Fixtures */,
+			);
+			path = DailyMuseumTests;
 			sourceTree = "<group>";
 		};
 		90469F071F86745660CF1F94 = {
 			isa = PBXGroup;
 			children = (
 				540C4352AA99A790037E6727 /* DailyMuseum */,
-				AA0000000000000000000004 /* DailyMuseumTests */,
+				72AA4F9933BC8BED3C4E0266 /* DailyMuseumTests */,
 				B853AF91266F3159C7D5DDB2 /* DailyMuseumWidget */,
 				63A075E04AB411510BCCBE31 /* Shared */,
 				41BF8271109E2C2D713CC4AF /* Products */,
 			);
-			sourceTree = "<group>";
-		};
-		AA0000000000000000000004 /* DailyMuseumTests */ = {
-			isa = PBXGroup;
-			children = (
-				AA0000000000000000000022 /* CoreLogicTests.swift */,
-				AA0000000000000000000025 /* Fixtures */,
-				AA0000000000000000000024 /* ParsingAndAPITests.swift */,
-				AA0000000000000000000023 /* WidgetStateAndSettingsTests.swift */,
-				AA0000000000000000000001 /* WidgetArtworkSnapshotStoreTests.swift */,
-			);
-			path = DailyMuseumTests;
-			sourceTree = "<group>";
-		};
-		AA0000000000000000000025 /* Fixtures */ = {
-			isa = PBXGroup;
-			children = (
-				AA0000000000000000000027 /* met-meta-fallback.html */,
-				AA0000000000000000000026 /* met-overview.html */,
-				AA0000000000000000000028 /* nmc-detail.html */,
-			);
-			path = Fixtures;
 			sourceTree = "<group>";
 		};
 		96410B48990ECD7B7D8727C1 /* Views */ = {
@@ -344,6 +342,8 @@
 				4B2A7EA64F8C40563153939F /* ArtworkDetailLoaderView.swift */,
 				F45F7D1EF6D115D013098444 /* ArtworkDetailView.swift */,
 				56BD6F2F27B9A4E39394EB50 /* ArtworkFeedView.swift */,
+				5B534D07A84678EB11A2A0F5 /* ArtworkListRowCardView.swift */,
+				3101F293FCA2DD99BB88661C /* FavoritesView.swift */,
 				DB101B5E24D3739851DC6A22 /* MuseumListView.swift */,
 				9F3052397EB170BF0730F5B4 /* RequestLogsView.swift */,
 				0ACA67A0EFEEB5748BD15991 /* SettingsView.swift */,
@@ -365,6 +365,7 @@
 		B3F7EF00803CBE83E17F964E /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				59C380E89F1FC0CACD45A21B /* FavoritesStore.swift */,
 				5BD5690663479FBDA165A96B /* SettingsKeys.swift */,
 				D567DE125D65B4BF7B005CEA /* SettingsStore.swift */,
 				785DF258A9365EE2171A1EDA /* WidgetMuseumScope.swift */,
@@ -377,21 +378,59 @@
 			children = (
 				1B7AF25AA60373F1FEF52146 /* DailyMuseumWidget.entitlements */,
 				BE9F9F5A9C19616F19DCE43E /* DailyMuseumWidget.swift */,
+				D8FB41405B2CD9B79DB7E63A /* DailyMuseumWidgetAppGroup.entitlements */,
 				DA2C496990992A4623A8A9C9 /* DailyMuseumWidgetBundle.swift */,
 				41E30B7CB5F9A6C88D27C0C2 /* DailyMuseumWidgetView.swift */,
 				24DBCD6E661D8383B4C5F9E3 /* Info.plist */,
 				9DB226201B7F579BFCF07E7A /* RefreshWidgetIntent.swift */,
 				BDB91ABFDF5059FE1FCE0687 /* WidgetArtworkService.swift */,
 				7C479641DC62C47615D086EE /* WidgetArtworkSnapshotStore.swift */,
-				B5C2D137F4A14D27A0010002 /* WidgetRefreshDeliveryTracker.swift */,
+				30FEFFA3E3CD614C956FEA98 /* WidgetRefreshDeliveryTracker.swift */,
 				AFEC49CE4C55DCDEA5364224 /* WidgetSettingsReader.swift */,
 			);
 			path = DailyMuseumWidget;
 			sourceTree = "<group>";
 		};
+		BF84778B15C0E848B1773BFC /* Fixtures */ = {
+			isa = PBXGroup;
+			children = (
+				C48CE0EBDA0C27F939506A95 /* met-meta-fallback.html */,
+				15CC322130D2C36A4D586EC3 /* met-overview.html */,
+				BD550F604C3CC2B156729689 /* nmc-detail.html */,
+			);
+			path = Fixtures;
+			sourceTree = "<group>";
+		};
+		E0117BA06A7E99FBF2FCBB83 /* NationalMuseumChina */ = {
+			isa = PBXGroup;
+			children = (
+				197FEFC5FEC3B51DB5E4F537 /* NationalMuseumChinaAPI.swift */,
+			);
+			path = NationalMuseumChina;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		3C0138DA5FFF9A45268F5E51 /* DailyMuseumTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0BC061B7F73084B1D95AA335 /* Build configuration list for PBXNativeTarget "DailyMuseumTests" */;
+			buildPhases = (
+				5B12FF24F479156FA4B94660 /* Sources */,
+				B20614089349D97155DC6032 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				482A5F89A41163E45D03F414 /* PBXTargetDependency */,
+			);
+			name = DailyMuseumTests;
+			packageProductDependencies = (
+			);
+			productName = DailyMuseumTests;
+			productReference = 1CA69050D6181865B9708213 /* DailyMuseumTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		453027374B065B9697472E15 /* DailyMuseum */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 74F31F789EC674582A12F2F2 /* Build configuration list for PBXNativeTarget "DailyMuseum" */;
@@ -411,25 +450,6 @@
 			productName = DailyMuseum;
 			productReference = CE050719A8E48E3DE4D76BBB /* DailyMuseum.app */;
 			productType = "com.apple.product-type.application";
-		};
-		AA0000000000000000000005 /* DailyMuseumTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = AA0000000000000000000009 /* Build configuration list for PBXNativeTarget "DailyMuseumTests" */;
-			buildPhases = (
-				AA0000000000000000000006 /* Sources */,
-				AA000000000000000000002C /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				AA0000000000000000000008 /* PBXTargetDependency */,
-			);
-			name = DailyMuseumTests;
-			packageProductDependencies = (
-			);
-			productName = DailyMuseumTests;
-			productReference = AA0000000000000000000002 /* DailyMuseumTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		882A042403C606FF924702EF /* DailyMuseumWidgetExtension */ = {
 			isa = PBXNativeTarget;
@@ -464,9 +484,6 @@
 							};
 						};
 					};
-					AA0000000000000000000005 = {
-						TestTargetID = 453027374B065B9697472E15;
-					};
 					882A042403C606FF924702EF = {
 						SystemCapabilities = {
 							com.apple.ApplicationGroups.iOS = {
@@ -486,11 +503,12 @@
 			);
 			mainGroup = 90469F071F86745660CF1F94;
 			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				453027374B065B9697472E15 /* DailyMuseum */,
-				AA0000000000000000000005 /* DailyMuseumTests */,
+				3C0138DA5FFF9A45268F5E51 /* DailyMuseumTests */,
 				882A042403C606FF924702EF /* DailyMuseumWidgetExtension */,
 			);
 		};
@@ -506,45 +524,48 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		AA000000000000000000002C /* Resources */ = {
+		B20614089349D97155DC6032 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AA000000000000000000002A /* met-meta-fallback.html in Resources */,
-				AA0000000000000000000029 /* met-overview.html in Resources */,
-				AA000000000000000000002B /* nmc-detail.html in Resources */,
+				1E1E769E8F11B29392A69DE5 /* met-meta-fallback.html in Resources */,
+				A160B9CD7430EE891181FA94 /* met-overview.html in Resources */,
+				164B18A892946803105F93B3 /* nmc-detail.html in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		AA0000000000000000000006 /* Sources */ = {
+		5B12FF24F479156FA4B94660 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AA0000000000000000000014 /* AppDeepLink.swift in Sources */,
-				AA0000000000000000000015 /* Artwork.swift in Sources */,
-				AA0000000000000000000011 /* CoreLogicTests.swift in Sources */,
-				AA0000000000000000000017 /* JapanSearchAPI.swift in Sources */,
-				AA0000000000000000000018 /* JapanSearchModels.swift in Sources */,
-				AA0000000000000000000019 /* JapanSearchPersistentCache.swift in Sources */,
-				AA000000000000000000001A /* MetMuseumAPI.swift in Sources */,
-				AA000000000000000000001B /* MetMuseumModels.swift in Sources */,
-				AA000000000000000000001C /* MetMuseumPersistentCache.swift in Sources */,
-				AA0000000000000000000016 /* Museum.swift in Sources */,
-				AA000000000000000000001D /* NationalMuseumChinaAPI.swift in Sources */,
-				AA0000000000000000000040 /* ShanghaiMuseumAPI.swift in Sources */,
-				C1A2B3C4D5E6F708192A3B4F /* LogTimestampFormatter.swift in Sources */,
-				AA0000000000000000000013 /* ParsingAndAPITests.swift in Sources */,
-				AA000000000000000000000E /* RequestLogger.swift in Sources */,
-				AA000000000000000000000F /* SettingsKeys.swift in Sources */,
-				AA000000000000000000001E /* WidgetMuseumScope.swift in Sources */,
-				AA0000000000000000000010 /* WidgetArtworkSnapshotStore.swift in Sources */,
-				AA0000000000000000000012 /* WidgetStateAndSettingsTests.swift in Sources */,
-				AA0000000000000000000020 /* WidgetRefreshDeliveryTracker.swift in Sources */,
-				AA0000000000000000000021 /* WidgetSettingsReader.swift in Sources */,
-				AA0000000000000000000003 /* WidgetArtworkSnapshotStoreTests.swift in Sources */,
+				1A5FF2DFAC46F3920B6A67E4 /* AppDeepLink.swift in Sources */,
+				ECEEB099502FBD99207B7915 /* Artwork.swift in Sources */,
+				96F201E336F9C153509002C3 /* CoreLogicTests.swift in Sources */,
+				4B2F819053D552D94899A3A0 /* FavoritesStore.swift in Sources */,
+				D6F07A89D69991764AEC6902 /* FavoritesStoreTests.swift in Sources */,
+				46D15A1FFC5F33AEF41388A2 /* JapanSearchAPI.swift in Sources */,
+				613EB3DC359C2C75B6798013 /* JapanSearchModels.swift in Sources */,
+				C196A854993FEC75D12539BE /* JapanSearchPersistentCache.swift in Sources */,
+				202A66A894794C852608588A /* LogTimestampFormatter.swift in Sources */,
+				F5F3A8D0A90A4DA91148C6BF /* MetMuseumAPI.swift in Sources */,
+				D42C8238EF8C0D8582535336 /* MetMuseumModels.swift in Sources */,
+				8AA9F4124D1ECEB6AE2B42BC /* MetMuseumPersistentCache.swift in Sources */,
+				E22BD293BEBC5DE722E82E26 /* Museum.swift in Sources */,
+				26E380BEA06C51547FE13415 /* MuseumRequestCachePolicy.swift in Sources */,
+				6C7D299EDB5EEBF0D7E2492A /* NationalMuseumChinaAPI.swift in Sources */,
+				828BB63598930EDF4CE1D542 /* ParsingAndAPITests.swift in Sources */,
+				090F68A2DF9313C3F0E986FC /* RequestLogger.swift in Sources */,
+				2DF453C26258E1256FC88944 /* SettingsKeys.swift in Sources */,
+				D222D68A2DF97D3D2721196A /* ShanghaiMuseumAPI.swift in Sources */,
+				AC9A30889523ECD67B0C6F2E /* WidgetArtworkSnapshotStore.swift in Sources */,
+				871AEAA835A3CAEF21587F92 /* WidgetArtworkSnapshotStoreTests.swift in Sources */,
+				6DAE6E8652B53C8FAB50973F /* WidgetMuseumScope.swift in Sources */,
+				48ADEC2F139C0580ECCD8474 /* WidgetRefreshDeliveryTracker.swift in Sources */,
+				85717FAD517234673788BBE6 /* WidgetSettingsReader.swift in Sources */,
+				14B082D6FFDB65D6DA0F9EB7 /* WidgetStateAndSettingsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -561,27 +582,29 @@
 				EE309BCCC53ECF316CA57CF3 /* DailyMuseumWidget.swift in Sources */,
 				D196A25010220D77782341EC /* DailyMuseumWidgetBundle.swift in Sources */,
 				A9A3F24657BDD51957EA848B /* DailyMuseumWidgetView.swift in Sources */,
+				4A52AADAA05E981E758DC0CB /* FavoritesStore.swift in Sources */,
 				BCB4A26C7A84A6F6DA20EF02 /* ImageLoader.swift in Sources */,
 				6E98875786462837438D5333 /* ImageMemoryCache.swift in Sources */,
 				5875B0F754457BC5643B7F8B /* JapanSearchAPI.swift in Sources */,
 				CED1F1FA337791BFC579A74C /* JapanSearchModels.swift in Sources */,
 				010B92CC939F14CA27C2A0FB /* JapanSearchPersistentCache.swift in Sources */,
+				EF41EA911A12CAEEFA2C4BBA /* LogTimestampFormatter.swift in Sources */,
 				23C3A7F80D86D0CE04456893 /* MetMuseumAPI.swift in Sources */,
 				E7F14E6F91CEB38C95CF47CA /* MetMuseumModels.swift in Sources */,
 				09B43AA4EB71B869B66F2569 /* MetMuseumPersistentCache.swift in Sources */,
 				EC1E9A6F5E8D8396F9E74410 /* Museum.swift in Sources */,
-				0B60E7E46431A00100000001 /* NationalMuseumChinaAPI.swift in Sources */,
-				A13F0E36D4A24301B00C1001 /* ShanghaiMuseumAPI.swift in Sources */,
-				C1A2B3C4D5E6F708192A3B4E /* LogTimestampFormatter.swift in Sources */,
+				E899CA41ABFEE0CC2009E85B /* MuseumRequestCachePolicy.swift in Sources */,
+				E1CA2063A268CDC49E0512CB /* NationalMuseumChinaAPI.swift in Sources */,
 				5CC00FF6639BCA691EC911D4 /* RefreshWidgetIntent.swift in Sources */,
 				39EF46DCBA1A93ADAB139396 /* RequestLogger.swift in Sources */,
 				25F50C06099559E4DBB10D2C /* SettingsKeys.swift in Sources */,
 				7D7B4261C7FDB3E5EF55DC31 /* SettingsStore.swift in Sources */,
-				AA0000000000000000000032 /* WidgetManualRefreshRunner.swift in Sources */,
+				B7533C6D8A41BD65DC1B91C7 /* ShanghaiMuseumAPI.swift in Sources */,
 				EDB9E6F8888D36C995A222B3 /* WidgetArtworkService.swift in Sources */,
 				E6F45083BBEDF96C8635C070 /* WidgetArtworkSnapshotStore.swift in Sources */,
-				B5C2D137F4A14D27A0010001 /* WidgetRefreshDeliveryTracker.swift in Sources */,
+				3C76032D89CE9DB40E9A91B5 /* WidgetManualRefreshRunner.swift in Sources */,
 				BE339BFB1CB1E63EA1C63F84 /* WidgetMuseumScope.swift in Sources */,
+				C807F84E57178E093DE6064D /* WidgetRefreshDeliveryTracker.swift in Sources */,
 				FA61C66FE799EE5EE5329728 /* WidgetSettingsReader.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -591,8 +614,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				EC267A915D0BAB50AE179CE6 /* AppDeepLink.swift in Sources */,
-				A1B2C3D4E5F60718293A4B5C /* AppShortcutHandler.swift in Sources */,
 				9DA9630412EDAEFDE3EAC41E /* AppRouter.swift in Sources */,
+				FA1DFAF26C30C3811D3EE7D2 /* AppShortcutHandler.swift in Sources */,
 				768CB71B07681723D487B0E7 /* Artwork.swift in Sources */,
 				0C29EBB7118BA7DA8620B6F1 /* ArtworkCardView.swift in Sources */,
 				A9EFC7883E19EBC1EF52F69D /* ArtworkDetailLoaderView.swift in Sources */,
@@ -601,45 +624,48 @@
 				07D7736A77F39CB6028E891B /* ArtworkFeedItem.swift in Sources */,
 				5CD44E4C3C51F0C9DC86B62C /* ArtworkFeedView.swift in Sources */,
 				8CC0195C8ECB3BBE91FA8E12 /* ArtworkFeedViewModel.swift in Sources */,
+				0221CE15D7D3E4EDE27D79FC /* ArtworkListRowCardView.swift in Sources */,
 				D92BF8CACC23E37738349E04 /* CachedAsyncImage.swift in Sources */,
 				3E9E2BDFE01616ACE8B45CE8 /* DailyMuseumApp.swift in Sources */,
+				A38484C2185A31CF1C746E1F /* FavoritesStore.swift in Sources */,
+				45F068DBFB984692247FF054 /* FavoritesView.swift in Sources */,
 				AC4FDD416DF8E33F134AD066 /* ImageLoader.swift in Sources */,
 				E5A1A6D3D86B31E82DCADD4A /* ImageMemoryCache.swift in Sources */,
 				27A16A60F3963299A690DE5E /* JapanSearchAPI.swift in Sources */,
 				87F6CECE8690A90AE55AC7B8 /* JapanSearchModels.swift in Sources */,
 				85FB6736A90863BAE99FAC83 /* JapanSearchPersistentCache.swift in Sources */,
+				1F31599DB4A916708584C85F /* LogTimestampFormatter.swift in Sources */,
 				F5399D305E02913A1EC5AB10 /* MetMuseumAPI.swift in Sources */,
 				10425B44D3DC479F9D20FE9C /* MetMuseumModels.swift in Sources */,
 				359187C2F581E0B49E2DFE3F /* MetMuseumPersistentCache.swift in Sources */,
 				752579CACD31E606674EED80 /* Museum.swift in Sources */,
 				048A14DA9BBF5DC796231307 /* MuseumListView.swift in Sources */,
-				0B60E7E46431A00100000002 /* NationalMuseumChinaAPI.swift in Sources */,
-				A13F0E36D4A24301B00C1002 /* ShanghaiMuseumAPI.swift in Sources */,
-				C1A2B3C4D5E6F708192A3B4D /* LogTimestampFormatter.swift in Sources */,
+				3CEB39B09A6657F163706A4B /* MuseumRequestCachePolicy.swift in Sources */,
+				604D80758FBC9229EF6232A3 /* NationalMuseumChinaAPI.swift in Sources */,
 				626A4F3FABA4F40BF4F5B669 /* RequestLogger.swift in Sources */,
 				2580F721762415DE7E4269A9 /* RequestLogsView.swift in Sources */,
 				47875A95039007E1D161ABF1 /* RootView.swift in Sources */,
 				10BFA44C9A4240C5EBF57018 /* SettingsKeys.swift in Sources */,
 				85112783CD28996B11A9101D /* SettingsStore.swift in Sources */,
 				EDCA33ABA853CDF8C3FE7FA5 /* SettingsView.swift in Sources */,
-				AA0000000000000000000038 /* WidgetManualRefreshSupport.swift in Sources */,
-				AA0000000000000000000031 /* WidgetManualRefreshRunner.swift in Sources */,
-				AA0000000000000000000033 /* WidgetArtworkService.swift in Sources */,
-				AA0000000000000000000034 /* WidgetArtworkSnapshotStore.swift in Sources */,
-				AA0000000000000000000035 /* WidgetRefreshDeliveryTracker.swift in Sources */,
-				AA0000000000000000000036 /* WidgetSettingsReader.swift in Sources */,
+				207957B9F0BC89033407E721 /* ShanghaiMuseumAPI.swift in Sources */,
 				F0AE0A1C3CC1749CBE7B804F /* WaterfallGrid.swift in Sources */,
+				4763B0241317625657255B1E /* WidgetArtworkSnapshotStore.swift in Sources */,
+				014375A5D184F881FD7070C1 /* WidgetManualRefreshRunner.swift in Sources */,
+				D8DA575A29B99005AD6A590F /* WidgetManualRefreshSupport.swift in Sources */,
 				D7688FF2CCD4DDF0F7F6544D /* WidgetMuseumScope.swift in Sources */,
+				2504A1D7A159B9476755E503 /* WidgetRefreshDeliveryTracker.swift in Sources */,
+				5610487BA191F1B6C6E8AE02 /* WidgetSettingsReader.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		AA0000000000000000000008 /* PBXTargetDependency */ = {
+		482A5F89A41163E45D03F414 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 453027374B065B9697472E15 /* DailyMuseum */;
-			targetProxy = AA0000000000000000000007 /* PBXContainerItemProxy */;
+			targetProxy = 3247B4B6829141B0AAC91498 /* PBXContainerItemProxy */;
 		};
 		F8E99CC65504B154B1F3C05E /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -656,7 +682,6 @@
 				CODE_SIGN_ENTITLEMENTS = DailyMuseum/DailyMuseum.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = PGKB4LZW48;
 				INFOPLIST_FILE = DailyMuseum/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -731,7 +756,6 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = DailyMuseumWidget/DailyMuseumWidgetAppGroup.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = PGKB4LZW48;
 				INFOPLIST_FILE = DailyMuseumWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -746,6 +770,26 @@
 			};
 			name = Debug;
 		};
+		6B32FC8CD7FBF8301DF3D14B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.zh0ngtian.DailyMuseumTests;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DailyMuseum.app/DailyMuseum";
+			};
+			name = Debug;
+		};
 		997A301675B63BD00D4C7C94 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -753,7 +797,6 @@
 				CODE_SIGN_ENTITLEMENTS = DailyMuseum/DailyMuseum.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = PGKB4LZW48;
 				INFOPLIST_FILE = DailyMuseum/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -767,12 +810,31 @@
 			};
 			name = Debug;
 		};
+		A5E295D489CD6E1663B9B51F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.zh0ngtian.DailyMuseumTests;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DailyMuseum.app/DailyMuseum";
+			};
+			name = Release;
+		};
 		B6E273FD34F7A60D65AD148E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = DailyMuseumWidget/DailyMuseumWidgetAppGroup.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = PGKB4LZW48;
 				INFOPLIST_FILE = DailyMuseumWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -784,52 +846,6 @@
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
-		AA000000000000000000000A /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = PGKB4LZW48;
-				GENERATE_INFOPLIST_FILE = YES;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@loader_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = tech.zh0ngtian.DailyMuseumTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DailyMuseum.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/DailyMuseum";
-				TEST_TARGET_NAME = DailyMuseum;
-			};
-			name = Debug;
-		};
-		AA000000000000000000000B /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = PGKB4LZW48;
-				GENERATE_INFOPLIST_FILE = YES;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@loader_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = tech.zh0ngtian.DailyMuseumTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DailyMuseum.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/DailyMuseum";
-				TEST_TARGET_NAME = DailyMuseum;
 			};
 			name = Release;
 		};
@@ -899,6 +915,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		0BC061B7F73084B1D95AA335 /* Build configuration list for PBXNativeTarget "DailyMuseumTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6B32FC8CD7FBF8301DF3D14B /* Debug */,
+				A5E295D489CD6E1663B9B51F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		4A105D08982E494427ECEFE0 /* Build configuration list for PBXProject "DailyMuseum" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -922,15 +947,6 @@
 			buildConfigurations = (
 				997A301675B63BD00D4C7C94 /* Debug */,
 				09CB9CBFBA3832D85CDB2E5F /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Debug;
-		};
-		AA0000000000000000000009 /* Build configuration list for PBXNativeTarget "DailyMuseumTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				AA000000000000000000000A /* Debug */,
-				AA000000000000000000000B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

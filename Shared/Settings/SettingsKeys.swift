@@ -8,6 +8,7 @@ enum SettingsKeys {
     static let feedCategoryPrefix = "feed.category."
     static let feedDisplayModePrefix = "feed.displayMode."
     static let museumDisplayOrder = "museum.displayOrder"
+    static let favoritesArtworks = "favorites.artworks"
     static let translationEngine = "translation.engine"
 
     static let defaultsBackedKeys: [String] = [

@@ -1,14 +1,5 @@
 import Foundation
 
-enum MuseumRequestCachePolicy: Sendable {
-    case useCaches
-    case networkOnly
-
-    var usesCaches: Bool {
-        self == .useCaches
-    }
-}
-
 struct WidgetSettingsReader {
     private let defaults: UserDefaults
 
