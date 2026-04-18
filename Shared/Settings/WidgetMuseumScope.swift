@@ -30,6 +30,10 @@ extension WidgetMuseumScope {
 }
 
 struct WidgetInstanceTokenResolver {
+    static func makeDefaultToken() -> String {
+        UUID().uuidString
+    }
+
     static func resolve(
         from rawValue: String,
         scope: WidgetMuseumScope,
@@ -40,9 +44,9 @@ struct WidgetInstanceTokenResolver {
             return trimmed
         }
 
-        // Legacy widgets created before the hidden token stabilized can arrive without
-        // a persisted instance token. Fall back to a deterministic per-scope/family key
-        // so the same on-screen widget can keep reading the state written by its refreshes.
+        // Legacy widgets created before the hidden token was persisted can still arrive
+        // without an instance token. Keep the old deterministic fallback only for those
+        // migrated widgets so newer instances always rely on their stored token instead.
         let scopeKey = scope.rawValue.replacingOccurrences(of: ":", with: "-")
         let familyKey = family?.debugToken ?? "unknown"
         return "legacy-\(scopeKey)-\(familyKey)"

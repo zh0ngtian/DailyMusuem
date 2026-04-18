@@ -26,6 +26,7 @@ actor WidgetArtworkSnapshotStore {
         static let stateFileName = "instances.json"
         static let imagesDirectoryName = "images"
         static let widgetImageMaximumDimension: CGFloat = 1200
+        static let tokenRecoveryWindow: TimeInterval = 180
         static let legacyPaths = [
             "WidgetCache",
             "WidgetRefresh",
@@ -35,6 +36,7 @@ actor WidgetArtworkSnapshotStore {
 
     struct ArtworkPayload: Codable, Equatable {
         let museumID: MuseumID
+        let artworkKey: String?
         let museumName: String
         let title: String
         let subtitle: String?
@@ -45,6 +47,7 @@ actor WidgetArtworkSnapshotStore {
         func withImageFileName(_ imageFileName: String?) -> ArtworkPayload {
             ArtworkPayload(
                 museumID: museumID,
+                artworkKey: artworkKey,
                 museumName: museumName,
                 title: title,
                 subtitle: subtitle,
@@ -58,11 +61,60 @@ actor WidgetArtworkSnapshotStore {
     struct InstanceState: Codable, Equatable {
         let instanceToken: String
         var scopeRawValue: String
+        var familyToken: String?
         var nonce: Int
         var phase: WidgetRefreshPhase
         var artwork: ArtworkPayload?
+        var displayedArtworkKeys: [String]
         var failureMessage: String?
         var lastUpdatedAt: TimeInterval
+
+        private enum CodingKeys: String, CodingKey {
+            case instanceToken
+            case scopeRawValue
+            case familyToken
+            case nonce
+            case phase
+            case artwork
+            case displayedArtworkKeys
+            case failureMessage
+            case lastUpdatedAt
+        }
+
+        init(
+            instanceToken: String,
+            scopeRawValue: String,
+            familyToken: String?,
+            nonce: Int,
+            phase: WidgetRefreshPhase,
+            artwork: ArtworkPayload?,
+            displayedArtworkKeys: [String],
+            failureMessage: String?,
+            lastUpdatedAt: TimeInterval
+        ) {
+            self.instanceToken = instanceToken
+            self.scopeRawValue = scopeRawValue
+            self.familyToken = familyToken
+            self.nonce = nonce
+            self.phase = phase
+            self.artwork = artwork
+            self.displayedArtworkKeys = displayedArtworkKeys
+            self.failureMessage = failureMessage
+            self.lastUpdatedAt = lastUpdatedAt
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            instanceToken = try container.decode(String.self, forKey: .instanceToken)
+            scopeRawValue = try container.decode(String.self, forKey: .scopeRawValue)
+            familyToken = try container.decodeIfPresent(String.self, forKey: .familyToken)
+            nonce = try container.decode(Int.self, forKey: .nonce)
+            phase = try container.decode(WidgetRefreshPhase.self, forKey: .phase)
+            artwork = try container.decodeIfPresent(ArtworkPayload.self, forKey: .artwork)
+            displayedArtworkKeys = try container.decodeIfPresent([String].self, forKey: .displayedArtworkKeys) ?? []
+            failureMessage = try container.decodeIfPresent(String.self, forKey: .failureMessage)
+            lastUpdatedAt = try container.decode(TimeInterval.self, forKey: .lastUpdatedAt)
+        }
     }
 
     private struct PersistedState: Codable {
@@ -92,24 +144,37 @@ actor WidgetArtworkSnapshotStore {
     func registerInstance(
         instanceToken: String,
         scopeRawValue: String,
+        familyToken: String? = nil,
         now: Date = .now
     ) -> InstanceState {
         migrateLegacyArtifactsIfNeeded()
 
         var instances = loadInstances()
-        var state = instances[instanceToken] ?? InstanceState(
+        let previousImageFileName = instances[instanceToken]?.artwork?.imageFileName
+        var state = instances[instanceToken] ?? makeInitialState(
             instanceToken: instanceToken,
             scopeRawValue: scopeRawValue,
-            nonce: 0,
-            phase: .idle,
-            artwork: nil,
-            failureMessage: nil,
-            lastUpdatedAt: now.timeIntervalSince1970
+            familyToken: familyToken,
+            now: now
         )
-        state.scopeRawValue = scopeRawValue
-        state.lastUpdatedAt = now.timeIntervalSince1970
+        if state.scopeRawValue != scopeRawValue {
+            state = resetStateForScopeChange(
+                state,
+                scopeRawValue: scopeRawValue,
+                familyToken: familyToken,
+                now: now
+            )
+        } else {
+            if let familyToken {
+                state.familyToken = familyToken
+            }
+            state.lastUpdatedAt = now.timeIntervalSince1970
+        }
         instances[instanceToken] = state
         persist(instances)
+        if previousImageFileName != state.artwork?.imageFileName {
+            deleteImageFile(named: previousImageFileName)
+        }
         return state
     }
 
@@ -118,30 +183,135 @@ actor WidgetArtworkSnapshotStore {
         return loadInstances()[instanceToken]
     }
 
-    func beginRefresh(
-        instanceToken: String,
+    func renderState(
+        for instanceToken: String,
         scopeRawValue: String,
+        familyToken: String? = nil,
         now: Date = .now
     ) -> InstanceState {
         migrateLegacyArtifactsIfNeeded()
 
         var instances = loadInstances()
-        var state = instances[instanceToken] ?? InstanceState(
+        if let current = instances[instanceToken] {
+            if current.scopeRawValue == scopeRawValue {
+                var updatedState = current
+                if let familyToken,
+                   updatedState.familyToken != familyToken {
+                    updatedState.familyToken = familyToken
+                    updatedState.lastUpdatedAt = now.timeIntervalSince1970
+                    instances[instanceToken] = updatedState
+                    persist(instances)
+                }
+                return updatedState
+            }
+
+            let previousImageFileName = current.artwork?.imageFileName
+            let resetState = resetStateForScopeChange(
+                current,
+                scopeRawValue: scopeRawValue,
+                familyToken: familyToken,
+                now: now
+            )
+            instances[instanceToken] = resetState
+            persist(instances)
+            if previousImageFileName != resetState.artwork?.imageFileName {
+                deleteImageFile(named: previousImageFileName)
+            }
+            return resetState
+        }
+
+        if let recoveredState = recoverRecentRenderState(
+            for: instanceToken,
+            scopeRawValue: scopeRawValue,
+            familyToken: familyToken,
+            now: now,
+            instances: &instances
+        ) {
+            persist(instances)
+            return recoveredState
+        }
+
+        let state = makeInitialState(
             instanceToken: instanceToken,
             scopeRawValue: scopeRawValue,
-            nonce: 0,
-            phase: .idle,
-            artwork: nil,
-            failureMessage: nil,
-            lastUpdatedAt: now.timeIntervalSince1970
+            familyToken: familyToken,
+            now: now
         )
-        state.scopeRawValue = scopeRawValue
+        instances[instanceToken] = state
+        persist(instances)
+        return state
+    }
+
+    func displayedArtworkKeys(
+        for instanceToken: String,
+        scopeRawValue: String? = nil
+    ) -> Set<String> {
+        migrateLegacyArtifactsIfNeeded()
+
+        guard let state = loadInstances()[instanceToken] else {
+            return []
+        }
+        guard scopeRawValue == nil || state.scopeRawValue == scopeRawValue else {
+            return []
+        }
+        return Set(state.displayedArtworkKeys)
+    }
+
+    func resetDisplayedArtworkHistory(
+        for instanceToken: String,
+        scopeRawValue: String,
+        now: Date = .now
+    ) -> InstanceState? {
+        migrateLegacyArtifactsIfNeeded()
+
+        var instances = loadInstances()
+        guard var state = instances[instanceToken], state.scopeRawValue == scopeRawValue else {
+            return nil
+        }
+
+        state.displayedArtworkKeys = []
+        state.lastUpdatedAt = now.timeIntervalSince1970
+        instances[instanceToken] = state
+        persist(instances)
+        return state
+    }
+
+    func beginRefresh(
+        instanceToken: String,
+        scopeRawValue: String,
+        familyToken: String? = nil,
+        now: Date = .now
+    ) -> InstanceState {
+        migrateLegacyArtifactsIfNeeded()
+
+        var instances = loadInstances()
+        let previousImageFileName = instances[instanceToken]?.artwork?.imageFileName
+        var state = instances[instanceToken] ?? makeInitialState(
+            instanceToken: instanceToken,
+            scopeRawValue: scopeRawValue,
+            familyToken: familyToken,
+            now: now
+        )
+        if state.scopeRawValue != scopeRawValue {
+            state = resetStateForScopeChange(
+                state,
+                scopeRawValue: scopeRawValue,
+                familyToken: familyToken,
+                now: now
+            )
+        }
+        if let familyToken {
+            state.familyToken = familyToken
+        }
         state.nonce += 1
         state.phase = .refreshing
         state.failureMessage = nil
         state.lastUpdatedAt = now.timeIntervalSince1970
         instances[instanceToken] = state
         persist(instances)
+        if previousImageFileName != state.artwork?.imageFileName {
+            deleteImageFile(named: previousImageFileName)
+        }
         return state
     }
 
@@ -150,6 +320,7 @@ actor WidgetArtworkSnapshotStore {
         expectedNonce: Int,
         payload: ArtworkPayload,
         imageData: Data?,
+        familyToken: String? = nil,
         now: Date = .now
     ) -> InstanceState? {
         migrateLegacyArtifactsIfNeeded()
@@ -165,6 +336,13 @@ actor WidgetArtworkSnapshotStore {
         )
         state.phase = .success
         state.artwork = storedPayload
+        if let familyToken {
+            state.familyToken = familyToken
+        }
+        if let artworkKey = storedPayload.artworkKey,
+           !state.displayedArtworkKeys.contains(artworkKey) {
+            state.displayedArtworkKeys.append(artworkKey)
+        }
         state.failureMessage = nil
         state.lastUpdatedAt = now.timeIntervalSince1970
         instances[instanceToken] = state
@@ -180,6 +358,7 @@ actor WidgetArtworkSnapshotStore {
         instanceToken: String,
         expectedNonce: Int,
         message: String,
+        familyToken: String? = nil,
         now: Date = .now
     ) -> InstanceState? {
         migrateLegacyArtifactsIfNeeded()
@@ -192,6 +371,9 @@ actor WidgetArtworkSnapshotStore {
         let previousImageFileName = state.artwork?.imageFileName
         state.phase = .failure
         state.artwork = nil
+        if let familyToken {
+            state.familyToken = familyToken
+        }
         state.failureMessage = message
         state.lastUpdatedAt = now.timeIntervalSince1970
         instances[instanceToken] = state
@@ -205,24 +387,6 @@ actor WidgetArtworkSnapshotStore {
         return loadInstances().values.sorted { lhs, rhs in
             lhs.instanceToken < rhs.instanceToken
         }
-    }
-
-    func mostRecentDisplayableState(scopeRawValue: String) -> InstanceState? {
-        migrateLegacyArtifactsIfNeeded()
-
-        let candidates = loadInstances()
-            .values
-            .filter { $0.scopeRawValue == scopeRawValue }
-
-        if let success = candidates
-            .filter({ $0.phase == .success })
-            .max(by: { lhs, rhs in lhs.lastUpdatedAt < rhs.lastUpdatedAt }) {
-            return success
-        }
-
-        return candidates
-            .filter { $0.phase == .refreshing }
-            .max(by: { lhs, rhs in lhs.lastUpdatedAt < rhs.lastUpdatedAt })
     }
 
     func migrateLegacyArtifactsIfNeeded() {
@@ -258,6 +422,106 @@ actor WidgetArtworkSnapshotStore {
         } catch {
             // Ignore persistence failures and let WidgetKit fall back to the in-memory refresh flow.
         }
+    }
+
+    private func makeInitialState(
+        instanceToken: String,
+        scopeRawValue: String,
+        familyToken: String?,
+        now: Date
+    ) -> InstanceState {
+        InstanceState(
+            instanceToken: instanceToken,
+            scopeRawValue: scopeRawValue,
+            familyToken: familyToken,
+            nonce: 0,
+            phase: .idle,
+            artwork: nil,
+            displayedArtworkKeys: [],
+            failureMessage: nil,
+            lastUpdatedAt: now.timeIntervalSince1970
+        )
+    }
+
+    private func resetStateForScopeChange(
+        _ state: InstanceState,
+        scopeRawValue: String,
+        familyToken: String?,
+        now: Date
+    ) -> InstanceState {
+        InstanceState(
+            instanceToken: state.instanceToken,
+            scopeRawValue: scopeRawValue,
+            familyToken: familyToken ?? state.familyToken,
+            nonce: state.nonce,
+            phase: .idle,
+            artwork: nil,
+            displayedArtworkKeys: [],
+            failureMessage: nil,
+            lastUpdatedAt: now.timeIntervalSince1970
+        )
+    }
+
+    private func recoverRecentRenderState(
+        for instanceToken: String,
+        scopeRawValue: String,
+        familyToken: String?,
+        now: Date,
+        instances: inout [String: InstanceState]
+    ) -> InstanceState? {
+        guard let familyToken else {
+            return nil
+        }
+
+        let nowValue = now.timeIntervalSince1970
+
+        let exactFamilyMatches = instances.values
+            .filter { candidate in
+                candidate.instanceToken != instanceToken &&
+                candidate.scopeRawValue == scopeRawValue &&
+                candidate.phase != .idle &&
+                nowValue - candidate.lastUpdatedAt <= Constants.tokenRecoveryWindow &&
+                candidate.familyToken == familyToken
+            }
+            .sorted { $0.lastUpdatedAt > $1.lastUpdatedAt }
+
+        let fallbackMatches = instances.values
+            .filter { candidate in
+                candidate.instanceToken != instanceToken &&
+                candidate.scopeRawValue == scopeRawValue &&
+                candidate.phase != .idle &&
+                nowValue - candidate.lastUpdatedAt <= Constants.tokenRecoveryWindow &&
+                candidate.familyToken == nil
+            }
+            .sorted { $0.lastUpdatedAt > $1.lastUpdatedAt }
+
+        let candidate: InstanceState?
+        if exactFamilyMatches.count == 1 {
+            candidate = exactFamilyMatches.first
+        } else if exactFamilyMatches.isEmpty, fallbackMatches.count == 1 {
+            candidate = fallbackMatches.first
+        } else {
+            candidate = nil
+        }
+
+        guard let candidate else {
+            return nil
+        }
+
+        instances.removeValue(forKey: candidate.instanceToken)
+        let migratedState = InstanceState(
+            instanceToken: instanceToken,
+            scopeRawValue: scopeRawValue,
+            familyToken: familyToken,
+            nonce: candidate.nonce,
+            phase: candidate.phase,
+            artwork: candidate.artwork,
+            displayedArtworkKeys: candidate.displayedArtworkKeys,
+            failureMessage: candidate.failureMessage,
+            lastUpdatedAt: nowValue
+        )
+        instances[instanceToken] = migratedState
+        return migratedState
     }
 
     private func storeImageData(_ imageData: Data?, instanceToken: String, nonce: Int) -> String? {

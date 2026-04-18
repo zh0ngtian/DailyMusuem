@@ -9,24 +9,10 @@ enum SettingsKeys {
     static let feedDisplayModePrefix = "feed.displayMode."
     static let museumDisplayOrder = "museum.displayOrder"
     static let translationEngine = "translation.engine"
-    static let widgetManualRefreshNonce = "widget.manualRefreshNonce"
-    static let widgetManualRefreshInProgress = "widget.manualRefreshInProgress"
-    static let widgetManualRefreshStartedAt = "widget.manualRefreshStartedAt"
-    static let widgetManualRefreshRequestedFamilyKey = "widget.manualRefreshRequestedFamilyKey"
-    static let widgetRefreshIntervalMinutes = "widget.refreshIntervalMinutes"
-    static let widgetMuseumScope = "widget.museumScope"
-    static let widgetPreferHasImages = "widget.preferHasImages"
 
     static let defaultsBackedKeys: [String] = [
         feedRandomOrder,
         museumDisplayOrder,
-        translationEngine,
-        widgetManualRefreshNonce,
-        widgetManualRefreshInProgress,
-        widgetManualRefreshStartedAt,
-        widgetManualRefreshRequestedFamilyKey,
-        widgetRefreshIntervalMinutes,
-        widgetMuseumScope,
-        widgetPreferHasImages
+        translationEngine
     ]
 }

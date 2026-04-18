@@ -28,7 +28,6 @@
 		AA000000000000000000001C /* MetMuseumPersistentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B767DED860727F7B1D106D3E /* MetMuseumPersistentCache.swift */; };
 		AA000000000000000000001D /* NationalMuseumChinaAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B60E7E46431A00100000005 /* NationalMuseumChinaAPI.swift */; };
 		AA000000000000000000001E /* WidgetMuseumScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 785DF258A9365EE2171A1EDA /* WidgetMuseumScope.swift */; };
-		AA000000000000000000001F /* WidgetRefreshInterval.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58A211D35AE0E3261DEDD024 /* WidgetRefreshInterval.swift */; };
 		AA0000000000000000000020 /* WidgetRefreshDeliveryTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5C2D137F4A14D27A0010002 /* WidgetRefreshDeliveryTracker.swift */; };
 		AA0000000000000000000021 /* WidgetSettingsReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFEC49CE4C55DCDEA5364224 /* WidgetSettingsReader.swift */; };
 		AA0000000000000000000040 /* ShanghaiMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13F0E36D4A24301B00C1003 /* ShanghaiMuseumAPI.swift */; };
@@ -52,7 +51,6 @@
 		10425B44D3DC479F9D20FE9C /* MetMuseumModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63E587269ECC706F1F22C266 /* MetMuseumModels.swift */; };
 		10BFA44C9A4240C5EBF57018 /* SettingsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD5690663479FBDA165A96B /* SettingsKeys.swift */; };
 		19972E0AC511408E6B230C44 /* ArtworkFeedCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EC70DA2766D6FFD98283BC4 /* ArtworkFeedCache.swift */; };
-		1BD2FBB8BFA745AAA7D9D310 /* WidgetRefreshInterval.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58A211D35AE0E3261DEDD024 /* WidgetRefreshInterval.swift */; };
 		23C3A7F80D86D0CE04456893 /* MetMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DE3B16D47B38730CD4475CE /* MetMuseumAPI.swift */; };
 		2580F721762415DE7E4269A9 /* RequestLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F3052397EB170BF0730F5B4 /* RequestLogsView.swift */; };
 		25F50C06099559E4DBB10D2C /* SettingsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD5690663479FBDA165A96B /* SettingsKeys.swift */; };
@@ -60,7 +58,6 @@
 		359187C2F581E0B49E2DFE3F /* MetMuseumPersistentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B767DED860727F7B1D106D3E /* MetMuseumPersistentCache.swift */; };
 		39EF46DCBA1A93ADAB139396 /* RequestLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0773F3ED0D9C2C7D00381424 /* RequestLogger.swift */; };
 		3E9E2BDFE01616ACE8B45CE8 /* DailyMuseumApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66FE9D0B5E8CBC6277FA891B /* DailyMuseumApp.swift */; };
-		46E9C3AC1BC94DC749C3C180 /* WidgetRefreshInterval.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58A211D35AE0E3261DEDD024 /* WidgetRefreshInterval.swift */; };
 		47875A95039007E1D161ABF1 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EEE448C8964D21F694014F7 /* RootView.swift */; };
 		4CDB8F310780177AFF08146B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D2E9FEFE6D6787330AAA0104 /* Assets.xcassets */; };
 		5601240D9836EF70D90487A0 /* ArtworkFeedViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27983725A26AC36A5EA28756 /* ArtworkFeedViewModel.swift */; };
@@ -152,7 +149,6 @@
 		4B2A7EA64F8C40563153939F /* ArtworkDetailLoaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkDetailLoaderView.swift; sourceTree = "<group>"; };
 		4E9000674963F093B5BC9FE7 /* JapanSearchModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JapanSearchModels.swift; sourceTree = "<group>"; };
 		56BD6F2F27B9A4E39394EB50 /* ArtworkFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkFeedView.swift; sourceTree = "<group>"; };
-		58A211D35AE0E3261DEDD024 /* WidgetRefreshInterval.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetRefreshInterval.swift; sourceTree = "<group>"; };
 		5BA863EC7AE41653AA5A9382 /* ImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageLoader.swift; sourceTree = "<group>"; };
 		5BD5690663479FBDA165A96B /* SettingsKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsKeys.swift; sourceTree = "<group>"; };
 		6236876208BA288526D7D379 /* Artwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Artwork.swift; sourceTree = "<group>"; };
@@ -367,7 +363,6 @@
 				5BD5690663479FBDA165A96B /* SettingsKeys.swift */,
 				D567DE125D65B4BF7B005CEA /* SettingsStore.swift */,
 				785DF258A9365EE2171A1EDA /* WidgetMuseumScope.swift */,
-				58A211D35AE0E3261DEDD024 /* WidgetRefreshInterval.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -542,7 +537,6 @@
 				AA0000000000000000000010 /* WidgetArtworkSnapshotStore.swift in Sources */,
 				AA0000000000000000000012 /* WidgetStateAndSettingsTests.swift in Sources */,
 				AA0000000000000000000020 /* WidgetRefreshDeliveryTracker.swift in Sources */,
-				AA000000000000000000001F /* WidgetRefreshInterval.swift in Sources */,
 				AA0000000000000000000021 /* WidgetSettingsReader.swift in Sources */,
 				AA0000000000000000000003 /* WidgetArtworkSnapshotStoreTests.swift in Sources */,
 			);
@@ -581,7 +575,6 @@
 				E6F45083BBEDF96C8635C070 /* WidgetArtworkSnapshotStore.swift in Sources */,
 				B5C2D137F4A14D27A0010001 /* WidgetRefreshDeliveryTracker.swift in Sources */,
 				BE339BFB1CB1E63EA1C63F84 /* WidgetMuseumScope.swift in Sources */,
-				1BD2FBB8BFA745AAA7D9D310 /* WidgetRefreshInterval.swift in Sources */,
 				FA61C66FE799EE5EE5329728 /* WidgetSettingsReader.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -629,7 +622,6 @@
 				AA0000000000000000000036 /* WidgetSettingsReader.swift in Sources */,
 				F0AE0A1C3CC1749CBE7B804F /* WaterfallGrid.swift in Sources */,
 				D7688FF2CCD4DDF0F7F6544D /* WidgetMuseumScope.swift in Sources */,
-				46E9C3AC1BC94DC749C3C180 /* WidgetRefreshInterval.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

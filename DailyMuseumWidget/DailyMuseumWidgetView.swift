@@ -71,7 +71,8 @@ struct DailyMuseumWidgetView: View {
                 Button(
                     intent: RefreshWidgetIntent(
                         instanceToken: entry.instanceToken,
-                        museumScope: configuredScope
+                        museumScope: configuredScope,
+                        widgetFamilyToken: family.debugToken
                     )
                 ) {
                     Image(systemName: "arrow.clockwise.circle.fill")
