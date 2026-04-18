@@ -25,9 +25,7 @@ struct ArtworkDetailLoaderView: View {
                     artwork: displayedArtwork,
                     placeholderAspectRatio: detailPlaceholderAspectRatio,
                     imageReloadToken: imageReloadToken,
-                    showsTranslationButton: artwork?.supportsTranslation == true,
-                    translationButtonTitle: translationButtonTitle,
-                    translationButtonDisabled: isTranslating
+                    translationToolbarState: artwork?.supportsTranslation == true ? translationToolbarState : nil
                 ) {
                     await handleTranslationButtonTap()
                 } onRefresh: {
@@ -172,14 +170,14 @@ struct ArtworkDetailLoaderView: View {
         return artwork
     }
 
-    private var translationButtonTitle: String {
+    private var translationToolbarState: TranslationToolbarState {
         if isTranslating {
-            return "翻译中"
+            return .translating
         }
         if translatedArtwork != nil {
-            return showsTranslatedArtwork ? "原文" : "译文"
+            return showsTranslatedArtwork ? .translated : .original(hasCachedTranslation: true)
         }
-        return "翻译"
+        return .original(hasCachedTranslation: false)
     }
 
     private var detailPlaceholderAspectRatio: CGFloat {

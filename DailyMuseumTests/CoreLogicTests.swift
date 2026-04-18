@@ -104,6 +104,27 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertFalse(blankContent.supportsTranslation)
     }
 
+    func testTranslationToolbarStateUsesExpectedOriginalIcon() {
+        let state = TranslationToolbarState.original(hasCachedTranslation: false)
+
+        XCTAssertEqual(state.systemImageName, "globe")
+        XCTAssertFalse(state.isDisabled)
+    }
+
+    func testTranslationToolbarStateUsesExpectedTranslatingIconAndDisablesButton() {
+        let state = TranslationToolbarState.translating
+
+        XCTAssertEqual(state.systemImageName, "globe.badge.clock")
+        XCTAssertTrue(state.isDisabled)
+    }
+
+    func testTranslationToolbarStateUsesExpectedTranslatedIcon() {
+        let state = TranslationToolbarState.translated
+
+        XCTAssertEqual(state.systemImageName, "globe.badge.chevron.backward")
+        XCTAssertFalse(state.isDisabled)
+    }
+
     func testJapanSearchItemSortValueAndArtworkMapping() throws {
         let item = try decodeJapanSearchItem(
             """
