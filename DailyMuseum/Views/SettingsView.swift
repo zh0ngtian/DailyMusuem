@@ -19,13 +19,6 @@ struct SettingsView: View {
             Section("展品列表") {
                 Toggle("随机展示展品", isOn: $settings.feedRandomOrder)
             }
-            Section {
-                Text("小组件已改为仅支持手动刷新。展示范围在桌面上的每个小组件实例内单独配置，类别继续跟随各博物馆二级页的页面设置。")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            } header: {
-                Text("小组件")
-            }
             Section("翻译") {
                 Picker("翻译引擎", selection: $settings.translationEngineRawValue) {
                     ForEach(TranslationEngine.allCases) { engine in

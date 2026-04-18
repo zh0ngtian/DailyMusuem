@@ -53,6 +53,15 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(token, "legacy-single-tnm-medium")
     }
 
+    func testWidgetInstanceTokenResolverGeneratesNonEmptyDefaultToken() {
+        let first = WidgetInstanceTokenResolver.makeDefaultToken()
+        let second = WidgetInstanceTokenResolver.makeDefaultToken()
+
+        XCTAssertFalse(first.isEmpty)
+        XCTAssertFalse(second.isEmpty)
+        XCTAssertNotEqual(first, second)
+    }
+
     func testArtworkBatchLoaderLoadsTokyoInTenItemPagesAndAdvancesSearchWindow() async throws {
         let recorder = WidgetRequestRecorder()
         let testID = UUID().uuidString
@@ -357,6 +366,119 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(requestedCandidates, 1)
     }
 
+    func testWidgetRefreshEngineSkipsPreviouslyDisplayedArtworkForSameInstance() async throws {
+        let baseURL = temporaryBaseURL()
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let instanceToken = "widget-history"
+        let scope = WidgetMuseumScope.single(.met)
+        _ = await store.beginRefresh(instanceToken: instanceToken, scopeRawValue: scope.rawValue)
+        _ = await store.markSuccess(
+            instanceToken: instanceToken,
+            expectedNonce: 1,
+            payload: WidgetRefreshPayload(
+                museumID: .met,
+                artworkKey: WidgetDisplayedArtworkKey.make(museumID: .met, objectID: "seen"),
+                museumName: MuseumID.met.displayName,
+                title: "Seen",
+                subtitle: "2026",
+                imageData: widgetValidPNGData,
+                appURL: URL(string: "https://example.com/seen")
+            ).storedPayload(),
+            imageData: nil
+        )
+
+        let loader = StubBatchLoader(
+            batches: [[
+                makeArtwork(
+                    museumID: .met,
+                    objectID: "seen",
+                    title: "Seen",
+                    imageURL: URL(string: "https://example.com/seen.jpg")
+                ),
+                makeArtwork(
+                    museumID: .met,
+                    objectID: "fresh",
+                    title: "Fresh",
+                    imageURL: URL(string: "https://example.com/fresh.jpg")
+                ),
+            ]]
+        )
+
+        let engine = WidgetRefreshEngine(
+            settingsReader: WidgetSettingsReader(defaults: defaults),
+            snapshotStore: store,
+            loaderFactory: { _, _, _ in loader },
+            randomIndex: { _ in 0 },
+            imageDataFetcher: { _, _ in widgetValidPNGData }
+        )
+
+        let payload = try await engine.fetchRenderableArtwork(
+            scope: scope,
+            instanceToken: instanceToken,
+            logSource: "WidgetHistorySkip"
+        )
+
+        XCTAssertEqual(payload.title, "Fresh")
+        XCTAssertEqual(payload.artworkKey, WidgetDisplayedArtworkKey.make(museumID: .met, objectID: "fresh"))
+        let requestedCandidates = await loader.requestedCandidateCount()
+        XCTAssertEqual(requestedCandidates, 2)
+    }
+
+    func testWidgetRefreshEngineClearsDisplayedHistoryOnceWhenOnlySeenCandidatesRemain() async throws {
+        let baseURL = temporaryBaseURL()
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let instanceToken = "widget-history-reset"
+        let scope = WidgetMuseumScope.single(.met)
+        _ = await store.beginRefresh(instanceToken: instanceToken, scopeRawValue: scope.rawValue)
+        _ = await store.markSuccess(
+            instanceToken: instanceToken,
+            expectedNonce: 1,
+            payload: WidgetRefreshPayload(
+                museumID: .met,
+                artworkKey: WidgetDisplayedArtworkKey.make(museumID: .met, objectID: "repeat"),
+                museumName: MuseumID.met.displayName,
+                title: "Repeat",
+                subtitle: "2026",
+                imageData: widgetValidPNGData,
+                appURL: URL(string: "https://example.com/repeat")
+            ).storedPayload(),
+            imageData: nil
+        )
+
+        let loaderFactoryCount = IntRecorder()
+        let engine = WidgetRefreshEngine(
+            settingsReader: WidgetSettingsReader(defaults: defaults),
+            snapshotStore: store,
+            loaderFactory: { [self] _, _, _ in
+                loaderFactoryCount.increment()
+                return StubBatchLoader(batches: [[
+                    self.makeArtwork(
+                        museumID: .met,
+                        objectID: "repeat",
+                        title: "Repeat",
+                        imageURL: URL(string: "https://example.com/repeat.jpg")
+                    )
+                ]])
+            },
+            randomIndex: { _ in 0 },
+            imageDataFetcher: { _, _ in widgetValidPNGData }
+        )
+
+        let payload = try await engine.fetchRenderableArtwork(
+            scope: scope,
+            instanceToken: instanceToken,
+            logSource: "WidgetHistoryReset"
+        )
+
+        XCTAssertEqual(payload.title, "Repeat")
+        XCTAssertEqual(loaderFactoryCount.value, 2)
+        let displayedKeys = await store.displayedArtworkKeys(
+            for: instanceToken,
+            scopeRawValue: scope.rawValue
+        )
+        XCTAssertEqual(displayedKeys, [])
+    }
+
     func testWidgetRefreshEngineAllMuseumsUsesInjectedSelectionOrder() async throws {
         let selectedRanges = RangeRecorder()
         let metArtwork = makeArtwork(
@@ -485,6 +607,40 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(secondState?.artwork?.museumID, .tnm)
         XCTAssertEqual(firstState?.phase, .success)
         XCTAssertEqual(secondState?.phase, .success)
+    }
+
+    func testWidgetRefreshCoordinatorKeepsSameScopeInstancesIndependent() async throws {
+        let baseURL = temporaryBaseURL()
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let factory = SequentialEngineFactory()
+        let coordinator = WidgetRefreshCoordinator(
+            store: store,
+            widgetCenter: .shared,
+            makeEngine: {
+                factory.makeEngine(snapshotStore: store)
+            }
+        )
+
+        async let firstRefresh: Void = coordinator.refresh(
+            instanceToken: "same-scope-1",
+            scope: .single(.met),
+            logSource: "CoordinatorSameScope"
+        )
+        async let secondRefresh: Void = coordinator.refresh(
+            instanceToken: "same-scope-2",
+            scope: .single(.met),
+            logSource: "CoordinatorSameScope"
+        )
+        _ = await (firstRefresh, secondRefresh)
+
+        let firstState = await store.state(for: "same-scope-1")
+        let secondState = await store.state(for: "same-scope-2")
+
+        XCTAssertEqual(firstState?.phase, .success)
+        XCTAssertEqual(secondState?.phase, .success)
+        XCTAssertNotEqual(firstState?.artwork?.title, secondState?.artwork?.title)
+        XCTAssertEqual(firstState?.scopeRawValue, WidgetMuseumScope.single(.met).rawValue)
+        XCTAssertEqual(secondState?.scopeRawValue, WidgetMuseumScope.single(.met).rawValue)
     }
 
     private func makeStubSession(
@@ -683,17 +839,35 @@ private final class RangeRecorder {
     }
 }
 
+private final class IntRecorder {
+    private let lock = NSLock()
+    private var storage = 0
+
+    func increment() {
+        lock.lock()
+        storage += 1
+        lock.unlock()
+    }
+
+    var value: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
+}
+
 private final class SequentialEngineFactory {
     private let lock = NSLock()
     private var creationCount = 0
 
-    func makeEngine() -> WidgetRefreshEngine {
+    func makeEngine(snapshotStore: WidgetArtworkSnapshotStore = .shared) -> WidgetRefreshEngine {
         lock.lock()
         creationCount += 1
         let index = creationCount
         lock.unlock()
 
         return WidgetRefreshEngine(
+            snapshotStore: snapshotStore,
             loaderFactory: { museumID, _, _ in
                 StubBatchLoader(batches: [[
                     Artwork(

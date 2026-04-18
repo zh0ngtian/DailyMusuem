@@ -1,4 +1,5 @@
 import UIKit
+import WidgetKit
 import XCTest
 
 final class WidgetArtworkSnapshotStoreTests: XCTestCase {
@@ -33,6 +34,7 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
         let reloaded = await store.state(for: "instance-a")
 
         XCTAssertEqual(registered.phase, .idle)
+        XCTAssertEqual(registered.displayedArtworkKeys, [])
         XCTAssertEqual(refreshing.phase, .refreshing)
         XCTAssertEqual(refreshing.nonce, 1)
         XCTAssertEqual(reloaded?.phase, .refreshing)
@@ -63,6 +65,7 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
             .appendingPathComponent(imageFileName)
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: imageURL.path))
+        XCTAssertEqual(successState?.displayedArtworkKeys, [WidgetDisplayedArtworkKey.make(museumID: .tnm, objectID: "1")])
 
         _ = await store.beginRefresh(
             instanceToken: "instance-b",
@@ -127,11 +130,9 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
         }
     }
 
-    func testMostRecentDisplayableStatePrefersSuccessOverNewerRefreshingStateForScope() async throws {
+    func testRenderStateDoesNotAdoptOtherInstanceStateForSameScope() async throws {
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
         let scope = WidgetMuseumScope.single(.met).rawValue
-
-        _ = await store.registerInstance(instanceToken: "idle", scopeRawValue: scope)
 
         _ = await store.beginRefresh(instanceToken: "success", scopeRawValue: scope)
         _ = await store.markSuccess(
@@ -146,16 +147,162 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
             now: Date(timeIntervalSince1970: 200)
         )
 
-        _ = await store.beginRefresh(
-            instanceToken: "refreshing",
+        let rendered = await store.renderState(
+            for: "fresh-instance",
             scopeRawValue: scope,
             now: Date(timeIntervalSince1970: 300)
         )
 
-        let adopted = await store.mostRecentDisplayableState(scopeRawValue: scope)
+        XCTAssertEqual(rendered.instanceToken, "fresh-instance")
+        XCTAssertEqual(rendered.scopeRawValue, scope)
+        XCTAssertEqual(rendered.phase, .idle)
+        XCTAssertNil(rendered.artwork)
+    }
 
-        XCTAssertEqual(adopted?.instanceToken, "success")
-        XCTAssertEqual(adopted?.phase, .success)
+    func testRenderStateRecoversRecentSameFamilyStateWhenTokenDrifts() async throws {
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let scope = WidgetMuseumScope.single(.met).rawValue
+        let familyToken = WidgetFamily.systemMedium.debugToken
+
+        _ = await store.beginRefresh(
+            instanceToken: "initial-token",
+            scopeRawValue: scope,
+            familyToken: familyToken,
+            now: Date(timeIntervalSince1970: 10)
+        )
+        _ = await store.markSuccess(
+            instanceToken: "initial-token",
+            expectedNonce: 1,
+            payload: makePayload(
+                museumID: .met,
+                museumName: "大都会艺术博物馆",
+                title: "Recovered"
+            ),
+            imageData: nil,
+            familyToken: familyToken,
+            now: Date(timeIntervalSince1970: 20)
+        )
+
+        let rendered = await store.renderState(
+            for: "drifted-token",
+            scopeRawValue: scope,
+            familyToken: familyToken,
+            now: Date(timeIntervalSince1970: 30)
+        )
+
+        XCTAssertEqual(rendered.instanceToken, "drifted-token")
+        XCTAssertEqual(rendered.familyToken, familyToken)
+        XCTAssertEqual(rendered.phase, .success)
+        XCTAssertEqual(rendered.artwork?.title, "Recovered")
+        let migratedState = await store.state(for: "drifted-token")
+        let originalState = await store.state(for: "initial-token")
+        XCTAssertEqual(migratedState?.phase, .success)
+        XCTAssertNil(originalState)
+    }
+
+    func testRenderStateDoesNotRecoverRecentStateAcrossDifferentFamily() async throws {
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let scope = WidgetMuseumScope.single(.met).rawValue
+
+        _ = await store.beginRefresh(
+            instanceToken: "large-token",
+            scopeRawValue: scope,
+            familyToken: WidgetFamily.systemLarge.debugToken,
+            now: Date(timeIntervalSince1970: 10)
+        )
+        _ = await store.markSuccess(
+            instanceToken: "large-token",
+            expectedNonce: 1,
+            payload: makePayload(
+                museumID: .met,
+                museumName: "大都会艺术博物馆",
+                title: "Large"
+            ),
+            imageData: nil,
+            familyToken: WidgetFamily.systemLarge.debugToken,
+            now: Date(timeIntervalSince1970: 20)
+        )
+
+        let rendered = await store.renderState(
+            for: "medium-token",
+            scopeRawValue: scope,
+            familyToken: WidgetFamily.systemMedium.debugToken,
+            now: Date(timeIntervalSince1970: 30)
+        )
+
+        XCTAssertEqual(rendered.instanceToken, "medium-token")
+        XCTAssertEqual(rendered.familyToken, WidgetFamily.systemMedium.debugToken)
+        XCTAssertEqual(rendered.phase, .idle)
+        XCTAssertNil(rendered.artwork)
+    }
+
+    func testScopeChangeResetsArtworkFailureAndDisplayedHistory() async throws {
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        _ = await store.beginRefresh(
+            instanceToken: "instance-scope",
+            scopeRawValue: WidgetMuseumScope.single(.met).rawValue
+        )
+        _ = await store.markSuccess(
+            instanceToken: "instance-scope",
+            expectedNonce: 1,
+            payload: makePayload(
+                museumID: .met,
+                museumName: "大都会艺术博物馆",
+                title: "旧展品"
+            ),
+            imageData: Data("image".utf8)
+        )
+
+        let refreshed = await store.beginRefresh(
+            instanceToken: "instance-scope",
+            scopeRawValue: WidgetMuseumScope.single(.tnm).rawValue
+        )
+
+        XCTAssertEqual(refreshed.scopeRawValue, WidgetMuseumScope.single(.tnm).rawValue)
+        XCTAssertEqual(refreshed.phase, .refreshing)
+        XCTAssertNil(refreshed.artwork)
+        XCTAssertNil(refreshed.failureMessage)
+        XCTAssertEqual(refreshed.displayedArtworkKeys, [])
+    }
+
+    func testPersistedStateWithoutDisplayedHistoryStillLoads() async throws {
+        let directoryURL = baseURL.appendingPathComponent("WidgetInstances", isDirectory: true)
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+
+        let persistedState = """
+        {
+          "instances" : [
+            {
+              "instanceToken" : "legacy",
+              "scopeRawValue" : "single:met",
+              "nonce" : 2,
+              "phase" : "success",
+              "artwork" : {
+                "museumID" : "met",
+                "museumName" : "大都会艺术博物馆",
+                "title" : "旧展品",
+                "subtitle" : "2026",
+                "imageFileName" : null,
+                "appURL" : "dailymuseum://artwork/met/1",
+                "updatedAt" : 1
+              },
+              "failureMessage" : null,
+              "lastUpdatedAt" : 2
+            }
+          ]
+        }
+        """
+        try Data(persistedState.utf8).write(
+            to: directoryURL.appendingPathComponent("instances.json"),
+            options: [.atomic]
+        )
+
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let state = await store.state(for: "legacy")
+
+        XCTAssertEqual(state?.instanceToken, "legacy")
+        XCTAssertEqual(state?.displayedArtworkKeys, [])
+        XCTAssertEqual(state?.artwork?.title, "旧展品")
     }
 
     func testWidgetImageUsesCroppedThumbnailWithinPixelBudget() throws {
@@ -186,6 +333,7 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
     ) -> WidgetArtworkSnapshotStore.ArtworkPayload {
         WidgetArtworkSnapshotStore.ArtworkPayload(
             museumID: museumID,
+            artworkKey: WidgetDisplayedArtworkKey.make(museumID: museumID, objectID: "1"),
             museumName: museumName,
             title: title,
             subtitle: "2026",

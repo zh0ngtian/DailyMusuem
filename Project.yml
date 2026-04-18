@@ -92,7 +92,6 @@ targets:
       - path: Shared/NationalMuseumChina/NationalMuseumChinaAPI.swift
       - path: Shared/Settings/SettingsKeys.swift
       - path: Shared/Settings/WidgetMuseumScope.swift
-      - path: Shared/Settings/WidgetRefreshInterval.swift
       - path: DailyMuseumWidget/WidgetArtworkSnapshotStore.swift
       - path: DailyMuseumWidget/WidgetRefreshDeliveryTracker.swift
       - path: DailyMuseumWidget/WidgetSettingsReader.swift

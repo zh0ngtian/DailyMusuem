@@ -374,7 +374,7 @@
 ## 小组件刷新常见坑
 
 - 不能把 provider 返回 `success` 误判为“桌面一定已正常显示”：
-  - `Widget Provider` 日志只能说明 timeline 已生成。
+  - `Widget 完成渲染` 日志只能说明 timeline 已生成。
   - 真正的验收仍然要看 SpringBoard 桌面截图。
 - 小组件成功态如果直接使用远端原始大图，容易触发 WidgetKit/Chrono 归档失败：
   - 常见系统日志关键字包括：

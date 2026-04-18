@@ -102,7 +102,7 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
             phase: .idle,
             museumName: "DailyMuseum",
             title: "点击刷新获取展品",
-            subtitle: "每个小组件实例独立刷新",
+            subtitle: "每个实例独立刷新，同实例避免重复",
             imageFileName: nil,
             appURL: nil,
             failureMessage: nil
@@ -144,38 +144,16 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
             family: family
         )
         let store = WidgetArtworkSnapshotStore.shared
-        let exactState = await store.state(for: resolvedInstanceToken)
-        let adoptedState: WidgetArtworkSnapshotStore.InstanceState?
-        if exactState == nil {
-            adoptedState = await store.mostRecentDisplayableState(scopeRawValue: scope.rawValue)
-        } else {
-            adoptedState = nil
-        }
-        let state: WidgetArtworkSnapshotStore.InstanceState
-        if let exactState {
-            state = exactState
-        } else if let adoptedState {
-            state = adoptedState
-        } else {
-            state = await store.registerInstance(
-                instanceToken: resolvedInstanceToken,
-                scopeRawValue: scope.rawValue,
-                now: date
-            )
-        }
-        let effectiveInstanceToken = adoptedState?.instanceToken ?? resolvedInstanceToken
-        let renderID = "\(effectiveInstanceToken)|\(state.nonce)|\(state.phase.rawValue)"
-        let stateSource: String
-        if exactState != nil {
-            stateSource = "exact"
-        } else if adoptedState != nil {
-            stateSource = "adopted"
-        } else {
-            stateSource = "registered"
-        }
+        let state = await store.renderState(
+            for: resolvedInstanceToken,
+            scopeRawValue: scope.rawValue,
+            familyToken: family?.debugToken,
+            now: date
+        )
+        let renderID = "\(resolvedInstanceToken)|\(scope.rawValue)|\(state.nonce)|\(state.phase.rawValue)"
         await RequestLogger.shared.logEvent(
-            source: "Widget Provider",
-            summary: "family=\(family?.debugToken ?? "unknown") scope=\(scope.rawValue) resolved=\(resolvedInstanceToken) effective=\(effectiveInstanceToken) source=\(stateSource) phase=\(state.phase.rawValue)"
+            source: "Widget 完成渲染",
+            summary: "family=\(family?.debugToken ?? "unknown") scope=\(scope.rawValue) token=\(resolvedInstanceToken) phase=\(state.phase.rawValue)"
         )
 
         switch state.phase {
@@ -184,7 +162,7 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
                 return WidgetArtworkEntry(
                     date: date,
                     renderID: renderID,
-                    instanceToken: effectiveInstanceToken,
+                    instanceToken: resolvedInstanceToken,
                     scopeRawValue: scope.rawValue,
                     phase: .success,
                     museumName: artwork.museumName,
@@ -200,7 +178,7 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
                 return WidgetArtworkEntry(
                     date: date,
                     renderID: renderID,
-                    instanceToken: effectiveInstanceToken,
+                    instanceToken: resolvedInstanceToken,
                     scopeRawValue: scope.rawValue,
                     phase: .refreshing,
                     museumName: artwork.museumName,
@@ -215,7 +193,7 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
             return WidgetArtworkEntry(
                 date: date,
                 renderID: renderID,
-                instanceToken: effectiveInstanceToken,
+                instanceToken: resolvedInstanceToken,
                 scopeRawValue: scope.rawValue,
                 phase: .refreshing,
                 museumName: scope.displayName,
@@ -229,7 +207,7 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
             return WidgetArtworkEntry(
                 date: date,
                 renderID: renderID,
-                instanceToken: effectiveInstanceToken,
+                instanceToken: resolvedInstanceToken,
                 scopeRawValue: scope.rawValue,
                 phase: .failure,
                 museumName: scope.displayName,
@@ -246,12 +224,12 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
         return WidgetArtworkEntry(
             date: date,
             renderID: renderID,
-            instanceToken: effectiveInstanceToken,
+            instanceToken: resolvedInstanceToken,
             scopeRawValue: scope.rawValue,
             phase: .idle,
             museumName: scope.displayName,
             title: "点击刷新获取展品",
-            subtitle: "当前实例独立刷新",
+            subtitle: "当前实例独立刷新，同实例避免重复",
             imageFileName: nil,
             appURL: nil,
             failureMessage: nil
