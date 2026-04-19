@@ -155,7 +155,7 @@
 		15CC322130D2C36A4D586EC3 /* met-overview.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "met-overview.html"; sourceTree = "<group>"; };
 		197FEFC5FEC3B51DB5E4F537 /* NationalMuseumChinaAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NationalMuseumChinaAPI.swift; sourceTree = "<group>"; };
 		1B7AF25AA60373F1FEF52146 /* DailyMuseumWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DailyMuseumWidget.entitlements; sourceTree = "<group>"; };
-		1CA69050D6181865B9708213 /* DailyMuseumTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = DailyMuseumTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		1CA69050D6181865B9708213 /* DailyMuseumTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DailyMuseumTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		217B48EE2D107B1146488C81 /* AppDeepLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDeepLink.swift; sourceTree = "<group>"; };
 		22F7ECE0FEA6838A9CA48031 /* Museum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Museum.swift; sourceTree = "<group>"; };
 		24DBCD6E661D8383B4C5F9E3 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -681,7 +681,7 @@
 				CODE_SIGN_ENTITLEMENTS = DailyMuseum/DailyMuseum.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = PGKB4LZW48;
+				DEVELOPMENT_TEAM = M9P6TQ2KW5;
 				INFOPLIST_FILE = DailyMuseum/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -756,7 +756,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = DailyMuseumWidget/DailyMuseumWidgetAppGroup.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = PGKB4LZW48;
+				DEVELOPMENT_TEAM = M9P6TQ2KW5;
 				INFOPLIST_FILE = DailyMuseumWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -776,6 +776,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = M9P6TQ2KW5;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -798,7 +799,7 @@
 				CODE_SIGN_ENTITLEMENTS = DailyMuseum/DailyMuseum.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = PGKB4LZW48;
+				DEVELOPMENT_TEAM = M9P6TQ2KW5;
 				INFOPLIST_FILE = DailyMuseum/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -817,6 +818,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = M9P6TQ2KW5;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -837,7 +839,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = DailyMuseumWidget/DailyMuseumWidgetAppGroup.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = PGKB4LZW48;
+				DEVELOPMENT_TEAM = M9P6TQ2KW5;
 				INFOPLIST_FILE = DailyMuseumWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

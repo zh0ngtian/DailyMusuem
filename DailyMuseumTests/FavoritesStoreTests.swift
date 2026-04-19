@@ -138,6 +138,31 @@ final class FavoritesStoreTests: XCTestCase {
         XCTAssertEqual(sections[2].items.map(\.objectID), ["2"])
     }
 
+    func testGroupedFavoritesUseHomepageMuseumOrderForChinaFirstLayout() {
+        let store = FavoritesStore(defaults: defaults)
+
+        store.toggleFavorite(
+            artwork: makeArtwork(museumID: .met, objectID: "1", title: "A"),
+            favoritedAt: Date(timeIntervalSince1970: 100)
+        )
+        store.toggleFavorite(
+            artwork: makeArtwork(museumID: .shm, objectID: "2", title: "B"),
+            favoritedAt: Date(timeIntervalSince1970: 200)
+        )
+        store.toggleFavorite(
+            artwork: makeArtwork(museumID: .nmc, objectID: "3", title: "C"),
+            favoritedAt: Date(timeIntervalSince1970: 300)
+        )
+        store.toggleFavorite(
+            artwork: makeArtwork(museumID: .tnm, objectID: "4", title: "D"),
+            favoritedAt: Date(timeIntervalSince1970: 400)
+        )
+
+        let sections = store.groupedFavorites(orderedMuseumIDs: MuseumRepository.homepageMuseumIDs)
+
+        XCTAssertEqual(sections.map(\.museumID), [.nmc, .shm, .met, .tnm])
+    }
+
     private func makeArtwork(museumID: MuseumID, objectID: String, title: String) -> Artwork {
         Artwork(
             id: "\(museumID.rawValue)-\(objectID)",

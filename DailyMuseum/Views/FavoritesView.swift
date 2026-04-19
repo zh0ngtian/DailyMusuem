@@ -7,11 +7,10 @@ struct FavoritesView: View {
     }
 
     @ObservedObject private var favorites = FavoritesStore.shared
-    @ObservedObject private var settings = SettingsStore.shared
     @State private var selectedArtworkReference: ArtworkReference?
 
     private var sections: [FavoriteSection] {
-        favorites.groupedFavorites(orderedMuseumIDs: settings.orderedMuseums().map(\.id))
+        favorites.groupedFavorites(orderedMuseumIDs: MuseumRepository.homepageMuseumIDs)
     }
 
     var body: some View {

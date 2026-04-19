@@ -1,53 +1,34 @@
 import SwiftUI
 
 struct MuseumListView: View {
-    @StateObject private var settings = SettingsStore.shared
-    @State private var museums: [Museum] = []
-    @State private var isSorting = false
     @State private var selectedMuseum: Museum?
+
+    private var countrySections: [MuseumCountrySection] {
+        MuseumRepository.homepageCountrySections
+    }
 
     var body: some View {
         List {
-            if isSorting {
+            ForEach(countrySections) { section in
                 Section {
-                    Text("长按后拖动右侧手柄调整顺序，完成后点右上角“完成”。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 4, trailing: 20))
-                        .listRowBackground(Color.clear)
-                }
-            }
-
-            Section {
-                ForEach(museums) { museum in
-                    Group {
-                        if isSorting {
-                            museumCard(museum, showsChevron: false)
-                        } else {
-                            Button {
-                                selectedMuseum = museum
-                            } label: {
-                                museumCard(museum, showsChevron: true)
-                            }
-                            .buttonStyle(.plain)
+                    ForEach(section.museums) { museum in
+                        Button {
+                            selectedMuseum = museum
+                        } label: {
+                            museumCard(museum, showsChevron: true)
                         }
+                        .buttonStyle(.plain)
+                        .listRowInsets(EdgeInsets(top: 7, leading: 20, bottom: 7, trailing: 20))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
                     }
-                    .listRowInsets(EdgeInsets(top: 7, leading: 20, bottom: 7, trailing: 20))
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-                    .moveDisabled(!isSorting)
-                    .highPriorityGesture(
-                        LongPressGesture(minimumDuration: 0.5)
-                            .onEnded { _ in
-                                guard !isSorting else { return }
-                                museums = settings.orderedMuseums()
-                                withAnimation(.spring(duration: 0.25, bounce: 0.12)) {
-                                    isSorting = true
-                                }
-                            }
-                    )
+                } header: {
+                    Text(section.country)
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                        .textCase(nil)
+                        .padding(.leading, 4)
                 }
-                .onMove(perform: moveMuseums)
             }
         }
         .listStyle(.plain)
@@ -57,37 +38,17 @@ struct MuseumListView: View {
         .navigationDestination(item: $selectedMuseum) { museum in
             ArtworkFeedView(museum: museum)
         }
-        .environment(\.editMode, .constant(isSorting ? .active : .inactive))
-        .task {
-            if museums.isEmpty {
-                museums = settings.orderedMuseums()
-            }
-        }
-        .onChange(of: settings.museumDisplayOrderRawValue) { _, _ in
-            guard !isSorting else { return }
-            museums = settings.orderedMuseums()
-        }
         .toolbar {
-            if isSorting {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("完成") {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            isSorting = false
-                        }
-                    }
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                NavigationLink(value: Route.favorites) {
+                    Image(systemName: "star")
                 }
-            } else {
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    NavigationLink(value: Route.favorites) {
-                        Image(systemName: "star")
-                    }
-                    .accessibilityLabel("收藏夹")
+                .accessibilityLabel("收藏夹")
 
-                    NavigationLink(value: Route.settings) {
-                        Image(systemName: "gear")
-                    }
-                    .accessibilityLabel("设置")
+                NavigationLink(value: Route.settings) {
+                    Image(systemName: "gear")
                 }
+                .accessibilityLabel("设置")
             }
         }
     }
@@ -143,10 +104,5 @@ struct MuseumListView: View {
                     .padding(.vertical, 9)
             }
             .frame(width: 112, height: 68)
-    }
-
-    private func moveMuseums(from source: IndexSet, to destination: Int) {
-        museums.move(fromOffsets: source, toOffset: destination)
-        settings.saveMuseumOrder(museums)
     }
 }
