@@ -248,7 +248,7 @@ entries = json.loads(path.read_text())
 entries = entries[-tail_count:]
 
 for entry in entries:
-    ts = (datetime(2001, 1, 1, tzinfo=timezone.utc) + timedelta(seconds=entry["timestamp"])).astimezone().strftime("%Y-%m-%d %H:%M:%S")
+    ts = (datetime(2001, 1, 1, tzinfo=timezone.utc) + timedelta(seconds=entry["timestamp"])).astimezone().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
     url = entry.get("url") or ""
     method = entry.get("method") or ""
     status = entry.get("statusCode")
