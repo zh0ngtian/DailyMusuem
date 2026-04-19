@@ -3,7 +3,7 @@ import SwiftUI
 struct ArtworkDetailLoaderView: View {
     let reference: ArtworkReference
 
-    @StateObject private var favorites = FavoritesStore.shared
+    @ObservedObject private var favorites = FavoritesStore.shared
     @State private var artwork: Artwork?
     @State private var translatedArtwork: Artwork?
     @State private var showsTranslatedArtwork = false
