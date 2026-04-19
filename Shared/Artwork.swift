@@ -100,6 +100,30 @@ struct Artwork: Identifiable, Hashable, Codable {
         )
     }
 
+    func withPrimaryImageURLs(
+        primaryImageURL: URL?,
+        primaryImageSmallURL: URL?
+    ) -> Artwork {
+        Artwork(
+            id: id,
+            museumID: museumID,
+            objectID: objectID,
+            title: title,
+            artworkDescription: artworkDescription,
+            artistDisplayName: artistDisplayName,
+            objectDate: objectDate,
+            medium: medium,
+            dimensions: dimensions,
+            department: department,
+            culture: culture,
+            country: country,
+            repository: repository,
+            primaryImageURL: primaryImageURL,
+            primaryImageSmallURL: primaryImageSmallURL,
+            objectURL: objectURL
+        )
+    }
+
     var normalizedDescriptionText: String? {
         guard let description = artworkDescription else {
             return nil

@@ -38,12 +38,15 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
                 placeholder()
             }
         }
-        .onAppear { loader.load() }
+        .onAppear { loader.updateURL(url) }
         .onReceive(loader.$image) { newImage in
             guard let newImage else {
                 return
             }
             handleLoadedImage(newImage, size: newImage.size)
+        }
+        .onChange(of: url) { _, newURL in
+            loader.updateURL(newURL)
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {

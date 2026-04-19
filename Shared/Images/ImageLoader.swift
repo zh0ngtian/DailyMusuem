@@ -11,12 +11,29 @@ final class ImageLoader: ObservableObject {
     @Published private(set) var isLoading: Bool = false
     @Published private(set) var error: Error?
 
-    private let url: URL?
+    private var url: URL?
     private var task: Task<Void, Never>?
     private var retryCount = 0
 
     init(url: URL?) {
         self.url = url
+    }
+
+    func updateURL(_ newURL: URL?) {
+        guard newURL != url else {
+            if image == nil, task == nil {
+                load()
+            }
+            return
+        }
+
+        task?.cancel()
+        task = nil
+        retryCount = 0
+        error = nil
+        image = nil
+        url = newURL
+        load()
     }
 
     func load(force: Bool = false) {

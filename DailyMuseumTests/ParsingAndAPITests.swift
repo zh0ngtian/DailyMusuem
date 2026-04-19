@@ -75,6 +75,70 @@ final class ParsingAndAPITests: XCTestCase {
         XCTAssertEqual(thirdDelay, 0, accuracy: 0.0001)
     }
 
+    func testShanghaiMuseumAPIFetchArtworkPublishesTextBeforeResolvingImageURLs() async throws {
+        let recorder = EventRecorder()
+        let objectCode = "A-100"
+        let session = makeStubSession(testID: UUID().uuidString) { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+
+            if url.path.contains("/frontend/pg/article/id/") {
+                recorder.record("article-request")
+                let html = """
+                <div class="title">青铜鼎</div>
+                <ul>
+                  <li><div class="left">时代：</div><ul class="site-list right"><li>商后期</li></ul></li>
+                  <li><div class="left">材质：</div><ul class="site-list right"><li>青铜</li></ul></li>
+                  <li><div class="left">尺寸：</div><ul class="site-list right"><li>高10厘米</li></ul></li>
+                </ul>
+                <div class="subtitle">简介</div>
+                <p>这是文字详情。</p>
+                """
+                return StubbedResponse(
+                    response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data: Data(html.utf8)
+                )
+            }
+
+            if url.path.contains("/frontend/pg/article/aid/") {
+                recorder.record("image-request")
+                let html = """
+                <figure data-src="/mu/images/large.jpg"></figure>
+                <img src="/mu/images/small.jpg" />
+                """
+                return StubbedResponse(
+                    response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data: Data(html.utf8)
+                )
+            }
+
+            XCTFail("Unexpected URL: \(url.absoluteString)")
+            return StubbedResponse(
+                response: HTTPURLResponse(url: url, statusCode: 404, httpVersion: nil, headerFields: nil)!,
+                data: Data()
+            )
+        }
+        let api = ShanghaiMuseumAPI(session: session)
+
+        let artwork = try await api.fetchArtwork(
+            objectCode: objectCode,
+            cachePolicy: .networkOnly
+        ) { artwork in
+            recorder.record("text-ready:\(artwork.primaryImageURL == nil && artwork.primaryImageSmallURL == nil)")
+        }
+
+        XCTAssertEqual(artwork.title, "青铜鼎")
+        XCTAssertEqual(artwork.objectDate, "商后期")
+        XCTAssertEqual(artwork.medium, "青铜")
+        XCTAssertEqual(artwork.primaryImageURL?.absoluteString, "https://www.shanghaimuseum.net/mu/images/large.jpg")
+        XCTAssertEqual(artwork.primaryImageSmallURL?.absoluteString, "https://www.shanghaimuseum.net/mu/images/small.jpg")
+        XCTAssertEqual(
+            recorder.values,
+            ["article-request", "text-ready:true", "image-request"]
+        )
+    }
+
     func testJapanSearchAPIFallsBackFromContributorSearchAndFiltersSortsDedupes() async throws {
         let categoryTypeCode = "fallback-\(UUID().uuidString)"
         let recorder = RequestRecorder()
@@ -354,6 +418,23 @@ private final class RequestRecorder {
     func record(_ url: URL) {
         lock.lock()
         storage.append(url)
+        lock.unlock()
+    }
+}
+
+private final class EventRecorder {
+    private let lock = NSLock()
+    private var storage: [String] = []
+
+    var values: [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
+
+    func record(_ value: String) {
+        lock.lock()
+        storage.append(value)
         lock.unlock()
     }
 }

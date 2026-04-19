@@ -50,12 +50,19 @@ struct ArtworkFeedView: View {
             Group {
                 switch viewModel.state {
                 case .idle, .loading:
-                    VStack(spacing: 16) {
-                        ProgressView("正在加载展品...")
+                    if viewModel.items.isEmpty {
+                        VStack(spacing: 16) {
+                            ProgressView("正在加载展品...")
+                        }
+                        .padding(24)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        feedScrollView(
+                            availableWidth: proxy.size.width - horizontalPadding * 2,
+                            viewportHeight: proxy.size.height,
+                            isInitialLoading: true
+                        )
                     }
-                    .padding(24)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .task { await viewModel.loadInitialIfNeeded() }
                 case .failed(let message):
                     VStack(spacing: 16) {
                         ContentUnavailableView("加载失败", systemImage: "wifi.exclamationmark", description: Text(message))
@@ -68,62 +75,14 @@ struct ArtworkFeedView: View {
                     .padding(24)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .loaded:
-                    ScrollView {
-                        VStack(spacing: 16) {
-                            feedContent(availableWidth: proxy.size.width - horizontalPadding * 2)
-                            if viewModel.isLoadingMore {
-                                ProgressView("加载更多中...")
-                                    .font(.footnote)
-                            } else if viewModel.hasMoreItems {
-                                VStack(spacing: 8) {
-                                    Image(systemName: "arrow.up")
-                                        .font(.footnote.weight(.semibold))
-                                    Text(isBottomLoadPrimed ? "松开加载下一批" : "继续上滑加载下一批")
-                                        .font(.footnote)
-                                }
-                                .foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                                .contentShape(Rectangle())
-                                .background(
-                                    GeometryReader { triggerProxy in
-                                        Color.clear.preference(
-                                            key: BottomLoadTriggerFramePreferenceKey.self,
-                                            value: triggerProxy.frame(in: .named(Constants.scrollCoordinateSpace))
-                                        )
-                                    }
-                                )
-                            }
-                        }
-                        .padding(.horizontal, horizontalPadding)
-                        .padding(.top, 12)
-                        .padding(.bottom, 24)
-                    }
-                    .coordinateSpace(name: Constants.scrollCoordinateSpace)
-                    .simultaneousGesture(
-                        DragGesture(minimumDistance: 12)
-                            .onChanged { _ in
-                                isTrackingBottomLoadGesture = true
-                            }
-                            .onEnded { _ in
-                                let shouldLoad = isBottomLoadPrimed && isLoadMoreTriggerVisible && !viewModel.isLoadingMore && viewModel.hasMoreItems
-                                isTrackingBottomLoadGesture = false
-                                isBottomLoadPrimed = false
-                                guard shouldLoad else { return }
-                                Task { await viewModel.loadMoreAfterExplicitSwipeIfNeeded() }
-                            }
+                    feedScrollView(
+                        availableWidth: proxy.size.width - horizontalPadding * 2,
+                        viewportHeight: proxy.size.height,
+                        isInitialLoading: false
                     )
-                    .onPreferenceChange(BottomLoadTriggerFramePreferenceKey.self) { frame in
-                        updateBottomLoadState(triggerFrame: frame, viewportHeight: proxy.size.height)
-                    }
-                    .onChange(of: viewModel.isLoadingMore) { _, isLoading in
-                        if isLoading {
-                            isBottomLoadPrimed = false
-                        }
-                    }
-                    .refreshable { await viewModel.reload() }
                 }
             }
+            .task { await viewModel.loadInitialIfNeeded() }
         }
         .navigationTitle(museum.displayName)
         .toolbar {
@@ -255,6 +214,73 @@ struct ArtworkFeedView: View {
                 .disabled(isApplyingPageSettings)
             }
         }
+    }
+
+    private func feedScrollView(
+        availableWidth: CGFloat,
+        viewportHeight: CGFloat,
+        isInitialLoading: Bool
+    ) -> some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                if isInitialLoading {
+                    ProgressView("正在加载首批展品...")
+                        .font(.footnote)
+                }
+
+                feedContent(availableWidth: availableWidth)
+
+                if viewModel.isLoadingMore {
+                    ProgressView("加载更多中...")
+                        .font(.footnote)
+                } else if viewModel.hasMoreItems, !isInitialLoading {
+                    VStack(spacing: 8) {
+                        Image(systemName: "arrow.up")
+                            .font(.footnote.weight(.semibold))
+                        Text(isBottomLoadPrimed ? "松开加载下一批" : "继续上滑加载下一批")
+                            .font(.footnote)
+                    }
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .contentShape(Rectangle())
+                    .background(
+                        GeometryReader { triggerProxy in
+                            Color.clear.preference(
+                                key: BottomLoadTriggerFramePreferenceKey.self,
+                                value: triggerProxy.frame(in: .named(Constants.scrollCoordinateSpace))
+                            )
+                        }
+                    )
+                }
+            }
+            .padding(.horizontal, horizontalPadding)
+            .padding(.top, 12)
+            .padding(.bottom, 24)
+        }
+        .coordinateSpace(name: Constants.scrollCoordinateSpace)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 12)
+                .onChanged { _ in
+                    isTrackingBottomLoadGesture = true
+                }
+                .onEnded { _ in
+                    let shouldLoad = isBottomLoadPrimed && isLoadMoreTriggerVisible && !viewModel.isLoadingMore && viewModel.hasMoreItems && !isInitialLoading
+                    isTrackingBottomLoadGesture = false
+                    isBottomLoadPrimed = false
+                    guard shouldLoad else { return }
+                    Task { await viewModel.loadMoreAfterExplicitSwipeIfNeeded() }
+                }
+        )
+        .onPreferenceChange(BottomLoadTriggerFramePreferenceKey.self) { frame in
+            updateBottomLoadState(triggerFrame: frame, viewportHeight: viewportHeight)
+        }
+        .onChange(of: viewModel.isLoadingMore) { _, isLoading in
+            if isLoading {
+                isBottomLoadPrimed = false
+            }
+        }
+        .refreshable { await viewModel.reload() }
     }
 
     private func categorySelectionRow(title: String, isSelected: Bool) -> some View {
