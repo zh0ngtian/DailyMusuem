@@ -85,6 +85,19 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    var homepageLogoAssetName: String {
+        switch self {
+        case .met:
+            return "MetHomepageLogo"
+        case .tnm:
+            return "TnmHomepageLogo"
+        case .nmc:
+            return "NmcHomepageLogo"
+        case .shm:
+            return "ShmHomepageLogo"
+        }
+    }
+
     var copyrightNotice: String {
         "©\(displayName) 版权所有"
     }
