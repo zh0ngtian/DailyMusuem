@@ -11,7 +11,6 @@ enum SettingsKeys {
     static let translationEngine = "translation.engine"
 
     static let defaultsBackedKeys: [String] = [
-        museumDisplayOrder,
         translationEngine
     ]
 }

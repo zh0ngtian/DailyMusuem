@@ -3,7 +3,15 @@ import Foundation
 struct Museum: Identifiable, Hashable, Codable {
     let id: MuseumID
     let displayName: String
+    let country: String
     let subtitle: String
+}
+
+struct MuseumCountrySection: Identifiable, Hashable {
+    let country: String
+    let museums: [Museum]
+
+    var id: String { country }
 }
 
 struct MuseumCategory: Identifiable, Hashable {
@@ -69,6 +77,17 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable {
             return "中国国家博物馆"
         case .shm:
             return "上海博物馆"
+        }
+    }
+
+    var country: String {
+        switch self {
+        case .met:
+            return "美国"
+        case .tnm:
+            return "日本"
+        case .nmc, .shm:
+            return "中国"
         }
     }
 
@@ -266,13 +285,25 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable {
 
 enum MuseumRepository {
     static let supportedMuseums: [Museum] = MuseumID.allCases.map {
-        Museum(id: $0, displayName: $0.displayName, subtitle: $0.subtitle)
+        Museum(id: $0, displayName: $0.displayName, country: $0.country, subtitle: $0.subtitle)
     }
 
     static let widgetSupportedMuseums: [Museum] = supportedMuseums.filter { $0.id.supportsWidgetContent }
 
+    static let homepageCountrySections: [MuseumCountrySection] = {
+        homepageCountryOrder.compactMap { country in
+            let museums = supportedMuseums.filter { $0.country == country }
+            guard !museums.isEmpty else { return nil }
+            return MuseumCountrySection(country: country, museums: museums)
+        }
+    }()
+
+    static let homepageMuseumIDs: [MuseumID] = homepageCountrySections.flatMap { section in
+        section.museums.map(\.id)
+    }
+
     static func museum(for id: MuseumID) -> Museum {
-        supportedMuseums.first(where: { $0.id == id }) ?? Museum(id: id, displayName: id.displayName, subtitle: id.subtitle)
+        supportedMuseums.first(where: { $0.id == id }) ?? Museum(id: id, displayName: id.displayName, country: id.country, subtitle: id.subtitle)
     }
 
     static func museums(inPreferredOrder ids: [MuseumID]) -> [Museum] {
@@ -304,6 +335,22 @@ enum MuseumRepository {
 
         return ordered
     }
+
+    private static let homepageCountryOrder: [String] = {
+        var countries: [String] = []
+        var seen: Set<String> = []
+
+        if supportedMuseums.contains(where: { $0.country == "中国" }) {
+            countries.append("中国")
+            seen.insert("中国")
+        }
+
+        for museum in supportedMuseums where seen.insert(museum.country).inserted {
+            countries.append(museum.country)
+        }
+
+        return countries
+    }()
 }
 
 private extension MuseumCategory {

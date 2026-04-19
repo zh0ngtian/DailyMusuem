@@ -22,19 +22,19 @@ struct WidgetArtworkEntry: TimelineEntry {
 
 enum WidgetConfiguredMuseumScope: String, AppEnum, CaseIterable {
     case all
-    case met
-    case tnm
     case nmc
     case shm
+    case met
+    case tnm
 
     static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "展示范围")
 
     static var caseDisplayRepresentations: [WidgetConfiguredMuseumScope: DisplayRepresentation] = [
         .all: DisplayRepresentation(title: "所有博物馆"),
-        .met: DisplayRepresentation(title: "大都会艺术博物馆"),
-        .tnm: DisplayRepresentation(title: "东京国立博物馆"),
         .nmc: DisplayRepresentation(title: "中国国家博物馆"),
         .shm: DisplayRepresentation(title: "上海博物馆"),
+        .met: DisplayRepresentation(title: "大都会艺术博物馆"),
+        .tnm: DisplayRepresentation(title: "东京国立博物馆"),
     ]
 
     var scope: WidgetMuseumScope {
@@ -49,6 +49,19 @@ enum WidgetConfiguredMuseumScope: String, AppEnum, CaseIterable {
             return .single(.nmc)
         case .shm:
             return .single(.shm)
+        }
+    }
+
+    init?(museumID: MuseumID) {
+        switch museumID {
+        case .met:
+            self = .met
+        case .tnm:
+            self = .tnm
+        case .nmc:
+            self = .nmc
+        case .shm:
+            self = .shm
         }
     }
 }

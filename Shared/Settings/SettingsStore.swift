@@ -57,9 +57,6 @@ final class SettingsStore: ObservableObject {
 
     private let defaults: UserDefaults
 
-    @AppStorage(SettingsKeys.museumDisplayOrder, store: UserDefaults(suiteName: SettingsKeys.appGroupID))
-    var museumDisplayOrderRawValue: String = ""
-
     @AppStorage(SettingsKeys.translationEngine, store: UserDefaults(suiteName: SettingsKeys.appGroupID))
     var translationEngineRawValue: String = TranslationEngine.tencent.rawValue
 
@@ -88,10 +85,6 @@ final class SettingsStore: ObservableObject {
         }
     }
 
-    func orderedMuseums() -> [Museum] {
-        MuseumRepository.museums(inPreferredOrder: orderedMuseumIDs())
-    }
-
     func feedCategories(for museumID: MuseumID) -> [MuseumCategory] {
         museumID.feedCategories(withStoredValue: defaults.string(forKey: feedCategoryKey(for: museumID)))
     }
@@ -117,22 +110,6 @@ final class SettingsStore: ObservableObject {
     func saveFeedDisplayModeRawValue(_ rawValue: String, for museumID: MuseumID) {
         defaults.set(rawValue, forKey: feedDisplayModeKey(for: museumID))
         defaults.synchronize()
-    }
-
-    func saveMuseumOrder(_ museums: [Museum]) {
-        museumDisplayOrderRawValue = museums.map(\.id.rawValue).joined(separator: ",")
-    }
-
-    private func orderedMuseumIDs() -> [MuseumID] {
-        let ids = museumDisplayOrderRawValue
-            .split(separator: ",")
-            .compactMap { MuseumID(rawValue: String($0)) }
-
-        if ids.isEmpty {
-            return MuseumID.allCases
-        }
-
-        return ids
     }
 
     private func feedCategoryKey(for museumID: MuseumID) -> String {

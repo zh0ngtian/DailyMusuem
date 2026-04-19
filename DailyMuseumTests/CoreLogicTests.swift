@@ -74,6 +74,33 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertEqual(widgetMuseums.map(\.id), [.tnm, .met, .nmc, .shm])
     }
 
+    func testMuseumRepositoryHomepageCountrySectionsPlaceChinaFirst() {
+        let sections = MuseumRepository.homepageCountrySections
+
+        XCTAssertEqual(sections.map(\.country), ["中国", "美国", "日本"])
+        XCTAssertEqual(sections[0].museums.map(\.id), [.nmc, .shm])
+        XCTAssertEqual(sections[1].museums.map(\.id), [.met])
+        XCTAssertEqual(sections[2].museums.map(\.id), [.tnm])
+        XCTAssertEqual(MuseumRepository.homepageMuseumIDs, [.nmc, .shm, .met, .tnm])
+    }
+
+    func testMuseumRepositoryWidgetMuseumsFollowHomepageOrderWithoutGrouping() {
+        let widgetMuseums = MuseumRepository.widgetMuseums(inPreferredOrder: MuseumRepository.homepageMuseumIDs)
+
+        XCTAssertEqual(widgetMuseums.map(\.id), [.nmc, .shm, .met, .tnm])
+    }
+
+    func testMuseumMetadataUsesStableCountryFieldInsteadOfParsingSubtitle() {
+        XCTAssertEqual(MuseumRepository.museum(for: .met).country, "美国")
+        XCTAssertEqual(MuseumRepository.museum(for: .tnm).country, "日本")
+        XCTAssertEqual(MuseumRepository.museum(for: .nmc).country, "中国")
+        XCTAssertEqual(MuseumRepository.museum(for: .shm).country, "中国")
+    }
+
+    func testLegacyMuseumDisplayOrderKeyIsNoLongerMigrated() {
+        XCTAssertFalse(SettingsKeys.defaultsBackedKeys.contains(SettingsKeys.museumDisplayOrder))
+    }
+
     func testAppDeepLinkRoundTripPreservesReference() throws {
         let reference = ArtworkReference(
             museumID: .met,
