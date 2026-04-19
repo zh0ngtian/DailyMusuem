@@ -57,26 +57,44 @@ final class FavoritesStore: ObservableObject {
         favoritedAt: Date = .now,
         imageAspectRatio: Double? = nil
     ) {
-        if isFavorite(museumID: artwork.museumID, objectID: artwork.objectID) {
-            removeFavorite(museumID: artwork.museumID, objectID: artwork.objectID)
+        setFavorite(
+            !isFavorite(museumID: artwork.museumID, objectID: artwork.objectID),
+            artwork: artwork,
+            favoritedAt: favoritedAt,
+            imageAspectRatio: imageAspectRatio
+        )
+    }
+
+    func setFavorite(
+        _ isFavorite: Bool,
+        artwork: Artwork,
+        favoritedAt: Date = .now,
+        imageAspectRatio: Double? = nil
+    ) {
+        if isFavorite {
+            let snapshot = FavoriteArtworkSnapshot(
+                museumID: artwork.museumID,
+                objectID: artwork.objectID,
+                favoritedAt: favoritedAt,
+                artwork: artwork,
+                imageAspectRatio: imageAspectRatio
+            )
+
+            favorites = normalizedFavorites([snapshot] + favorites)
+            persistFavorites()
             return
         }
 
-        let snapshot = FavoriteArtworkSnapshot(
-            museumID: artwork.museumID,
-            objectID: artwork.objectID,
-            favoritedAt: favoritedAt,
-            artwork: artwork,
-            imageAspectRatio: imageAspectRatio
-        )
-
-        favorites = normalizedFavorites([snapshot] + favorites)
-        persistFavorites()
+        removeFavorite(museumID: artwork.museumID, objectID: artwork.objectID)
     }
 
     func removeFavorite(museumID: MuseumID, objectID: String) {
         favorites.removeAll { $0.museumID == museumID && $0.objectID == objectID }
         persistFavorites()
+    }
+
+    func removeFavorite(_ snapshot: FavoriteArtworkSnapshot) {
+        removeFavorite(museumID: snapshot.museumID, objectID: snapshot.objectID)
     }
 
     func groupedFavorites(orderedMuseumIDs: [MuseumID]) -> [FavoriteSection] {

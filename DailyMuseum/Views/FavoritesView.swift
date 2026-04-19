@@ -6,8 +6,8 @@ struct FavoritesView: View {
         static let rowVerticalPadding: CGFloat = 6
     }
 
-    @StateObject private var favorites = FavoritesStore.shared
-    @StateObject private var settings = SettingsStore.shared
+    @ObservedObject private var favorites = FavoritesStore.shared
+    @ObservedObject private var settings = SettingsStore.shared
     @State private var selectedArtworkReference: ArtworkReference?
 
     private var sections: [FavoriteSection] {
@@ -70,7 +70,7 @@ struct FavoritesView: View {
             selectedArtworkReference = nil
         }
 
-        favorites.removeFavorite(museumID: snapshot.museumID, objectID: snapshot.objectID)
+        favorites.removeFavorite(snapshot)
     }
 
     private func favoriteButton(for snapshot: FavoriteArtworkSnapshot) -> some View {

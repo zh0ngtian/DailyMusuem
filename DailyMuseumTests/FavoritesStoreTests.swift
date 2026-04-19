@@ -53,6 +53,37 @@ final class FavoritesStoreTests: XCTestCase {
         XCTAssertTrue(reloaded.favorites.isEmpty)
     }
 
+    func testSetFavoriteFalseMatchesUnfavoriteBehaviorUsedByDetailPage() {
+        let store = FavoritesStore(defaults: defaults)
+        let artwork = makeArtwork(museumID: .met, objectID: "201", title: "牡丹图")
+
+        store.setFavorite(true, artwork: artwork, favoritedAt: Date(timeIntervalSince1970: 100))
+        store.setFavorite(false, artwork: artwork)
+
+        XCTAssertFalse(store.isFavorite(museumID: .met, objectID: "201"))
+        XCTAssertTrue(store.favorites.isEmpty)
+    }
+
+    func testRemoveFavoriteSnapshotMatchesSwipeToDeleteBehavior() {
+        let store = FavoritesStore(defaults: defaults)
+        let artwork = makeArtwork(museumID: .shm, objectID: "202", title: "青铜鼎")
+
+        store.toggleFavorite(
+            artwork: artwork,
+            favoritedAt: Date(timeIntervalSince1970: 100),
+            imageAspectRatio: 1.4
+        )
+
+        guard let snapshot = store.favorites.first else {
+            return XCTFail("Expected a favorite snapshot after toggling favorite on")
+        }
+
+        store.removeFavorite(snapshot)
+
+        XCTAssertFalse(store.isFavorite(museumID: .shm, objectID: "202"))
+        XCTAssertTrue(store.favorites.isEmpty)
+    }
+
     func testLoadingFavoritesDeduplicatesSameArtworkKeyKeepingNewestSnapshot() throws {
         let older = FavoriteArtworkSnapshot(
             museumID: .met,
