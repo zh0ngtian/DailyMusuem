@@ -38,9 +38,9 @@ struct ArtworkListRowCardView: View {
                         .lineLimit(2)
                 }
 
-                Spacer(minLength: 0)
-
                 if let footerText, !footerText.isEmpty {
+                    Spacer(minLength: 0)
+
                     Text(footerText)
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.secondary)

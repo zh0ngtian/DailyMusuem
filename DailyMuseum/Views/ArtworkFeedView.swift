@@ -221,8 +221,7 @@ struct ArtworkFeedView: View {
                 ForEach(viewModel.items) { item in
                     artworkNavigationLink(for: item) {
                         ArtworkListRowCardView(
-                            artwork: item.artwork,
-                            footerText: item.artwork.museumID.displayName
+                            artwork: item.artwork
                         ) { aspectRatio in
                             viewModel.updateAspectRatio(for: item.id, aspectRatio: aspectRatio)
                         }
