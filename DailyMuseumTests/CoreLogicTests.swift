@@ -90,11 +90,19 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertEqual(widgetMuseums.map(\.id), [.nmc, .shm, .met, .tnm])
     }
 
-    func testMuseumMetadataUsesStableCountryFieldInsteadOfParsingSubtitle() {
+    func testMuseumMetadataUsesStableCountryAndCityFieldsForHomepageCopy() {
         XCTAssertEqual(MuseumRepository.museum(for: .met).country, "美国")
+        XCTAssertEqual(MuseumRepository.museum(for: .met).city, "纽约")
+        XCTAssertEqual(MuseumRepository.museum(for: .met).subtitle, "纽约")
         XCTAssertEqual(MuseumRepository.museum(for: .tnm).country, "日本")
+        XCTAssertEqual(MuseumRepository.museum(for: .tnm).city, "东京")
+        XCTAssertEqual(MuseumRepository.museum(for: .tnm).subtitle, "东京")
         XCTAssertEqual(MuseumRepository.museum(for: .nmc).country, "中国")
+        XCTAssertEqual(MuseumRepository.museum(for: .nmc).city, "北京")
+        XCTAssertEqual(MuseumRepository.museum(for: .nmc).subtitle, "北京")
         XCTAssertEqual(MuseumRepository.museum(for: .shm).country, "中国")
+        XCTAssertEqual(MuseumRepository.museum(for: .shm).city, "上海")
+        XCTAssertEqual(MuseumRepository.museum(for: .shm).subtitle, "上海")
     }
 
     func testLegacyMuseumDisplayOrderKeyIsNoLongerMigrated() {

@@ -4,6 +4,7 @@ struct Museum: Identifiable, Hashable, Codable {
     let id: MuseumID
     let displayName: String
     let country: String
+    let city: String
     let subtitle: String
 }
 
@@ -91,17 +92,21 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable {
         }
     }
 
-    var subtitle: String {
+    var city: String {
         switch self {
         case .met:
-            return "美国 纽约"
+            return "纽约"
         case .tnm:
-            return "日本 东京"
+            return "东京"
         case .nmc:
-            return "中国 北京"
+            return "北京"
         case .shm:
-            return "中国 上海"
+            return "上海"
         }
+    }
+
+    var subtitle: String {
+        city
     }
 
     var homepageLogoAssetName: String {
@@ -285,7 +290,7 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable {
 
 enum MuseumRepository {
     static let supportedMuseums: [Museum] = MuseumID.allCases.map {
-        Museum(id: $0, displayName: $0.displayName, country: $0.country, subtitle: $0.subtitle)
+        Museum(id: $0, displayName: $0.displayName, country: $0.country, city: $0.city, subtitle: $0.subtitle)
     }
 
     static let widgetSupportedMuseums: [Museum] = supportedMuseums.filter { $0.id.supportsWidgetContent }
@@ -303,7 +308,7 @@ enum MuseumRepository {
     }
 
     static func museum(for id: MuseumID) -> Museum {
-        supportedMuseums.first(where: { $0.id == id }) ?? Museum(id: id, displayName: id.displayName, country: id.country, subtitle: id.subtitle)
+        supportedMuseums.first(where: { $0.id == id }) ?? Museum(id: id, displayName: id.displayName, country: id.country, city: id.city, subtitle: id.subtitle)
     }
 
     static func museums(inPreferredOrder ids: [MuseumID]) -> [Museum] {
