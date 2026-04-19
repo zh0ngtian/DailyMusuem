@@ -1,5 +1,9 @@
 import SwiftUI
 
+enum TranslationConfigurationPrompt {
+    static let missingConfigurationMessage = "翻译引擎没有配置，请到主页设置页配置"
+}
+
 struct SettingsView: View {
     @StateObject private var settings = SettingsStore.shared
 
@@ -156,7 +160,7 @@ private struct TencentTranslationSettingsView: View {
         }
 
         guard let credentials = settings.tencentTranslationCredentials() else {
-            settingsAlert = "请先填写完整的 SecretId 和 SecretKey。"
+            settingsAlert = TranslationConfigurationPrompt.missingConfigurationMessage
             return
         }
 
@@ -267,7 +271,7 @@ private struct MiniMaxTranslationSettingsView: View {
         }
 
         guard let credentials = settings.miniMaxTranslationCredentials() else {
-            settingsAlert = "请先填写 MiniMax API Key。"
+            settingsAlert = TranslationConfigurationPrompt.missingConfigurationMessage
             return
         }
 

@@ -155,12 +155,12 @@ struct ArtworkDetailLoaderView: View {
         switch SettingsStore.shared.translationEngine() {
         case .tencent:
             guard let credentials = SettingsStore.shared.tencentTranslationCredentials() else {
-                throw TranslationSelectionError.missingTencentCredentials
+                throw TranslationSelectionError.missingConfiguration
             }
             return try await tencentTranslationClient.translate(artwork: artwork, credentials: credentials)
         case .miniMax:
             guard let credentials = SettingsStore.shared.miniMaxTranslationCredentials() else {
-                throw TranslationSelectionError.missingMiniMaxCredentials
+                throw TranslationSelectionError.missingConfiguration
             }
             return try await miniMaxTranslationClient.translate(artwork: artwork, credentials: credentials)
         }
@@ -213,15 +213,12 @@ struct ArtworkDetailLoaderView: View {
 }
 
 private enum TranslationSelectionError: LocalizedError {
-    case missingTencentCredentials
-    case missingMiniMaxCredentials
+    case missingConfiguration
 
     var errorDescription: String? {
         switch self {
-        case .missingTencentCredentials:
-            return "请先在设置页填写腾讯云翻译的 SecretId 和 SecretKey。"
-        case .missingMiniMaxCredentials:
-            return "请先在设置页填写 MiniMax API Key。"
+        case .missingConfiguration:
+            return TranslationConfigurationPrompt.missingConfigurationMessage
         }
     }
 }

@@ -82,8 +82,6 @@ struct ArtworkDetailView: View {
                     InfoRow(label: "类别", value: artwork.department)
                     InfoRow(label: "文化", value: artwork.culture)
                     InfoRow(label: "国家", value: artwork.country)
-                    InfoRow(label: "馆藏", value: artwork.repository)
-
                     Text(artwork.museumID.copyrightNotice)
                         .font(.footnote)
                         .foregroundStyle(.secondary)

@@ -256,7 +256,7 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertEqual(item.sortValue, 314)
     }
 
-    func testRequestLogTimestampIncludesSixDigitMicroseconds() throws {
+    func testRequestLogTimestampIncludesThreeDigitMilliseconds() throws {
         let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
         let date = try makeDate(
             year: 2024,
@@ -271,10 +271,10 @@ final class CoreLogicTests: XCTestCase {
 
         let formatted = LogTimestampFormatter.requestLogTimestamp(from: date, timeZone: timeZone)
 
-        XCTAssertEqual(formatted, "04-18 06:20:34.123456")
+        XCTAssertEqual(formatted, "04-18 06:20:34.123")
     }
 
-    func testFeedLogTimestampLeftPadsMicroseconds() throws {
+    func testFeedLogTimestampLeftPadsMilliseconds() throws {
         let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
         let date = try makeDate(
             year: 2024,
@@ -283,16 +283,16 @@ final class CoreLogicTests: XCTestCase {
             hour: 6,
             minute: 20,
             second: 34,
-            nanosecond: 42_000,
+            nanosecond: 42_000_000,
             timeZone: timeZone
         )
 
         let formatted = LogTimestampFormatter.feedLogTimestamp(from: date, timeZone: timeZone)
 
-        XCTAssertEqual(formatted, "06:20:34.000042")
+        XCTAssertEqual(formatted, "06:20:34.042")
     }
 
-    func testFeedLogTimestampRoundsMicrosecondsIntoNextSecond() throws {
+    func testFeedLogTimestampRoundsMillisecondsIntoNextSecond() throws {
         let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
         let date = try makeDate(
             year: 2024,
@@ -301,13 +301,13 @@ final class CoreLogicTests: XCTestCase {
             hour: 6,
             minute: 20,
             second: 34,
-            nanosecond: 999_999_600,
+            nanosecond: 999_600_000,
             timeZone: timeZone
         )
 
         let formatted = LogTimestampFormatter.feedLogTimestamp(from: date, timeZone: timeZone)
 
-        XCTAssertEqual(formatted, "06:20:35.000000")
+        XCTAssertEqual(formatted, "06:20:35.000")
     }
 
     func testRequestAndFeedLogTimestampsKeepExpectedLayout() throws {
@@ -325,11 +325,11 @@ final class CoreLogicTests: XCTestCase {
 
         XCTAssertEqual(
             LogTimestampFormatter.requestLogTimestamp(from: date, timeZone: timeZone),
-            "12-31 23:59:01.900001"
+            "12-31 23:59:01.900"
         )
         XCTAssertEqual(
             LogTimestampFormatter.feedLogTimestamp(from: date, timeZone: timeZone),
-            "23:59:01.900001"
+            "23:59:01.900"
         )
     }
 
