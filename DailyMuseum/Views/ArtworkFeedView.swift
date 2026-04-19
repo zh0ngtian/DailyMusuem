@@ -33,11 +33,7 @@ struct ArtworkFeedView: View {
     @State private var isTrackingBottomLoadGesture = false
     @State private var displayMode: DisplayMode = .waterfall
     @State private var selectedArtworkReference: ArtworkReference?
-    @State private var isShowingPageSettings = false
-    @State private var draftDisplayMode: DisplayMode = .waterfall
-    @State private var draftSelectedCategoryIDs: Set<String> = []
-    @State private var isApplyingPageSettings = false
-    @State private var pageSettingsAlertMessage: String?
+    @State private var pageSettingsPresentation: PageSettingsPresentation?
 
     init(museum: Museum) {
         self.museum = museum
@@ -88,8 +84,7 @@ struct ArtworkFeedView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    preparePageSettingsDraft()
-                    isShowingPageSettings = true
+                    presentPageSettings()
                 } label: {
                     Image(systemName: "slider.horizontal.3")
                 }
@@ -99,39 +94,20 @@ struct ArtworkFeedView: View {
         .navigationDestination(item: $selectedArtworkReference) { reference in
             ArtworkDetailLoaderView(reference: reference)
         }
-        .sheet(isPresented: $isShowingPageSettings) {
+        .sheet(item: $pageSettingsPresentation) { presentation in
             NavigationStack {
-                pageSettingsView
+                PageSettingsSheet(
+                    initialDisplayMode: presentation.displayMode,
+                    initialSelectedCategoryIDs: presentation.selectedCategoryIDs,
+                    availableCategories: viewModel.availableCategories,
+                    isCategorySelectionDisabled: viewModel.state == .loading || viewModel.isLoadingMore,
+                    onApply: { draftDisplayMode, selectedCategories in
+                        await applyPageSettings(displayMode: draftDisplayMode, selectedCategories: selectedCategories)
+                    }
+                )
             }
             .presentationDetents([.medium, .large])
-            .interactiveDismissDisabled(isApplyingPageSettings)
-            .onAppear {
-                preparePageSettingsDraft()
-            }
-            .alert(
-                "筛选提示",
-                isPresented: Binding(
-                    get: { pageSettingsAlertMessage != nil },
-                    set: { isPresented in
-                        if !isPresented {
-                            pageSettingsAlertMessage = nil
-                        }
-                    }
-                ),
-                actions: {
-                    Button("知道了", role: .cancel) {
-                        pageSettingsAlertMessage = nil
-                    }
-                },
-                message: {
-                    Text(pageSettingsAlertMessage ?? "")
-                }
-            )
         }
-    }
-
-    private var isCategorySelectionDisabled: Bool {
-        viewModel.state == .loading || viewModel.isLoadingMore || isApplyingPageSettings
     }
 
     private var columnCount: Int {
@@ -140,81 +116,6 @@ struct ArtworkFeedView: View {
     }
 
     private var horizontalPadding: CGFloat { 12 }
-
-    private var persistedDisplayMode: DisplayMode {
-        Self.persistedDisplayMode(for: museum.id)
-    }
-
-    private var persistedSelectedCategoryIDs: Set<String> {
-        Set(settings.feedCategories(for: museum.id).map(\.id))
-    }
-
-    private var pageSettingsView: some View {
-        Form {
-            Section("显示") {
-                Picker("当前视图", selection: $draftDisplayMode) {
-                    ForEach(DisplayMode.allCases) { mode in
-                        Text(mode.displayName).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .disabled(isApplyingPageSettings)
-            }
-
-            Section("筛选") {
-                Button {
-                    toggleDraftSelectAll()
-                } label: {
-                    categorySelectionRow(title: "全部", isSelected: draftIsAllCategoriesSelected)
-                }
-                .buttonStyle(.plain)
-                .disabled(isCategorySelectionDisabled)
-
-                ForEach(viewModel.availableCategories) { category in
-                    Button {
-                        toggleDraftCategorySelection(category)
-                    } label: {
-                        categorySelectionRow(
-                            title: category.displayName,
-                            isSelected: draftSelectedCategoryIDs.contains(category.id)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isCategorySelectionDisabled)
-                }
-
-                Text("当前选择：\(draftSelectedCategoriesSummary)")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-
-                if isCategorySelectionDisabled {
-                    HStack(spacing: 10) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("正在更新筛选结果…")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-
-            Section {
-                Text("在这里的改动只有点击“完成”后才生效；直接下滑关闭不会保存本次修改。")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .navigationTitle("页面设置")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("完成") {
-                    Task { await applyPageSettingsDraft() }
-                }
-                .disabled(isApplyingPageSettings)
-            }
-        }
-    }
 
     private func feedScrollView(
         availableWidth: CGFloat,
@@ -283,79 +184,20 @@ struct ArtworkFeedView: View {
         .refreshable { await viewModel.reload() }
     }
 
-    private func categorySelectionRow(title: String, isSelected: Bool) -> some View {
-        HStack(spacing: 12) {
-            Text(title)
-                .foregroundStyle(.primary)
-            Spacer(minLength: 0)
-            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-        }
-        .contentShape(Rectangle())
+    private func presentPageSettings() {
+        pageSettingsPresentation = PageSettingsPresentation(
+            displayMode: displayMode,
+            selectedCategoryIDs: Set(viewModel.selectedCategories.map(\.id))
+        )
     }
 
-    private var draftIsAllCategoriesSelected: Bool {
-        draftSelectedCategoryIDs.count == viewModel.availableCategories.count
-    }
-
-    private var draftSelectedCategoriesSummary: String {
-        if draftIsAllCategoriesSelected {
-            return "全部"
-        }
-
-        let selectedCategories = viewModel.availableCategories.filter { draftSelectedCategoryIDs.contains($0.id) }
-        if selectedCategories.isEmpty {
-            return "未选择任何类别"
-        }
-
-        if selectedCategories.count <= 2 {
-            return selectedCategories.map(\.displayName).joined(separator: "、")
-        }
-
-        return "已选 \(selectedCategories.count) 类"
-    }
-
-    private func preparePageSettingsDraft() {
-        draftDisplayMode = persistedDisplayMode
-        draftSelectedCategoryIDs = persistedSelectedCategoryIDs
-        isApplyingPageSettings = false
-        pageSettingsAlertMessage = nil
-    }
-
-    private func toggleDraftSelectAll() {
-        if draftIsAllCategoriesSelected {
-            draftSelectedCategoryIDs = []
-        } else {
-            draftSelectedCategoryIDs = Set(viewModel.availableCategories.map(\.id))
-        }
-    }
-
-    private func toggleDraftCategorySelection(_ category: MuseumCategory) {
-        if draftSelectedCategoryIDs.contains(category.id) {
-            draftSelectedCategoryIDs.remove(category.id)
-        } else {
-            draftSelectedCategoryIDs.insert(category.id)
-        }
-    }
-
-    private func applyPageSettingsDraft() async {
-        guard !isApplyingPageSettings else { return }
-        isApplyingPageSettings = true
-        defer { isApplyingPageSettings = false }
-
-        let selectedCategories = viewModel.availableCategories.filter { draftSelectedCategoryIDs.contains($0.id) }
-        guard !selectedCategories.isEmpty else {
-            pageSettingsAlertMessage = "请至少选择一个类别后再完成。"
-            return
-        }
-
-        if draftDisplayMode != displayMode {
-            displayMode = draftDisplayMode
-            settings.saveFeedDisplayModeRawValue(draftDisplayMode.rawValue, for: museum.id)
+    private func applyPageSettings(displayMode: DisplayMode, selectedCategories: [MuseumCategory]) async {
+        if displayMode != self.displayMode {
+            self.displayMode = displayMode
+            settings.saveFeedDisplayModeRawValue(displayMode.rawValue, for: museum.id)
         }
 
         await viewModel.applySelectedCategories(selectedCategories)
-        isShowingPageSettings = false
     }
 
     @ViewBuilder
@@ -400,6 +242,193 @@ struct ArtworkFeedView: View {
             )
         } label: {
             content()
+        }
+    }
+
+    private struct PageSettingsPresentation: Identifiable {
+        let id = UUID()
+        let displayMode: DisplayMode
+        let selectedCategoryIDs: Set<String>
+    }
+
+    private struct PageSettingsSheet: View {
+        let availableCategories: [MuseumCategory]
+        let isCategorySelectionDisabled: Bool
+        let onApply: (DisplayMode, [MuseumCategory]) async -> Void
+
+        @Environment(\.dismiss) private var dismiss
+        @State private var draftDisplayMode: DisplayMode
+        @State private var draftSelectedCategoryIDs: Set<String>
+        @State private var isApplying = false
+        @State private var alertMessage: String?
+
+        init(
+            initialDisplayMode: DisplayMode,
+            initialSelectedCategoryIDs: Set<String>,
+            availableCategories: [MuseumCategory],
+            isCategorySelectionDisabled: Bool,
+            onApply: @escaping (DisplayMode, [MuseumCategory]) async -> Void
+        ) {
+            self.availableCategories = availableCategories
+            self.isCategorySelectionDisabled = isCategorySelectionDisabled
+            self.onApply = onApply
+            _draftDisplayMode = State(initialValue: initialDisplayMode)
+            _draftSelectedCategoryIDs = State(initialValue: initialSelectedCategoryIDs)
+        }
+
+        var body: some View {
+            Form {
+                Section("显示") {
+                    Picker("当前视图", selection: $draftDisplayMode) {
+                        ForEach(DisplayMode.allCases) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(isApplying)
+                }
+
+                Section("筛选") {
+                    Button {
+                        toggleSelectAll()
+                    } label: {
+                        categorySelectionRow(title: "全部", isSelected: isAllCategoriesSelected)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isSelectionInteractionDisabled)
+
+                    ForEach(availableCategories) { category in
+                        Button {
+                            toggleCategorySelection(category)
+                        } label: {
+                            categorySelectionRow(
+                                title: category.displayName,
+                                isSelected: draftSelectedCategoryIDs.contains(category.id)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isSelectionInteractionDisabled)
+                    }
+
+                    Text("当前选择：\(selectedCategoriesSummary)")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    if isSelectionInteractionDisabled {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text(isApplying ? "正在更新筛选结果…" : "当前数据加载中，稍后可调整筛选。")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                Section {
+                    Text("在这里的改动只有点击“完成”后才生效；直接下滑关闭不会保存本次修改。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("页面设置")
+            .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled(isApplying)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("完成") {
+                        Task { await applyDraft() }
+                    }
+                    .disabled(isApplying)
+                }
+            }
+            .alert(
+                "筛选提示",
+                isPresented: Binding(
+                    get: { alertMessage != nil },
+                    set: { isPresented in
+                        if !isPresented {
+                            alertMessage = nil
+                        }
+                    }
+                ),
+                actions: {
+                    Button("知道了", role: .cancel) {
+                        alertMessage = nil
+                    }
+                },
+                message: {
+                    Text(alertMessage ?? "")
+                }
+            )
+        }
+
+        private var isSelectionInteractionDisabled: Bool {
+            isCategorySelectionDisabled || isApplying
+        }
+
+        private var isAllCategoriesSelected: Bool {
+            draftSelectedCategoryIDs.count == availableCategories.count
+        }
+
+        private var selectedCategoriesSummary: String {
+            if isAllCategoriesSelected {
+                return "全部"
+            }
+
+            let selectedCategories = availableCategories.filter { draftSelectedCategoryIDs.contains($0.id) }
+            if selectedCategories.isEmpty {
+                return "未选择任何类别"
+            }
+
+            if selectedCategories.count <= 2 {
+                return selectedCategories.map(\.displayName).joined(separator: "、")
+            }
+
+            return "已选 \(selectedCategories.count) 类"
+        }
+
+        private func categorySelectionRow(title: String, isSelected: Bool) -> some View {
+            HStack(spacing: 12) {
+                Text(title)
+                    .foregroundStyle(.primary)
+                Spacer(minLength: 0)
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+            }
+            .contentShape(Rectangle())
+        }
+
+        private func toggleSelectAll() {
+            if isAllCategoriesSelected {
+                draftSelectedCategoryIDs = []
+            } else {
+                draftSelectedCategoryIDs = Set(availableCategories.map(\.id))
+            }
+        }
+
+        private func toggleCategorySelection(_ category: MuseumCategory) {
+            if draftSelectedCategoryIDs.contains(category.id) {
+                draftSelectedCategoryIDs.remove(category.id)
+            } else {
+                draftSelectedCategoryIDs.insert(category.id)
+            }
+        }
+
+        private func applyDraft() async {
+            guard !isApplying else { return }
+
+            let selectedCategories = availableCategories.filter { draftSelectedCategoryIDs.contains($0.id) }
+            guard !selectedCategories.isEmpty else {
+                alertMessage = "请至少选择一个类别后再完成。"
+                return
+            }
+
+            isApplying = true
+            defer { isApplying = false }
+
+            await onApply(draftDisplayMode, selectedCategories)
+            dismiss()
         }
     }
 
