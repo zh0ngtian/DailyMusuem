@@ -34,6 +34,11 @@ final class ArtworkFeedViewModel: ObservableObject {
         static let loadMoreBatchSize = 10
     }
 
+    private enum LoadingPresentation {
+        case fullScreen
+        case inlineInitialBatch
+    }
+
     private enum FeedLoadingError: LocalizedError {
         case noDisplayableArtworks
 
@@ -58,6 +63,8 @@ final class ArtworkFeedViewModel: ObservableObject {
     @Published private(set) var hasMoreItems = true
     @Published private(set) var loadingLogs: [String] = []
     @Published private(set) var selectedCategories: [MuseumCategory]
+    @Published private(set) var showsInlineInitialLoading = false
+    @Published private(set) var preservedItemsDuringRefresh: [ArtworkFeedItem] = []
 
     private let museum: Museum
     private let settings: ArtworkFeedSettingsProviding
@@ -93,6 +100,13 @@ final class ArtworkFeedViewModel: ObservableObject {
 
     var availableCategories: [MuseumCategory] {
         museum.id.selectableFeedCategories
+    }
+
+    var displayItems: [ArtworkFeedItem] {
+        if showsInlineInitialLoading, !preservedItemsDuringRefresh.isEmpty {
+            return preservedItemsDuringRefresh
+        }
+        return items
     }
 
     func loadInitialIfNeeded() async {
@@ -143,6 +157,14 @@ final class ArtworkFeedViewModel: ObservableObject {
     }
 
     func reload() async {
+        await performReload(presentation: .fullScreen)
+    }
+
+    func refresh() async {
+        await performReload(presentation: .inlineInitialBatch)
+    }
+
+    private func performReload(presentation: LoadingPresentation) async {
         cache.clear(
             museumID: museum.id,
             randomOrder: isRandomOrder,
@@ -165,6 +187,13 @@ final class ArtworkFeedViewModel: ObservableObject {
             }
         } else if museum.id == .shm {
             await shanghaiMuseumAPI.resetSearchCache(subtypes: selectedShanghaiMuseumSubtypes)
+        }
+
+        showsInlineInitialLoading = presentation == .inlineInitialBatch
+        preservedItemsDuringRefresh = presentation == .inlineInitialBatch ? items : []
+        defer {
+            showsInlineInitialLoading = false
+            preservedItemsDuringRefresh = []
         }
 
         state = .loading
@@ -212,11 +241,19 @@ final class ArtworkFeedViewModel: ObservableObject {
     }
 
     func updateAspectRatio(for id: String, aspectRatio: CGFloat) {
-        guard let index = items.firstIndex(where: { $0.id == id }) else { return }
         let clamped = max(0.05, Double(aspectRatio))
-        if items[index].imageAspectRatio != clamped {
-            items[index].imageAspectRatio = clamped
-            persistCache()
+
+        if let index = items.firstIndex(where: { $0.id == id }) {
+            if items[index].imageAspectRatio != clamped {
+                items[index].imageAspectRatio = clamped
+                persistCache()
+            }
+            return
+        }
+
+        guard let index = preservedItemsDuringRefresh.firstIndex(where: { $0.id == id }) else { return }
+        if preservedItemsDuringRefresh[index].imageAspectRatio != clamped {
+            preservedItemsDuringRefresh[index].imageAspectRatio = clamped
         }
     }
 
