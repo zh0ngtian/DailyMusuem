@@ -94,14 +94,19 @@ struct MuseumListView: View {
 
     @ViewBuilder
     private func museumCard(_ museum: Museum, showsChevron: Bool) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 16) {
+            museumLogoBadge(for: museum)
+
             VStack(alignment: .leading, spacing: 6) {
                 Text(museum.displayName)
                     .font(.headline)
                     .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 Text(museum.subtitle)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
 
             Spacer(minLength: 0)
@@ -119,6 +124,25 @@ struct MuseumListView: View {
                 .fill(.background)
                 .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 6)
         )
+    }
+
+    private func museumLogoBadge(for museum: Museum) -> some View {
+        RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .fill(Color(.secondarySystemBackground))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.black.opacity(0.05), lineWidth: 1)
+            }
+            .overlay {
+                Image(museum.id.homepageLogoAssetName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: 90, maxHeight: 46)
+                    .accessibilityHidden(true)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 9)
+            }
+            .frame(width: 112, height: 68)
     }
 
     private func moveMuseums(from source: IndexSet, to destination: Int) {

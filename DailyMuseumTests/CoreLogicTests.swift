@@ -1,6 +1,36 @@
 import XCTest
 
 final class CoreLogicTests: XCTestCase {
+    func testSupportedMuseumsHaveHomepageLogoAssetCatalogEntries() throws {
+        let projectRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let assetCatalogURL = projectRoot.appendingPathComponent("DailyMuseum/Assets.xcassets", isDirectory: true)
+        let fileManager = FileManager.default
+
+        for museumID in MuseumID.allCases {
+            let assetName = museumID.homepageLogoAssetName
+            XCTAssertFalse(assetName.isEmpty)
+
+            let imagesetURL = assetCatalogURL.appendingPathComponent("\(assetName).imageset", isDirectory: true)
+            var isDirectory: ObjCBool = false
+            XCTAssertTrue(
+                fileManager.fileExists(atPath: imagesetURL.path, isDirectory: &isDirectory),
+                "Missing imageset for \(museumID.rawValue)"
+            )
+            XCTAssertTrue(isDirectory.boolValue, "Expected imageset directory for \(museumID.rawValue)")
+
+            let contentsURL = imagesetURL.appendingPathComponent("Contents.json")
+            XCTAssertTrue(fileManager.fileExists(atPath: contentsURL.path), "Missing Contents.json for \(museumID.rawValue)")
+
+            let images = try fileManager.contentsOfDirectory(at: imagesetURL, includingPropertiesForKeys: nil)
+            XCTAssertTrue(
+                images.contains(where: { $0.pathExtension.lowercased() == "png" }),
+                "Expected PNG logo assets for \(museumID.rawValue)"
+            )
+        }
+    }
+
     func testFeedCategoriesStoredValueDefaultsToAllSelectableCategories() {
         let categories = MuseumID.met.feedCategories(withStoredValue: nil)
 
