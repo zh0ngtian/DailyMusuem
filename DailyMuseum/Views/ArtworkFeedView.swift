@@ -45,13 +45,11 @@ struct ArtworkFeedView: View {
         GeometryReader { proxy in
             Group {
                 switch viewModel.state {
-                case .idle, .loading:
-                    if viewModel.items.isEmpty {
-                        VStack(spacing: 16) {
-                            ProgressView("正在加载展品...")
-                        }
-                        .padding(24)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                case .idle:
+                    fullscreenLoadingView
+                case .loading:
+                    if viewModel.displayItems.isEmpty, !viewModel.showsInlineInitialLoading {
+                        fullscreenLoadingView
                     } else {
                         feedScrollView(
                             availableWidth: proxy.size.width - horizontalPadding * 2,
@@ -117,6 +115,14 @@ struct ArtworkFeedView: View {
 
     private var horizontalPadding: CGFloat { 12 }
 
+    private var fullscreenLoadingView: some View {
+        VStack(spacing: 16) {
+            ProgressView("正在加载展品...")
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     private func feedScrollView(
         availableWidth: CGFloat,
         viewportHeight: CGFloat,
@@ -125,7 +131,7 @@ struct ArtworkFeedView: View {
         ScrollView {
             VStack(spacing: 16) {
                 if isInitialLoading {
-                    ProgressView("正在加载首批展品...")
+                    ProgressView("正在加载展品...")
                         .font(.footnote)
                 }
 
@@ -181,7 +187,7 @@ struct ArtworkFeedView: View {
                 isBottomLoadPrimed = false
             }
         }
-        .refreshable { await viewModel.reload() }
+        .refreshable { await viewModel.refresh() }
     }
 
     private func presentPageSettings() {
@@ -205,7 +211,7 @@ struct ArtworkFeedView: View {
         switch displayMode {
         case .waterfall:
             WaterfallGrid(
-                items: viewModel.items,
+                items: viewModel.displayItems,
                 columnCount: columnCount,
                 availableWidth: availableWidth
             ) { item in
@@ -218,7 +224,7 @@ struct ArtworkFeedView: View {
             }
         case .list:
             LazyVStack(spacing: 12) {
-                ForEach(viewModel.items) { item in
+                ForEach(viewModel.displayItems) { item in
                     artworkNavigationLink(for: item) {
                         ArtworkListRowCardView(
                             artwork: item.artwork
