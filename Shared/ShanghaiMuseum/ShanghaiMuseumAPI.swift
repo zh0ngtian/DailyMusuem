@@ -195,7 +195,8 @@ final class ShanghaiMuseumAPI {
 
     func fetchArtwork(
         objectCode: String,
-        cachePolicy: MuseumRequestCachePolicy = .useCaches
+        cachePolicy: MuseumRequestCachePolicy = .useCaches,
+        onTextResolved: (@Sendable (Artwork) async -> Void)? = nil
     ) async throws -> Artwork {
         let logger = RequestLogger.shared
 
@@ -213,6 +214,13 @@ final class ShanghaiMuseumAPI {
         }
 
         let page = try await fetchArticlePage(objectCode: objectCode)
+        let textOnlyArtwork = page.toArtwork(
+            primaryImageURL: nil,
+            primaryImageSmallURL: nil,
+            repositoryName: Constants.repositoryName,
+            countryName: Constants.countryName
+        )
+        await onTextResolved?(textOnlyArtwork)
 
         var primaryImageURL: URL?
         var primaryImageSmallURL: URL?
@@ -227,11 +235,9 @@ final class ShanghaiMuseumAPI {
             )
         }
 
-        let artwork = page.toArtwork(
+        let artwork = textOnlyArtwork.withPrimaryImageURLs(
             primaryImageURL: primaryImageURL,
-            primaryImageSmallURL: primaryImageSmallURL,
-            repositoryName: Constants.repositoryName,
-            countryName: Constants.countryName
+            primaryImageSmallURL: primaryImageSmallURL
         )
         if cachePolicy.usesCaches {
             await responseCache.setArtwork(artwork, forCode: objectCode)

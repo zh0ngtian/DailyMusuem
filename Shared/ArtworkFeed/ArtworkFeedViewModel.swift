@@ -225,26 +225,50 @@ final class ArtworkFeedViewModel: ObservableObject {
             return
         }
 
-        let artworks = try await batchLoader.nextBatch(count: count)
+        let progressRelay = ArtworkFeedProgressRelay(owner: self)
+        _ = try await batchLoader.nextBatch(count: count) { artwork in
+            await progressRelay.publish(artwork)
+        }
         await syncLoaderState()
-        items.append(contentsOf: makeFeedItems(from: artworks))
         persistCache()
     }
 
-    private func makeFeedItems(from artworks: [Artwork]) -> [ArtworkFeedItem] {
+    fileprivate func publishResolvedArtwork(_ artwork: Artwork) async {
+        if objectIDPool.isEmpty || !objectIDPool.contains(artwork.objectID) {
+            await syncLoaderState()
+        }
+
+        upsertFeedItem(for: artwork)
+        persistCache()
+    }
+
+    private func upsertFeedItem(for artwork: Artwork) {
+        let existingIndex = items.firstIndex(where: { $0.artwork.objectID == artwork.objectID })
+        let preservedAspectRatio = existingIndex.flatMap { items[$0].imageAspectRatio }
+        let item = ArtworkFeedItem(
+            id: artwork.id,
+            artwork: artwork,
+            imageAspectRatio: preservedAspectRatio
+        )
+
+        if let existingIndex {
+            items[existingIndex] = item
+        } else {
+            items.append(item)
+        }
+
         let orderIndex = Dictionary(
             objectIDPool.enumerated().map { ($0.element, $0.offset) },
             uniquingKeysWith: { first, _ in first }
         )
-
-        return artworks
-            .sorted { lhs, rhs in
-                (orderIndex[lhs.objectID] ?? .max) < (orderIndex[rhs.objectID] ?? .max)
+        items.sort { lhs, rhs in
+            let lhsIndex = orderIndex[lhs.artwork.objectID] ?? .max
+            let rhsIndex = orderIndex[rhs.artwork.objectID] ?? .max
+            if lhsIndex != rhsIndex {
+                return lhsIndex < rhsIndex
             }
-            .reduce(into: [ArtworkFeedItem]()) { partial, artwork in
-                guard !partial.contains(where: { $0.artwork.objectID == artwork.objectID }) else { return }
-                partial.append(ArtworkFeedItem(id: artwork.id, artwork: artwork, imageAspectRatio: nil))
-            }
+            return lhs.artwork.objectID < rhs.artwork.objectID
+        }
     }
 
     private func syncLoaderState() async {
@@ -376,5 +400,18 @@ private final class ArtworkFeedLogRelay: @unchecked Sendable {
 
     func append(_ message: String) {
         owner?.appendLoadingLog(message)
+    }
+}
+
+@MainActor
+private final class ArtworkFeedProgressRelay: @unchecked Sendable {
+    weak var owner: ArtworkFeedViewModel?
+
+    init(owner: ArtworkFeedViewModel) {
+        self.owner = owner
+    }
+
+    func publish(_ artwork: Artwork) async {
+        await owner?.publishResolvedArtwork(artwork)
     }
 }

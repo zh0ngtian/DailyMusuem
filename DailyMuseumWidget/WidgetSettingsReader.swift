@@ -79,7 +79,10 @@ actor ArtworkBatchLoader {
         return !hasRemainingCandidates && !hasMoreRemoteItemIDs
     }
 
-    func nextBatch(count: Int = Constants.defaultBatchSize) async throws -> [Artwork] {
+    func nextBatch(
+        count: Int = Constants.defaultBatchSize,
+        onArtworkReady: (@Sendable (Artwork) async -> Void)? = nil
+    ) async throws -> [Artwork] {
         try Task.checkCancellation()
         try await warmPoolIfNeeded(targetCount: count)
         try await ensureRemotePoolIfNeeded(minimumRemainingCount: count)
@@ -96,7 +99,10 @@ actor ArtworkBatchLoader {
         let nextCandidateIDs = Array(candidates.prefix(count))
         loadedObjectIDs.formUnion(nextCandidateIDs)
 
-        let artworks = try await fetchArtworks(for: nextCandidateIDs)
+        let artworks = try await fetchArtworks(
+            for: nextCandidateIDs,
+            onArtworkReady: onArtworkReady
+        )
         let deduplicated = deduplicatedArtworksPreservingPoolOrder(artworks)
         await log("\(batchLabel)详情加载完成，新增 \(deduplicated.count) 个展品。")
         return deduplicated
@@ -279,12 +285,15 @@ actor ArtworkBatchLoader {
         await log("上海博物馆展品编码已就绪，当前缓存 \(objectIDPool.count) 条，\(hasMoreRemoteItemIDs ? "后续可继续拉取" : "已无更多远端数据")。")
     }
 
-    private func fetchArtworks(for candidateIDs: [String]) async throws -> [Artwork] {
+    private func fetchArtworks(
+        for candidateIDs: [String],
+        onArtworkReady: (@Sendable (Artwork) async -> Void)?
+    ) async throws -> [Artwork] {
         switch museumID {
         case .met:
             return await withTaskGroup(of: Artwork?.self) { group in
                 for idString in candidateIDs {
-                    group.addTask { [metAPI, cachePolicy] in
+                    group.addTask { [metAPI, cachePolicy, onArtworkReady] in
                         do {
                             try Task.checkCancellation()
                             guard let id = Int(idString) else { return nil }
@@ -294,6 +303,7 @@ actor ArtworkBatchLoader {
                             guard artwork.primaryImageSmallURL != nil || artwork.primaryImageURL != nil else {
                                 return nil
                             }
+                            await onArtworkReady?(artwork)
                             return artwork
                         } catch {
                             return nil
@@ -305,12 +315,14 @@ actor ArtworkBatchLoader {
         case .tnm:
             return await withTaskGroup(of: BatchLoadResult.self) { group in
                 for itemID in candidateIDs {
-                    group.addTask { [japanSearchAPI, cachePolicy] in
+                    group.addTask { [japanSearchAPI, cachePolicy, onArtworkReady] in
                         do {
                             try Task.checkCancellation()
                             let item = try await japanSearchAPI.fetchItem(itemID: itemID, cachePolicy: cachePolicy)
                             try Task.checkCancellation()
-                            return .artwork(item.toArtwork())
+                            let artwork = item.toArtwork()
+                            await onArtworkReady?(artwork)
+                            return .artwork(artwork)
                         } catch {
                             return .failure("itemID=\(itemID) 详情获取失败：\(error.localizedDescription)")
                         }
@@ -329,7 +341,7 @@ actor ArtworkBatchLoader {
         case .nmc:
             return await withTaskGroup(of: Artwork?.self) { group in
                 for idString in candidateIDs {
-                    group.addTask { [nationalMuseumChinaAPI, cachePolicy] in
+                    group.addTask { [nationalMuseumChinaAPI, cachePolicy, onArtworkReady] in
                         do {
                             try Task.checkCancellation()
                             guard let id = Int(idString) else { return nil }
@@ -338,6 +350,7 @@ actor ArtworkBatchLoader {
                             guard artwork.primaryImageSmallURL != nil || artwork.primaryImageURL != nil else {
                                 return nil
                             }
+                            await onArtworkReady?(artwork)
                             return artwork
                         } catch {
                             return nil
@@ -349,14 +362,16 @@ actor ArtworkBatchLoader {
         case .shm:
             return await withTaskGroup(of: BatchLoadResult.self) { group in
                 for objectCode in candidateIDs {
-                    group.addTask { [shanghaiMuseumAPI, cachePolicy] in
+                    group.addTask { [shanghaiMuseumAPI, cachePolicy, onArtworkReady] in
                         do {
                             try Task.checkCancellation()
                             let artwork = try await shanghaiMuseumAPI.fetchArtwork(
                                 objectCode: objectCode,
-                                cachePolicy: cachePolicy
+                                cachePolicy: cachePolicy,
+                                onTextResolved: onArtworkReady
                             )
                             try Task.checkCancellation()
+                            await onArtworkReady?(artwork)
                             return .artwork(artwork)
                         } catch {
                             return .failure("code=\(objectCode) 详情获取失败：\(error.localizedDescription)")
