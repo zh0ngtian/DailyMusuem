@@ -5,36 +5,29 @@ struct ArtworkDetailLoaderView: View {
 
     @ObservedObject private var favorites = FavoritesStore.shared
     @State private var artwork: Artwork?
-    @State private var translatedArtwork: Artwork?
-    @State private var showsTranslatedArtwork = false
-    @State private var isTranslating = false
     @State private var errorMessage: String?
-    @State private var translationAlertMessage: String?
     @State private var imageReloadToken = 0
 
     private let metAPI = MetMuseumAPI()
     private let japanSearchAPI = JapanSearchAPI()
     private let nationalMuseumChinaAPI = NationalMuseumChinaAPI()
     private let shanghaiMuseumAPI = ShanghaiMuseumAPI()
-    private let tencentTranslationClient = TencentTranslationClient()
-    private let miniMaxTranslationClient = MiniMaxTranslationClient()
 
     var body: some View {
         Group {
-            if let displayedArtwork {
+            if let artwork {
                 ArtworkDetailView(
-                    artwork: displayedArtwork,
+                    artwork: artwork,
                     placeholderAspectRatio: detailPlaceholderAspectRatio,
                     imageReloadToken: imageReloadToken,
-                    translationToolbarState: artwork?.supportsTranslation == true ? translationToolbarState : nil,
-                    isFavorite: isFavorite
-                ) {
-                    await handleTranslationButtonTap()
-                } onFavoriteButtonTap: {
-                    toggleFavorite()
-                } onRefresh: {
-                    await refresh()
-                }
+                    isFavorite: isFavorite,
+                    onFavoriteButtonTap: {
+                        toggleFavorite()
+                    },
+                    onRefresh: {
+                        await refresh()
+                    }
+                )
             } else if let errorMessage {
                 ScrollView {
                     ContentUnavailableView(
@@ -60,14 +53,6 @@ struct ArtworkDetailLoaderView: View {
         .task(id: reference) {
             await loadArtwork()
         }
-        .alert("翻译提示", isPresented: Binding(
-            get: { translationAlertMessage != nil },
-            set: { if !$0 { translationAlertMessage = nil } }
-        )) {
-            Button("知道了", role: .cancel) {}
-        } message: {
-            Text(translationAlertMessage ?? "")
-        }
     }
 
     @MainActor
@@ -75,8 +60,6 @@ struct ArtworkDetailLoaderView: View {
         if showLoadingState {
             artwork = nil
         }
-        translatedArtwork = nil
-        showsTranslatedArtwork = false
         errorMessage = nil
 
         do {
@@ -125,65 +108,6 @@ struct ArtworkDetailLoaderView: View {
         await loadArtwork(showLoadingState: false)
     }
 
-    @MainActor
-    private func handleTranslationButtonTap() async {
-        guard !isTranslating else {
-            return
-        }
-
-        if translatedArtwork != nil {
-            showsTranslatedArtwork.toggle()
-            return
-        }
-
-        guard let artwork else {
-            return
-        }
-
-        isTranslating = true
-        defer { isTranslating = false }
-
-        do {
-            translatedArtwork = try await translate(artwork: artwork)
-            showsTranslatedArtwork = true
-        } catch {
-            translationAlertMessage = error.localizedDescription
-        }
-    }
-
-    private func translate(artwork: Artwork) async throws -> Artwork {
-        switch SettingsStore.shared.translationEngine() {
-        case .tencent:
-            guard let credentials = SettingsStore.shared.tencentTranslationCredentials() else {
-                throw TranslationSelectionError.missingConfiguration
-            }
-            return try await tencentTranslationClient.translate(artwork: artwork, credentials: credentials)
-        case .miniMax:
-            guard let credentials = SettingsStore.shared.miniMaxTranslationCredentials() else {
-                throw TranslationSelectionError.missingConfiguration
-            }
-            return try await miniMaxTranslationClient.translate(artwork: artwork, credentials: credentials)
-        }
-    }
-
-    private var displayedArtwork: Artwork? {
-        if showsTranslatedArtwork, let translatedArtwork {
-            return translatedArtwork
-        }
-
-        return artwork
-    }
-
-    private var translationToolbarState: TranslationToolbarState {
-        if isTranslating {
-            return .translating
-        }
-        if translatedArtwork != nil {
-            return showsTranslatedArtwork ? .translated : .original(hasCachedTranslation: true)
-        }
-        return .original(hasCachedTranslation: false)
-    }
-
     private var detailPlaceholderAspectRatio: CGFloat {
         guard let imageAspectRatio = reference.imageAspectRatio,
               imageAspectRatio.isFinite,
@@ -209,16 +133,5 @@ struct ArtworkDetailLoaderView: View {
             artwork: artwork,
             imageAspectRatio: reference.imageAspectRatio
         )
-    }
-}
-
-private enum TranslationSelectionError: LocalizedError {
-    case missingConfiguration
-
-    var errorDescription: String? {
-        switch self {
-        case .missingConfiguration:
-            return TranslationConfigurationPrompt.missingConfigurationMessage
-        }
     }
 }

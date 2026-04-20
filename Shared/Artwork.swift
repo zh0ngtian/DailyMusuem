@@ -5,50 +5,9 @@ enum TextPunctuationStyle {
     case chinese
 }
 
-enum TranslationToolbarState: Equatable {
-    case original(hasCachedTranslation: Bool)
-    case translating
-    case translated
-
-    var systemImageName: String {
-        switch self {
-        case .original:
-            return "globe"
-        case .translating:
-            return "globe.badge.clock"
-        case .translated:
-            return "globe.badge.chevron.backward"
-        }
-    }
-
-    var isDisabled: Bool {
-        if case .translating = self {
-            return true
-        }
-        return false
-    }
-
-    var accessibilityLabel: String {
-        switch self {
-        case .original:
-            return "原文"
-        case .translating:
-            return "翻译中"
-        case .translated:
-            return "译文"
-        }
-    }
-
-    var accessibilityHint: String? {
-        switch self {
-        case .original(let hasCachedTranslation):
-            return hasCachedTranslation ? "点按显示译文" : "点按翻译并显示译文"
-        case .translating:
-            return nil
-        case .translated:
-            return "点按显示原文"
-        }
-    }
+struct ArtworkTranslationEntry: Equatable {
+    let id: String
+    let text: String
 }
 
 struct Artwork: Identifiable, Hashable, Codable {
@@ -150,22 +109,43 @@ struct Artwork: Identifiable, Hashable, Codable {
     }
 
     var supportsTranslation: Bool {
-        museumID.supportsTranslation && !translationCandidates.isEmpty
+        museumID.supportsTranslation && !translationEntries.isEmpty
     }
 
-    private var translationCandidates: [String] {
+    var translationEntries: [ArtworkTranslationEntry] {
         [
-            title,
-            normalizedDescriptionText,
-            medium,
-            dimensions,
-            department,
-            culture,
-            country,
-            repository
+            translationEntry(id: "title", value: title),
+            translationEntry(id: "description", value: normalizedDescriptionText),
+            translationEntry(id: "artistDisplayName", value: artistDisplayName),
+            translationEntry(id: "objectDate", value: objectDate),
+            translationEntry(id: "medium", value: medium),
+            translationEntry(id: "dimensions", value: dimensions),
+            translationEntry(id: "department", value: department),
+            translationEntry(id: "culture", value: culture),
+            translationEntry(id: "country", value: country)
         ]
-        .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-        .filter { !$0.isEmpty }
+        .compactMap { $0 }
+    }
+
+    func applyingTranslations(_ translationsByID: [String: String]) -> Artwork {
+        Artwork(
+            id: id,
+            museumID: museumID,
+            objectID: objectID,
+            title: translationsByID["title"] ?? title,
+            artworkDescription: translationsByID["description"] ?? normalizedDescriptionText,
+            artistDisplayName: translationsByID["artistDisplayName"] ?? artistDisplayName,
+            objectDate: translationsByID["objectDate"] ?? objectDate,
+            medium: translationsByID["medium"] ?? medium,
+            dimensions: translationsByID["dimensions"] ?? dimensions,
+            department: translationsByID["department"] ?? department,
+            culture: translationsByID["culture"] ?? culture,
+            country: translationsByID["country"] ?? country,
+            repository: repository,
+            primaryImageURL: primaryImageURL,
+            primaryImageSmallURL: primaryImageSmallURL,
+            objectURL: objectURL
+        )
     }
 
     private static func cleanDescriptionLine(_ line: String) -> String {
@@ -198,6 +178,14 @@ struct Artwork: Identifiable, Hashable, Codable {
         )
 
         return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func translationEntry(id: String, value: String?) -> ArtworkTranslationEntry? {
+        let trimmedValue = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmedValue.isEmpty else {
+            return nil
+        }
+        return ArtworkTranslationEntry(id: id, text: trimmedValue)
     }
 }
 

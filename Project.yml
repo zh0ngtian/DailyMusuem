@@ -3,7 +3,7 @@ name: DailyMuseum
 options:
   bundleIdPrefix: tech.zh0ngtian
   deploymentTarget:
-    iOS: "17.0"
+    iOS: "18.0"
 
 targets:
   DailyMuseum:
@@ -91,6 +91,9 @@ targets:
       - path: DailyMuseumTests
       - path: Shared/AppDeepLink.swift
       - path: Shared/Artwork.swift
+      - path: Shared/ArtworkFeed/ArtworkFeedCache.swift
+      - path: Shared/ArtworkFeed/ArtworkFeedItem.swift
+      - path: Shared/ArtworkFeed/ArtworkFeedViewModel.swift
       - path: Shared/Museum.swift
       - path: Shared/MuseumRequestCachePolicy.swift
       - path: Shared/Logging/LogTimestampFormatter.swift
@@ -105,6 +108,7 @@ targets:
       - path: Shared/ShanghaiMuseum/ShanghaiMuseumAPI.swift
       - path: Shared/Settings/FavoritesStore.swift
       - path: Shared/Settings/SettingsKeys.swift
+      - path: Shared/Settings/SettingsStore.swift
       - path: Shared/Settings/WidgetMuseumScope.swift
       - path: DailyMuseumWidget/WidgetArtworkSnapshotStore.swift
       - path: DailyMuseumWidget/WidgetRefreshDeliveryTracker.swift

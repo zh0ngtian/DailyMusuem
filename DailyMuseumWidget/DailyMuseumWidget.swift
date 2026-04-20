@@ -74,7 +74,7 @@ struct DailyMuseumWidgetConfigurationIntent: WidgetConfigurationIntent {
     var museumScope: WidgetConfiguredMuseumScope?
 
     @Parameter(title: "实例标识")
-    var instanceToken: String
+    var instanceToken: String?
 
     init() {
         museumScope = .all

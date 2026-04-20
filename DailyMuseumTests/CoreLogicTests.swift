@@ -105,10 +105,6 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertEqual(MuseumRepository.museum(for: .shm).subtitle, "上海")
     }
 
-    func testLegacyMuseumDisplayOrderKeyIsNoLongerMigrated() {
-        XCTAssertFalse(SettingsKeys.defaultsBackedKeys.contains(SettingsKeys.museumDisplayOrder))
-    }
-
     func testAppDeepLinkRoundTripPreservesReference() throws {
         let reference = ArtworkReference(
             museumID: .met,
@@ -203,25 +199,55 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertFalse(blankContent.supportsTranslation)
     }
 
-    func testTranslationToolbarStateUsesExpectedOriginalIcon() {
-        let state = TranslationToolbarState.original(hasCachedTranslation: false)
+    func testArtworkTranslationEntriesIncludeVisibleFieldsOnly() {
+        let artwork = makeArtwork(
+            museumID: .met,
+            title: "Water Lilies",
+            description: "A large oil painting.",
+            artistDisplayName: "Claude Monet",
+            objectDate: "1916",
+            medium: "Oil on canvas",
+            dimensions: "200 x 180 cm",
+            department: "European Paintings",
+            culture: "French",
+            country: "France"
+        )
 
-        XCTAssertEqual(state.systemImageName, "globe")
-        XCTAssertFalse(state.isDisabled)
+        XCTAssertEqual(
+            artwork.translationEntries,
+            [
+                ArtworkTranslationEntry(id: "title", text: "Water Lilies"),
+                ArtworkTranslationEntry(id: "description", text: "A large oil painting."),
+                ArtworkTranslationEntry(id: "artistDisplayName", text: "Claude Monet"),
+                ArtworkTranslationEntry(id: "objectDate", text: "1916"),
+                ArtworkTranslationEntry(id: "medium", text: "Oil on canvas"),
+                ArtworkTranslationEntry(id: "dimensions", text: "200 x 180 cm"),
+                ArtworkTranslationEntry(id: "department", text: "European Paintings"),
+                ArtworkTranslationEntry(id: "culture", text: "French"),
+                ArtworkTranslationEntry(id: "country", text: "France")
+            ]
+        )
     }
 
-    func testTranslationToolbarStateUsesExpectedTranslatingIconAndDisablesButton() {
-        let state = TranslationToolbarState.translating
+    func testArtworkApplyingTranslationsUpdatesOnlyTranslatedFields() {
+        let artwork = makeArtwork(
+            museumID: .met,
+            title: "Water Lilies",
+            description: "A large oil painting.",
+            artistDisplayName: "Claude Monet",
+            medium: "Oil on canvas"
+        )
 
-        XCTAssertEqual(state.systemImageName, "globe.badge.clock")
-        XCTAssertTrue(state.isDisabled)
-    }
+        let translatedArtwork = artwork.applyingTranslations([
+            "title": "睡莲",
+            "description": "一幅大型油画。",
+            "medium": "布面油画"
+        ])
 
-    func testTranslationToolbarStateUsesExpectedTranslatedIcon() {
-        let state = TranslationToolbarState.translated
-
-        XCTAssertEqual(state.systemImageName, "globe.badge.chevron.backward")
-        XCTAssertFalse(state.isDisabled)
+        XCTAssertEqual(translatedArtwork.title, "睡莲")
+        XCTAssertEqual(translatedArtwork.normalizedDescriptionText, "一幅大型油画。")
+        XCTAssertEqual(translatedArtwork.artistDisplayName, "Claude Monet")
+        XCTAssertEqual(translatedArtwork.medium, "布面油画")
     }
 
     func testMuseumCopyrightNoticeUsesExpectedFormat() {
@@ -402,6 +428,13 @@ final class CoreLogicTests: XCTestCase {
         museumID: MuseumID,
         title: String,
         description: String?,
+        artistDisplayName: String? = nil,
+        objectDate: String? = nil,
+        medium: String? = nil,
+        dimensions: String? = nil,
+        department: String? = nil,
+        culture: String? = nil,
+        country: String? = nil,
         objectURL: URL? = nil
     ) -> Artwork {
         Artwork(
@@ -410,13 +443,13 @@ final class CoreLogicTests: XCTestCase {
             objectID: "1",
             title: title,
             artworkDescription: description,
-            artistDisplayName: nil,
-            objectDate: nil,
-            medium: nil,
-            dimensions: nil,
-            department: nil,
-            culture: nil,
-            country: nil,
+            artistDisplayName: artistDisplayName,
+            objectDate: objectDate,
+            medium: medium,
+            dimensions: dimensions,
+            department: department,
+            culture: culture,
+            country: country,
             repository: nil,
             primaryImageURL: nil,
             primaryImageSmallURL: nil,

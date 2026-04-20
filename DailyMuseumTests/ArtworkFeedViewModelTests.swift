@@ -5,13 +5,23 @@ import XCTest
 final class ArtworkFeedViewModelTests: XCTestCase {
     func testPullToRefreshKeepsRenderedItemsVisibleWhileInlineInitialLoadingIsShown() async {
         let itemID = "refresh-\(UUID().uuidString)"
+        let refreshSearchStarted = expectation(description: "refresh search started")
+        let searchResponseGate = DispatchSemaphore(value: 0)
+        let searchRequestCounter = LockedCounter()
         let session = makeStubSession(testID: UUID().uuidString) { request in
             guard let url = request.url else {
                 throw URLError(.badURL)
             }
 
             if url.path.contains("/item/search/jps-cross") {
-                let item = self.makeJapanSearchItem(id: itemID, title: "Refresh Test Item")
+                let currentSearchRequestCount = searchRequestCounter.increment()
+
+                if currentSearchRequestCount > 1 {
+                    refreshSearchStarted.fulfill()
+                    _ = searchResponseGate.wait(timeout: .now() + 2)
+                }
+
+                let item = Self.makeJapanSearchItem(id: itemID, title: "Refresh Test Item")
                 return FeedViewModelStubbedResponse(
                     response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
                     data: try JSONSerialization.data(withJSONObject: [
@@ -24,7 +34,7 @@ final class ArtworkFeedViewModelTests: XCTestCase {
 
             if url.path.contains("/item/\(itemID)") {
                 Thread.sleep(forTimeInterval: 0.25)
-                let item = self.makeJapanSearchItem(id: itemID, title: "Refresh Test Item")
+                let item = Self.makeJapanSearchItem(id: itemID, title: "Refresh Test Item")
                 return FeedViewModelStubbedResponse(
                     response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
                     data: try JSONSerialization.data(withJSONObject: item)
@@ -53,13 +63,14 @@ final class ArtworkFeedViewModelTests: XCTestCase {
         let refreshTask = Task {
             await viewModel.refresh()
         }
-        await Task.yield()
+        await fulfillment(of: [refreshSearchStarted], timeout: 1.0)
 
         XCTAssertEqual(viewModel.state, .loading)
         XCTAssertTrue(viewModel.showsInlineInitialLoading)
         XCTAssertTrue(viewModel.items.isEmpty)
         XCTAssertEqual(viewModel.displayItems.map(\.id), renderedItemIDs)
 
+        searchResponseGate.signal()
         await refreshTask.value
 
         XCTAssertEqual(viewModel.state, .loaded)
@@ -78,7 +89,7 @@ final class ArtworkFeedViewModelTests: XCTestCase {
         return URLSession(configuration: configuration)
     }
 
-    private func makeJapanSearchItem(id: String, title: String) -> [String: Any] {
+    private nonisolated static func makeJapanSearchItem(id: String, title: String) -> [String: Any] {
         [
             "id": id,
             "common": [
@@ -178,4 +189,16 @@ private final class FeedViewModelStubURLProtocol: URLProtocol {
     }
 
     override func stopLoading() {}
+}
+
+private final class LockedCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+
+    func increment() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        value += 1
+        return value
+    }
 }
