@@ -87,7 +87,8 @@ actor WidgetRefreshCoordinator {
             activeRefresh.task.cancel()
             await RequestLogger.shared.logEvent(
                 source: logSource,
-                summary: "实例 \(instanceToken) 收到新的刷新请求，nonce=\(nonce) 抢占旧任务 nonce=\(activeRefresh.nonce)"
+                summary: "收到新的刷新请求，nonce=\(nonce) 抢占旧任务 nonce=\(activeRefresh.nonce)",
+                instanceToken: instanceToken
             )
         }
 
@@ -114,12 +115,14 @@ actor WidgetRefreshCoordinator {
             )
             await RequestLogger.shared.logEvent(
                 source: logSource,
-                summary: "实例 \(instanceToken) 刷新成功：\(payload.museumName) / \(payload.title)"
+                summary: "刷新成功：\(payload.museumName) / \(payload.title)",
+                instanceToken: instanceToken
             )
         } catch is CancellationError {
             await RequestLogger.shared.logEvent(
                 source: logSource,
-                summary: "实例 \(instanceToken) 的旧刷新任务 nonce=\(nonce) 已取消"
+                summary: "旧刷新任务 nonce=\(nonce) 已取消",
+                instanceToken: instanceToken
             )
         } catch let error as WidgetRefreshError {
             _ = await store.markFailure(
@@ -130,7 +133,8 @@ actor WidgetRefreshCoordinator {
             )
             await RequestLogger.shared.logEvent(
                 source: logSource,
-                summary: "实例 \(instanceToken) 刷新失败：\(error.localizedDescription)"
+                summary: "刷新失败：\(error.localizedDescription)",
+                instanceToken: instanceToken
             )
         } catch {
             _ = await store.markFailure(
@@ -141,7 +145,8 @@ actor WidgetRefreshCoordinator {
             )
             await RequestLogger.shared.logEvent(
                 source: logSource,
-                summary: "实例 \(instanceToken) 刷新出错：\(error.localizedDescription)"
+                summary: "刷新出错：\(error.localizedDescription)",
+                instanceToken: instanceToken
             )
         }
 
@@ -506,7 +511,8 @@ struct WidgetRefreshEngine {
     ) async {
         await RequestLogger.shared.logEvent(
             source: logSource,
-            summary: "实例 \(instanceToken) \(summary)"
+            summary: summary,
+            instanceToken: instanceToken
         )
     }
 }

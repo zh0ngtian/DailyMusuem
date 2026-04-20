@@ -28,7 +28,8 @@ struct WidgetManualRefreshRunner {
             guard let scope else {
                 await RequestLogger.shared.logEvent(
                     source: logSource,
-                    summary: "未找到实例 \(normalizedInstanceToken) 对应的小组件范围，忽略本次调试刷新"
+                    summary: "未找到对应的小组件范围，忽略本次调试刷新",
+                    instanceToken: normalizedInstanceToken
                 )
                 return
             }
