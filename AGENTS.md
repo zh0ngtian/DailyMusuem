@@ -132,6 +132,9 @@
     - `https://collectionapi.metmuseum.org/public/collection/v1/search`
   - 拉取展品详情：
     - `https://collectionapi.metmuseum.org/public/collection/v1/objects/{objectID}`
+- 大都会当前搜索请求约束：
+  - 搜索继续使用 `q`、`hasImages` 和可选的 `departmentId`
+  - 当前不再附带 `isOnView` 过滤条件，不能把搜索结果限制为“正在展出”
 - 大都会详情页中的“展品介绍/官网概述”不完全依赖公开 API：
   - 当公开 API 未返回可用介绍字段时，需要继续访问官网页面：
     - `https://www.metmuseum.org/art/collection/search/{objectID}`
@@ -499,6 +502,9 @@
   - 点击后在收藏 / 取消收藏之间切换
 - 详情页右上角还需要提供分享按钮：
   - 点击后先进入 App 内置分享页面，而不是直接打开系统分享面板
+  - App 内置分享页面只展示分享目的地卡片，不显示额外的“分享”标题或分享文案预览
+  - App 内置分享页面中的分享入口使用与首页博物馆卡片一致的实体卡片样式，不使用液态玻璃效果
+  - App 内置分享页面不显示顶部 grabber；分享目的地卡片需要在 sheet 内容区内做上下边缘对齐
   - “其他 App” 再打开系统分享面板，并按纯文本分享
   - “其他 App” 的分享文案固定为：`当前详情页标题｜博物馆名称｜官方网页链接`
   - “微信” 需要先把上述分享文案复制到剪贴板，再尝试跳转到微信
@@ -666,6 +672,9 @@
   - 容易污染日志。
   - 也容易让当前可见桌面实例被后续刷新覆盖。
   - 需要稳定复现时，优先按 `instanceToken` 定向触发。
+- Widget 配置里的隐藏 `instanceToken` 需要在实例创建时生成唯一值并持久化：
+  - 同 scope、同尺寸的两个桌面实例也必须拿到不同 `instanceToken`
+  - `legacy-<scope>-<family>` 只允许作为旧实例缺少持久化 token 时的兜底回退，不应成为新实例的常态
 - Widget 相关 request logs 当前需要显式打印 `instanceToken`：
   - 排查多实例污染、日志归属和桌面截图对应关系时，不能只看 `scope` 或 `family`。
 - SpringBoard 和 WidgetKit 都存在快照缓存：

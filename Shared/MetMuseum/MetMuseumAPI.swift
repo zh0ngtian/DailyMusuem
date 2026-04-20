@@ -12,14 +12,13 @@ final class MetMuseumAPI {
 
     func searchObjectIDs(
         hasImages: Bool,
-        isOnView: Bool,
         query: String,
         departmentID: Int? = nil,
         cachePolicy: MuseumRequestCachePolicy = .useCaches,
         onLog: (@Sendable (String) async -> Void)? = nil
     ) async throws -> [Int] {
         let logger = RequestLogger.shared
-        let cacheKey = "\(hasImages ? "images-only" : "all-images")-\(isOnView)-\(query)-\(departmentID.map(String.init) ?? "all")"
+        let cacheKey = "\(hasImages ? "images-only" : "all-images")-\(query)-\(departmentID.map(String.init) ?? "all")"
         if cachePolicy.usesCaches {
             await onLog?("检查 objectIDs 内存缓存...")
             if let cached = await responseCache.searchObjectIDs(forKey: cacheKey) {
@@ -43,7 +42,6 @@ final class MetMuseumAPI {
 
         var components = URLComponents(url: baseURL.appending(path: "search"), resolvingAgainstBaseURL: false)
         var queryItems = [
-            URLQueryItem(name: "isOnView", value: isOnView ? "true" : "false"),
             URLQueryItem(name: "q", value: query)
         ]
         if hasImages {
