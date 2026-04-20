@@ -44,4 +44,33 @@ final class RequestLoggerTests: XCTestCase {
 
         XCTAssertEqual(object["instanceToken"] as? String, "widget-instance-1")
     }
+
+    func testAppEntitlementsIncludeSharedAppGroup() throws {
+        let appGroups = try entitlementApplicationGroups(
+            atRelativePath: "DailyMuseum/DailyMuseum.entitlements"
+        )
+
+        XCTAssertEqual(appGroups, [SettingsKeys.appGroupID])
+    }
+
+    func testWidgetEntitlementsIncludeSharedAppGroup() throws {
+        let appGroups = try entitlementApplicationGroups(
+            atRelativePath: "DailyMuseumWidget/DailyMuseumWidgetAppGroup.entitlements"
+        )
+
+        XCTAssertEqual(appGroups, [SettingsKeys.appGroupID])
+    }
+
+    private func entitlementApplicationGroups(atRelativePath relativePath: String) throws -> [String] {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let entitlementsURL = repositoryRoot.appendingPathComponent(relativePath)
+        let data = try Data(contentsOf: entitlementsURL)
+        let plistObject = try XCTUnwrap(
+            PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+        )
+
+        return plistObject["com.apple.security.application-groups"] as? [String] ?? []
+    }
 }

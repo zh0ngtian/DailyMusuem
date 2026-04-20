@@ -35,11 +35,11 @@ struct WidgetInstanceTokenResolver {
     }
 
     static func resolve(
-        from rawValue: String,
+        from rawValue: String?,
         scope: WidgetMuseumScope,
         family: WidgetFamily?
     ) -> String {
-        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !trimmed.isEmpty {
             return trimmed
         }

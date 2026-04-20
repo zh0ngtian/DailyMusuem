@@ -1,32 +1,86 @@
 import Photos
 import SwiftUI
+import Translation
 import UIKit
 
 struct ArtworkDetailView: View {
     private enum Constants {
         static let placeholderAspectRatio: CGFloat = 0.8
+        static let translationTargetLanguage = Locale.Language(identifier: "zh-Hans")
+        static let translationAssetsNotReadyMessage = "系统翻译语言包尚未准备好。为保持当前页原位替换交互，应用不会弹出系统下载页，请先在系统里准备好语言包后再试。"
+        static let unsupportedTranslationMessage = "当前系统翻译暂不支持这组语言。"
+        static let unidentifiedSourceLanguageMessage = "系统暂时无法识别原文语言，未触发翻译。"
+    }
+
+    private enum TranslationToolbarState {
+        case original(hasCachedTranslation: Bool)
+        case translating
+        case translated
+
+        var systemImageName: String {
+            switch self {
+            case .original:
+                return "globe"
+            case .translating:
+                return "globe.badge.clock"
+            case .translated:
+                return "globe.badge.chevron.backward"
+            }
+        }
+
+        var isDisabled: Bool {
+            if case .translating = self {
+                return true
+            }
+            return false
+        }
+
+        var accessibilityLabel: String {
+            switch self {
+            case .original:
+                return "原文"
+            case .translating:
+                return "翻译中"
+            case .translated:
+                return "译文"
+            }
+        }
+
+        var accessibilityHint: String? {
+            switch self {
+            case .original(let hasCachedTranslation):
+                return hasCachedTranslation ? "点按显示译文" : "点按翻译并显示译文"
+            case .translating:
+                return nil
+            case .translated:
+                return "点按显示原文"
+            }
+        }
     }
 
     let artwork: Artwork
     let placeholderAspectRatio: CGFloat
     let imageReloadToken: Int
-    let translationToolbarState: TranslationToolbarState?
     let isFavorite: Bool
-    let onTranslationButtonTap: () async -> Void
     let onFavoriteButtonTap: () -> Void
     let onRefresh: () async -> Void
 
     @State private var isShowingImagePreview = false
+    @State private var translatedArtwork: Artwork?
+    @State private var showsTranslatedArtwork = false
+    @State private var isTranslating = false
+    @State private var translationConfiguration: TranslationSession.Configuration?
     @State private var loadedPreviewImage: UIImage?
     @State private var loadedImageAspectRatio: CGFloat?
     @State private var shareDestinationContent: ArtworkShareContent?
     @State private var systemShareContent: ArtworkShareContent?
+    @State private var translationAlertMessage: String?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 CachedAsyncImage(
-                    url: artwork.primaryImageURL ?? artwork.primaryImageSmallURL,
+                    url: displayedArtwork.primaryImageURL ?? displayedArtwork.primaryImageSmallURL,
                     content: { image in
                         Button {
                             isShowingImagePreview = true
@@ -62,12 +116,12 @@ struct ArtworkDetailView: View {
 
                 VStack(alignment: .leading, spacing: 10) {
                     SelectableTextBlock(
-                        text: artwork.title,
+                        text: displayedArtwork.title,
                         font: ArtworkDetailTypography.titleFont,
                         textColor: .label
                     )
 
-                    if let description = artwork.normalizedDescriptionText {
+                    if let description = displayedArtwork.normalizedDescriptionText {
                         VStack(alignment: .leading, spacing: 8) {
                             SelectableTextBlock(
                                 text: description,
@@ -79,15 +133,15 @@ struct ArtworkDetailView: View {
                         .padding(.bottom, 4)
                     }
 
-                    InfoRow(label: "作者", value: artwork.artistDisplayName)
-                    InfoRow(label: "年代", value: artwork.objectDate)
-                    InfoRow(label: "材质", value: artwork.medium)
-                    InfoRow(label: "尺寸", value: artwork.dimensions)
-                    InfoRow(label: "类别", value: artwork.department)
-                    InfoRow(label: "文化", value: artwork.culture)
-                    InfoRow(label: "国家", value: artwork.country)
+                    InfoRow(label: "作者", value: displayedArtwork.artistDisplayName)
+                    InfoRow(label: "年代", value: displayedArtwork.objectDate)
+                    InfoRow(label: "材质", value: displayedArtwork.medium)
+                    InfoRow(label: "尺寸", value: displayedArtwork.dimensions)
+                    InfoRow(label: "类别", value: displayedArtwork.department)
+                    InfoRow(label: "文化", value: displayedArtwork.culture)
+                    InfoRow(label: "国家", value: displayedArtwork.country)
                     SelectableTextBlock(
-                        text: artwork.museumID.copyrightNotice,
+                        text: displayedArtwork.museumID.copyrightNotice,
                         font: ArtworkDetailTypography.footnoteFont,
                         textColor: .secondaryLabel,
                         alignment: .center
@@ -120,8 +174,8 @@ struct ArtworkDetailView: View {
                     .accessibilityLabel("打开官网")
                 }
 
-                if let translationToolbarState {
-                    translationToolbarButton(for: translationToolbarState)
+                if artwork.supportsTranslation {
+                    translationToolbarButton
                 }
 
                 Button(action: onFavoriteButtonTap) {
@@ -133,7 +187,7 @@ struct ArtworkDetailView: View {
         .fullScreenCover(isPresented: $isShowingImagePreview) {
             ArtworkImagePreviewView(
                 initialImage: loadedPreviewImage,
-                imageURL: artwork.primaryImageURL ?? artwork.primaryImageSmallURL
+                imageURL: displayedArtwork.primaryImageURL ?? displayedArtwork.primaryImageSmallURL
             )
         }
         .sheet(item: $shareDestinationContent) { shareContent in
@@ -152,18 +206,31 @@ struct ArtworkDetailView: View {
         .refreshable {
             await onRefresh()
         }
+        .translationTask(translationConfiguration) { session in
+            await performTranslation(using: session)
+        }
         .onChange(of: imageReloadToken) { _, _ in
             loadedPreviewImage = nil
             loadedImageAspectRatio = nil
         }
+        .onChange(of: artwork) { _, _ in
+            resetTranslationState()
+        }
+        .alert("翻译提示", isPresented: Binding(
+            get: { translationAlertMessage != nil },
+            set: { if !$0 { translationAlertMessage = nil } }
+        )) {
+            Button("知道了", role: .cancel) {}
+        } message: {
+            Text(translationAlertMessage ?? "")
+        }
     }
 
     @ViewBuilder
-    private func translationToolbarButton(for state: TranslationToolbarState) -> some View {
+    private var translationToolbarButton: some View {
+        let state = translationToolbarState
         let button = Button {
-            Task {
-                await onTranslationButtonTap()
-            }
+            handleTranslationButtonTap()
         } label: {
             Image(systemName: state.systemImageName)
         }
@@ -206,6 +273,171 @@ struct ArtworkDetailView: View {
             return effectivePlaceholderAspectRatio
         }
         return loadedImageAspectRatio
+    }
+
+    private var displayedArtwork: Artwork {
+        if showsTranslatedArtwork, let translatedArtwork {
+            return translatedArtwork
+        }
+        return artwork
+    }
+
+    private var translationToolbarState: TranslationToolbarState {
+        if isTranslating {
+            return .translating
+        }
+        if translatedArtwork != nil {
+            return showsTranslatedArtwork ? .translated : .original(hasCachedTranslation: true)
+        }
+        return .original(hasCachedTranslation: false)
+    }
+
+    private func handleTranslationButtonTap() {
+        if translatedArtwork != nil {
+            showsTranslatedArtwork.toggle()
+            return
+        }
+
+        guard !isTranslating, artwork.supportsTranslation else {
+            return
+        }
+
+        translationAlertMessage = nil
+        isTranslating = true
+        let sourceArtwork = artwork
+        Task {
+            await prepareTranslation(for: sourceArtwork)
+        }
+    }
+
+    private func performTranslation(using session: TranslationSession) async {
+        let sourceArtwork = artwork
+        let entries = sourceArtwork.translationEntries
+
+        guard !entries.isEmpty else {
+            await MainActor.run {
+                isTranslating = false
+                translationConfiguration = nil
+            }
+            return
+        }
+
+        do {
+            let requests = entries.map { entry in
+                TranslationSession.Request(
+                    sourceText: entry.text,
+                    clientIdentifier: entry.id
+                )
+            }
+            let responses = try await session.translations(from: requests)
+            let translationsByID = responses.reduce(into: [String: String]()) { partialResult, response in
+                guard let identifier = response.clientIdentifier else {
+                    return
+                }
+
+                let trimmedText = response.targetText.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmedText.isEmpty else {
+                    return
+                }
+
+                partialResult[identifier] = trimmedText
+            }
+
+            await MainActor.run {
+                translatedArtwork = sourceArtwork.applyingTranslations(translationsByID)
+                showsTranslatedArtwork = true
+                isTranslating = false
+                translationConfiguration = nil
+            }
+        } catch {
+            await MainActor.run {
+                translationAlertMessage = error.localizedDescription
+                isTranslating = false
+                translationConfiguration = nil
+            }
+        }
+    }
+
+    private func prepareTranslation(for artwork: Artwork) async {
+        let availability = LanguageAvailability()
+
+        do {
+            let availabilityStatus = try await translationAvailabilityStatus(
+                for: artwork,
+                availability: availability
+            )
+
+            await MainActor.run {
+                switch availabilityStatus {
+                case .installed:
+                    translationConfiguration = TranslationSession.Configuration(
+                        source: translationSourceLanguage(for: artwork.museumID),
+                        target: Constants.translationTargetLanguage
+                    )
+                case .supported:
+                    translationAlertMessage = Constants.translationAssetsNotReadyMessage
+                    isTranslating = false
+                    translationConfiguration = nil
+                case .unsupported:
+                    translationAlertMessage = Constants.unsupportedTranslationMessage
+                    isTranslating = false
+                    translationConfiguration = nil
+                @unknown default:
+                    translationAlertMessage = Constants.unsupportedTranslationMessage
+                    isTranslating = false
+                    translationConfiguration = nil
+                }
+            }
+        } catch {
+            await MainActor.run {
+                if TranslationError.unableToIdentifyLanguage ~= error {
+                    translationAlertMessage = Constants.unidentifiedSourceLanguageMessage
+                } else {
+                    translationAlertMessage = error.localizedDescription
+                }
+                isTranslating = false
+                translationConfiguration = nil
+            }
+        }
+    }
+
+    private func translationAvailabilityStatus(
+        for artwork: Artwork,
+        availability: LanguageAvailability
+    ) async throws -> LanguageAvailability.Status {
+        if let sourceLanguage = translationSourceLanguage(for: artwork.museumID) {
+            return await availability.status(
+                from: sourceLanguage,
+                to: Constants.translationTargetLanguage
+            )
+        }
+
+        let sampleText = artwork.translationEntries
+            .map(\.text)
+            .joined(separator: "\n")
+        return try await availability.status(
+            for: sampleText,
+            to: Constants.translationTargetLanguage
+        )
+    }
+
+    private func translationSourceLanguage(for museumID: MuseumID) -> Locale.Language? {
+        switch museumID {
+        case .met:
+            return Locale.Language(identifier: "en")
+        case .tnm:
+            return Locale.Language(identifier: "ja")
+        case .nmc, .shm:
+            return nil
+        }
+    }
+
+    private func resetTranslationState() {
+        translatedArtwork = nil
+        showsTranslatedArtwork = false
+        isTranslating = false
+        translationConfiguration = nil
+        translationAlertMessage = nil
     }
 }
 

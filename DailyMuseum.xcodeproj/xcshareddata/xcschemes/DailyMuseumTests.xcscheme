@@ -28,7 +28,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "AA0000000000000000000005"
+               BlueprintIdentifier = "3C0138DA5FFF9A45268F5E51"
                BuildableName = "DailyMuseumTests.xctest"
                BlueprintName = "DailyMuseumTests"
                ReferencedContainer = "container:DailyMuseum.xcodeproj">
@@ -47,7 +47,7 @@
             parallelizable = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "AA0000000000000000000005"
+               BlueprintIdentifier = "3C0138DA5FFF9A45268F5E51"
                BuildableName = "DailyMuseumTests.xctest"
                BlueprintName = "DailyMuseumTests"
                ReferencedContainer = "container:DailyMuseum.xcodeproj">

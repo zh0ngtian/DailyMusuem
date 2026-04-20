@@ -126,19 +126,6 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable {
         "©\(displayName) 版权所有"
     }
 
-    var defaultTranslationSourceLanguage: String {
-        switch self {
-        case .met:
-            return "en"
-        case .tnm:
-            return "ja"
-        case .nmc:
-            return "zh"
-        case .shm:
-            return "zh"
-        }
-    }
-
     var supportsTranslation: Bool {
         switch self {
         case .met, .tnm:
