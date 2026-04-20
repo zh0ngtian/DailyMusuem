@@ -138,9 +138,11 @@ final class WidgetStateAndSettingsTests: XCTestCase {
 
     func testArtworkBatchLoaderMetIsNotInitiallyExhaustedAndLoadsFirstBatch() async throws {
         let testID = UUID().uuidString
+        let recorder = WidgetRequestRecorder()
 
         let session = makeStubSession(testID: testID) { [self] request in
             let url = try XCTUnwrap(request.url)
+            recorder.record(url)
 
             if url.path.contains("/search") {
                 return self.makeJSONResponse(
@@ -193,6 +195,13 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(batch.count, 1)
         XCTAssertEqual(batch.first?.museumID, .met)
         XCTAssertEqual(batch.first?.title, "Met Test Artwork")
+
+        let searchURL = try XCTUnwrap(recorder.urls.first(where: { $0.path.contains("/search") }))
+        let queryItems = Dictionary(
+            uniqueKeysWithValues: (URLComponents(url: searchURL, resolvingAgainstBaseURL: false)?.queryItems ?? [])
+                .map { ($0.name, $0.value ?? "") }
+        )
+        XCTAssertNil(queryItems["isOnView"])
     }
 
     func testNationalMuseumChinaRequestThrottleEnforcesMinimumInterval() async throws {

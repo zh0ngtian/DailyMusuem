@@ -74,11 +74,13 @@ struct DailyMuseumWidgetConfigurationIntent: WidgetConfigurationIntent {
     var museumScope: WidgetConfiguredMuseumScope?
 
     @Parameter(title: "实例标识")
-    var instanceToken: String?
+    var instanceToken: String
 
     init() {
         museumScope = .all
-        instanceToken = nil
+        // App Intents parameter defaults must be compile-time literals, so generate the
+        // hidden per-instance token when WidgetKit creates a fresh configuration intent.
+        instanceToken = WidgetInstanceTokenResolver.makeDefaultToken()
     }
 
     static var parameterSummary: some ParameterSummary {
@@ -152,7 +154,7 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
     ) async -> WidgetArtworkEntry {
         let scope = configuration.museumScope?.scope ?? .all
         let resolvedInstanceToken = WidgetInstanceTokenResolver.resolve(
-            from: configuration.instanceToken ?? "",
+            from: configuration.instanceToken,
             scope: scope,
             family: family
         )

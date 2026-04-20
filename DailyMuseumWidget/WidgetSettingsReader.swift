@@ -122,7 +122,6 @@ actor ArtworkBatchLoader {
                     try Task.checkCancellation()
                     let categoryIDs = try await metAPI.searchObjectIDs(
                         hasImages: true,
-                        isOnView: true,
                         query: "*",
                         departmentID: departmentID,
                         cachePolicy: cachePolicy
@@ -138,7 +137,6 @@ actor ArtworkBatchLoader {
             } else {
                 ids = try await metAPI.searchObjectIDs(
                     hasImages: true,
-                    isOnView: true,
                     query: "*",
                     cachePolicy: cachePolicy,
                     onLog: onLog

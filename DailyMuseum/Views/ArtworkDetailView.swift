@@ -136,8 +136,9 @@ struct ArtworkDetailView: View {
                     systemShareContent = selectedContent
                 }
             }
-            .presentationDetents([.height(260)])
-            .presentationDragIndicator(.visible)
+            .presentationDetents([.height(224)])
+            .presentationDragIndicator(.hidden)
+            .presentationBackground(Color(.systemGroupedBackground))
         }
         .sheet(item: $systemShareContent) { shareContent in
             ArtworkOtherAppsShareSheet(text: shareContent.plainText)
@@ -211,39 +212,37 @@ private struct ArtworkShareDestinationSheet: View {
     @State private var alertState: ShareActionAlertState?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("分享")
-                .font(.headline)
+        ZStack {
+            Color(.systemGroupedBackground)
+                .ignoresSafeArea()
 
-            Text(content.plainText)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .lineLimit(3)
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            VStack(spacing: 14) {
+                Spacer(minLength: 0)
 
-            shareButton(
-                title: "微信",
-                subtitle: "复制文案到剪贴板并跳转到微信",
-                systemImage: "message.fill",
-                tint: .green,
-                action: shareToWeChat
-            )
+                shareOptionCard(
+                    title: "微信",
+                    subtitle: "跳转到微信并手动粘贴",
+                    systemImage: "message.fill",
+                    tint: .green,
+                    action: shareToWeChat
+                )
 
-            shareButton(
-                title: "其他 App",
-                subtitle: "以纯文本打开系统分享面板",
-                systemImage: "square.and.arrow.up",
-                tint: .accentColor
-            ) {
-                dismiss()
-                onShareToOtherApps(content)
+                shareOptionCard(
+                    title: "其他 App",
+                    subtitle: "分享到其他 App",
+                    systemImage: "square.and.arrow.up",
+                    tint: .accentColor
+                ) {
+                    dismiss()
+                    onShareToOtherApps(content)
+                }
+
+                Spacer(minLength: 0)
             }
-
-            Spacer(minLength: 0)
+            .frame(maxHeight: .infinity)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
         }
-        .padding(20)
         .alert(item: $alertState) { state in
             Alert(
                 title: Text(state.title),
@@ -253,7 +252,7 @@ private struct ArtworkShareDestinationSheet: View {
         }
     }
 
-    private func shareButton(
+    private func shareOptionCard(
         title: String,
         subtitle: String,
         systemImage: String,
@@ -261,25 +260,44 @@ private struct ArtworkShareDestinationSheet: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack(spacing: 14) {
-                Image(systemName: systemImage)
-                    .font(.title3.weight(.semibold))
-                    .frame(width: 24)
-                    .foregroundStyle(tint)
+            HStack(spacing: 16) {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color(.secondarySystemBackground))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(Color.black.opacity(0.05), lineWidth: 1)
+                    }
+                    .overlay {
+                        Image(systemName: systemImage)
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundStyle(tint)
+                    }
+                    .frame(width: 56, height: 56)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
-                        .font(.body.weight(.semibold))
+                        .font(.headline)
                         .foregroundStyle(.primary)
+                        .lineLimit(1)
                     Text(subtitle)
-                        .font(.footnote)
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Spacer()
+                Spacer(minLength: 0)
+
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
             }
-            .padding(14)
-            .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(.horizontal, 18)
+            .padding(.vertical, 18)
+            .background(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(.background)
+                    .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 6)
+            )
         }
         .buttonStyle(.plain)
     }
