@@ -61,15 +61,19 @@ struct ArtworkDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(artwork.title)
-                        .font(.title2.weight(.semibold))
+                    SelectableTextBlock(
+                        text: artwork.title,
+                        font: ArtworkDetailTypography.titleFont,
+                        textColor: .label
+                    )
 
                     if let description = artwork.normalizedDescriptionText {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text(description)
-                                .font(.body)
-                                .foregroundStyle(.primary)
-                                .fixedSize(horizontal: false, vertical: true)
+                            SelectableTextBlock(
+                                text: description,
+                                font: ArtworkDetailTypography.bodyFont,
+                                textColor: .label
+                            )
                         }
                         .padding(.top, 4)
                         .padding(.bottom, 4)
@@ -82,12 +86,14 @@ struct ArtworkDetailView: View {
                     InfoRow(label: "类别", value: artwork.department)
                     InfoRow(label: "文化", value: artwork.culture)
                     InfoRow(label: "国家", value: artwork.country)
-                    Text(artwork.museumID.copyrightNotice)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    SelectableTextBlock(
+                        text: artwork.museumID.copyrightNotice,
+                        font: ArtworkDetailTypography.footnoteFont,
+                        textColor: .secondaryLabel,
+                        alignment: .center
+                    )
                         .padding(.top, 8)
                         .frame(maxWidth: .infinity)
-                        .multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -574,22 +580,130 @@ private enum PreviewImageSaveError: LocalizedError {
     }
 }
 
+private enum ArtworkDetailTypography {
+    static let titleFont = scaledFont(textStyle: .title2, weight: .semibold)
+    static let bodyFont = scaledFont(textStyle: .body)
+    static let infoLabelFont = scaledFont(textStyle: .subheadline, weight: .semibold)
+    static let infoValueFont = scaledFont(textStyle: .subheadline)
+    static let footnoteFont = scaledFont(textStyle: .footnote)
+    static let infoValueIndent: CGFloat = 58
+
+    private static func scaledFont(textStyle: UIFont.TextStyle, weight: UIFont.Weight = .regular) -> UIFont {
+        let pointSize = UIFont.preferredFont(forTextStyle: textStyle).pointSize
+        let baseFont = UIFont.systemFont(ofSize: pointSize, weight: weight)
+        return UIFontMetrics(forTextStyle: textStyle).scaledFont(for: baseFont)
+    }
+}
+
+private struct SelectableTextBlock: View {
+    let text: String
+    let font: UIFont
+    let textColor: UIColor
+    var alignment: NSTextAlignment = .natural
+
+    var body: some View {
+        SelectableAttributedTextView(attributedText: attributedText)
+            .frame(maxWidth: .infinity, alignment: alignment == .center ? .center : .leading)
+    }
+
+    private var attributedText: NSAttributedString {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = alignment
+        paragraphStyle.lineBreakMode = .byWordWrapping
+
+        return NSAttributedString(
+            string: text,
+            attributes: [
+                .font: font,
+                .foregroundColor: textColor,
+                .paragraphStyle: paragraphStyle
+            ]
+        )
+    }
+}
+
+private struct SelectableAttributedTextView: UIViewRepresentable {
+    let attributedText: NSAttributedString
+
+    func makeUIView(context: Context) -> UITextView {
+        let textView = UITextView()
+        textView.backgroundColor = .clear
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.isScrollEnabled = false
+        textView.adjustsFontForContentSizeCategory = true
+        textView.textContainerInset = .zero
+        textView.textContainer.lineFragmentPadding = 0
+        textView.textContainer.maximumNumberOfLines = 0
+        textView.textContainer.lineBreakMode = .byWordWrapping
+        textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        textView.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        return textView
+    }
+
+    func updateUIView(_ uiView: UITextView, context: Context) {
+        uiView.attributedText = attributedText
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+        let targetWidth = proposal.width ?? 0
+        let fittingWidth = targetWidth > 0 ? targetWidth : UIView.noIntrinsicMetric
+        let fittingSize = uiView.sizeThatFits(
+            CGSize(width: fittingWidth, height: CGFloat.greatestFiniteMagnitude)
+        )
+
+        return CGSize(
+            width: targetWidth > 0 ? targetWidth : fittingSize.width,
+            height: ceil(fittingSize.height)
+        )
+    }
+}
+
 private struct InfoRow: View {
     let label: String
     let value: String?
 
     var body: some View {
         if let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(label)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 48, alignment: .leading)
-                Text(value)
-                    .font(.subheadline)
-                    .foregroundStyle(.primary)
-                Spacer(minLength: 0)
-            }
+            SelectableAttributedTextView(attributedText: attributedText)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    private var attributedText: NSAttributedString {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.lineBreakMode = .byWordWrapping
+        paragraphStyle.tabStops = [
+            NSTextTab(
+                textAlignment: .left,
+                location: ArtworkDetailTypography.infoValueIndent
+            )
+        ]
+        paragraphStyle.defaultTabInterval = ArtworkDetailTypography.infoValueIndent
+        paragraphStyle.firstLineHeadIndent = 0
+        paragraphStyle.headIndent = ArtworkDetailTypography.infoValueIndent
+
+        let attributedText = NSMutableAttributedString()
+        attributedText.append(
+            NSAttributedString(
+                string: "\(label)\t",
+                attributes: [
+                    .font: ArtworkDetailTypography.infoLabelFont,
+                    .foregroundColor: UIColor.secondaryLabel,
+                    .paragraphStyle: paragraphStyle
+                ]
+            )
+        )
+        attributedText.append(
+            NSAttributedString(
+                string: value ?? "",
+                attributes: [
+                    .font: ArtworkDetailTypography.infoValueFont,
+                    .foregroundColor: UIColor.label,
+                    .paragraphStyle: paragraphStyle
+                ]
+            )
+        )
+        return attributedText
     }
 }
