@@ -164,6 +164,13 @@ struct RequestLogsView: View {
             Text(entry.summary)
                 .font(.subheadline)
 
+            if let instanceToken = entry.instanceToken, !instanceToken.isEmpty {
+                Text("instanceToken: \(instanceToken)")
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+
             if let method = entry.method, let url = entry.url {
                 Text("\(method) \(url)")
                     .font(.caption.monospaced())

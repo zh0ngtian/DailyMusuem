@@ -166,7 +166,8 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
         let renderID = "\(resolvedInstanceToken)|\(scope.rawValue)|\(state.nonce)|\(state.phase.rawValue)"
         await RequestLogger.shared.logEvent(
             source: "Widget 完成渲染",
-            summary: "family=\(family?.debugToken ?? "unknown") scope=\(scope.rawValue) token=\(resolvedInstanceToken) phase=\(state.phase.rawValue)"
+            summary: "family=\(family?.debugToken ?? "unknown") scope=\(scope.rawValue) phase=\(state.phase.rawValue)",
+            instanceToken: resolvedInstanceToken
         )
 
         switch state.phase {

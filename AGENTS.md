@@ -666,6 +666,8 @@
   - 容易污染日志。
   - 也容易让当前可见桌面实例被后续刷新覆盖。
   - 需要稳定复现时，优先按 `instanceToken` 定向触发。
+- Widget 相关 request logs 当前需要显式打印 `instanceToken`：
+  - 排查多实例污染、日志归属和桌面截图对应关系时，不能只看 `scope` 或 `family`。
 - SpringBoard 和 WidgetKit 都存在快照缓存：
   - 代码修好后，桌面仍可能短时间继续显示旧占位态或旧快照。
   - 这时需要结合重新安装 App、重新拉起 App、重新请求 timeline、必要时重启模拟器或强制回桌面后再次截图来判断。
@@ -740,6 +742,7 @@
     - 候选拉取顺序符合预期
     - 成功后没有继续多拉
     - provider 至少生成过对应 family 的 timeline
+    - 当前关键 widget 日志能看到对应的 `instanceToken`
   - 6. 再查系统日志，确认没有 `imageTooLarge`、归档失败或 Chrono 渲染错误
   - 7. 最后以桌面截图作为最终验收证据
 - 常用日志命令：

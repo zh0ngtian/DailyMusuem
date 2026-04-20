@@ -251,9 +251,12 @@ for entry in entries:
     ts = (datetime(2001, 1, 1, tzinfo=timezone.utc) + timedelta(seconds=entry["timestamp"])).astimezone().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
     url = entry.get("url") or ""
     method = entry.get("method") or ""
+    instance_token = entry.get("instanceToken") or ""
     status = entry.get("statusCode")
     duration = entry.get("durationMilliseconds")
     suffix = []
+    if instance_token:
+        suffix.append(f"instanceToken={instance_token}")
     if method:
         suffix.append(method)
     if status is not None:

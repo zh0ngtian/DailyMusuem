@@ -10,6 +10,7 @@ struct RequestLogEntry: Identifiable, Codable, Hashable {
     let timestamp: Date
     let source: String
     let summary: String
+    let instanceToken: String?
     let method: String?
     let url: String?
     let statusCode: Int?
@@ -44,13 +45,18 @@ actor RequestLogger {
         lockURL = directoryURL.appendingPathComponent(Constants.lockFileName)
     }
 
-    func logEvent(source: String, summary: String) async {
+    func logEvent(
+        source: String,
+        summary: String,
+        instanceToken: String? = nil
+    ) async {
         await append(
             RequestLogEntry(
                 id: UUID(),
                 timestamp: Date(),
                 source: source,
                 summary: summary,
+                instanceToken: instanceToken,
                 method: nil,
                 url: nil,
                 statusCode: nil,
@@ -59,13 +65,19 @@ actor RequestLogger {
         )
     }
 
-    func logRequestStart(source: String, method: String = "GET", url: URL) async {
+    func logRequestStart(
+        source: String,
+        method: String = "GET",
+        url: URL,
+        instanceToken: String? = nil
+    ) async {
         await append(
             RequestLogEntry(
                 id: UUID(),
                 timestamp: Date(),
                 source: source,
                 summary: "开始请求",
+                instanceToken: instanceToken,
                 method: method,
                 url: url.absoluteString,
                 statusCode: nil,
@@ -80,7 +92,8 @@ actor RequestLogger {
         url: URL,
         statusCode: Int,
         duration: TimeInterval,
-        responseBytes: Int
+        responseBytes: Int,
+        instanceToken: String? = nil
     ) async {
         await append(
             RequestLogEntry(
@@ -88,6 +101,7 @@ actor RequestLogger {
                 timestamp: Date(),
                 source: source,
                 summary: "请求成功，响应 \(responseBytes) bytes",
+                instanceToken: instanceToken,
                 method: method,
                 url: url.absoluteString,
                 statusCode: statusCode,
@@ -101,7 +115,8 @@ actor RequestLogger {
         method: String = "GET",
         url: URL,
         duration: TimeInterval,
-        error: Error
+        error: Error,
+        instanceToken: String? = nil
     ) async {
         await append(
             RequestLogEntry(
@@ -109,6 +124,7 @@ actor RequestLogger {
                 timestamp: Date(),
                 source: source,
                 summary: "请求失败：\(error.localizedDescription)",
+                instanceToken: instanceToken,
                 method: method,
                 url: url.absoluteString,
                 statusCode: nil,
