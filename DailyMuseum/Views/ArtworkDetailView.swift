@@ -126,7 +126,8 @@ struct ArtworkDetailView: View {
                             SelectableTextBlock(
                                 text: description,
                                 font: ArtworkDetailTypography.bodyFont,
-                                textColor: .label
+                                textColor: .label,
+                                lineSpacing: ArtworkDetailTypography.descriptionLineSpacing
                             )
                         }
                         .padding(.top, 4)
@@ -818,6 +819,7 @@ private enum ArtworkDetailTypography {
     static let infoLabelFont = scaledFont(textStyle: .subheadline, weight: .semibold)
     static let infoValueFont = scaledFont(textStyle: .subheadline)
     static let footnoteFont = scaledFont(textStyle: .footnote)
+    static let descriptionLineSpacing: CGFloat = 5
     static let infoValueIndent: CGFloat = 58
 
     private static func scaledFont(textStyle: UIFont.TextStyle, weight: UIFont.Weight = .regular) -> UIFont {
@@ -832,6 +834,7 @@ private struct SelectableTextBlock: View {
     let font: UIFont
     let textColor: UIColor
     var alignment: NSTextAlignment = .natural
+    var lineSpacing: CGFloat = 0
 
     var body: some View {
         SelectableAttributedTextView(attributedText: attributedText)
@@ -842,6 +845,7 @@ private struct SelectableTextBlock: View {
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = alignment
         paragraphStyle.lineBreakMode = .byWordWrapping
+        paragraphStyle.lineSpacing = lineSpacing
 
         return NSAttributedString(
             string: text,
