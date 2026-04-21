@@ -62,27 +62,19 @@ struct DailyMuseumWidgetView: View {
     }
 
     private var refreshControl: some View {
-        Group {
-            if entry.isRefreshing {
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .tint(.white)
-            } else {
-                Button(
-                    intent: RefreshWidgetIntent(
-                        instanceToken: entry.instanceToken,
-                        museumScope: configuredScope,
-                        widgetFamilyToken: family.debugToken
-                    )
-                ) {
-                    Image(systemName: "arrow.clockwise.circle.fill")
-                        .font(refreshIconFont)
-                        .foregroundStyle(.white)
-                        .shadow(color: .black.opacity(0.35), radius: 6, x: 0, y: 2)
-                }
-                .buttonStyle(.plain)
-            }
+        Button(
+            intent: RefreshWidgetIntent(
+                instanceToken: entry.instanceToken,
+                museumScope: configuredScope,
+                widgetFamilyToken: family.debugToken
+            )
+        ) {
+            Image(systemName: "arrow.clockwise.circle.fill")
+                .font(refreshIconFont)
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.35), radius: 6, x: 0, y: 2)
         }
+        .buttonStyle(.plain)
         .frame(width: refreshControlSize, height: refreshControlSize)
     }
 
@@ -138,10 +130,8 @@ struct DailyMuseumWidgetView: View {
 
     private var displaySubtitle: String? {
         switch entry.phase {
-        case .idle:
+        case .idle, .refreshing:
             return "长按小组件并选择「编辑小组件-展示范围」以激活小组件"
-        case .refreshing:
-            return entry.subtitle ?? "正在拉取新展品"
         case .success:
             return entry.subtitle
         case .failure:
@@ -151,10 +141,8 @@ struct DailyMuseumWidgetView: View {
 
     private var backgroundGradientColors: [Color] {
         switch entry.phase {
-        case .idle:
+        case .idle, .refreshing:
             return [Color(red: 0.15, green: 0.22, blue: 0.34), Color(red: 0.07, green: 0.09, blue: 0.12)]
-        case .refreshing:
-            return [Color(red: 0.23, green: 0.20, blue: 0.14), Color(red: 0.09, green: 0.08, blue: 0.06)]
         case .success:
             return [Color(red: 0.20, green: 0.20, blue: 0.20), Color.black]
         case .failure:
