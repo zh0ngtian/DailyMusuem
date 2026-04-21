@@ -202,7 +202,7 @@ actor WidgetArtworkSnapshotStore {
                     instances[instanceToken] = updatedState
                     persist(instances)
                 }
-                return updatedState
+                return presentationState(for: updatedState)
             }
 
             let previousImageFileName = current.artwork?.imageFileName
@@ -217,7 +217,7 @@ actor WidgetArtworkSnapshotStore {
             if previousImageFileName != resetState.artwork?.imageFileName {
                 deleteImageFile(named: previousImageFileName)
             }
-            return resetState
+            return presentationState(for: resetState)
         }
 
         if let recoveredState = recoverRecentRenderState(
@@ -228,7 +228,7 @@ actor WidgetArtworkSnapshotStore {
             instances: &instances
         ) {
             persist(instances)
-            return recoveredState
+            return presentationState(for: recoveredState)
         }
 
         let state = makeInitialState(
@@ -239,7 +239,7 @@ actor WidgetArtworkSnapshotStore {
         )
         instances[instanceToken] = state
         persist(instances)
-        return state
+        return presentationState(for: state)
     }
 
     func displayedArtworkKeys(
@@ -460,6 +460,16 @@ actor WidgetArtworkSnapshotStore {
             failureMessage: nil,
             lastUpdatedAt: now.timeIntervalSince1970
         )
+    }
+
+    private func presentationState(for state: InstanceState) -> InstanceState {
+        guard state.phase == .refreshing else {
+            return state
+        }
+
+        var visibleState = state
+        visibleState.phase = state.artwork == nil ? .idle : .success
+        return visibleState
     }
 
     private func recoverRecentRenderState(

@@ -14,10 +14,6 @@ struct WidgetArtworkEntry: TimelineEntry {
     let imageFileName: String?
     let appURL: URL?
     let failureMessage: String?
-
-    var isRefreshing: Bool {
-        phase == .refreshing
-    }
 }
 
 enum WidgetConfiguredMuseumScope: String, AppEnum, CaseIterable {
@@ -189,36 +185,6 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
                     failureMessage: nil
                 )
             }
-        case .refreshing:
-            if let artwork = state.artwork {
-                return WidgetArtworkEntry(
-                    date: date,
-                    renderID: renderID,
-                    instanceToken: resolvedInstanceToken,
-                    scopeRawValue: scope.rawValue,
-                    phase: .refreshing,
-                    museumName: artwork.museumName,
-                    title: artwork.title,
-                    subtitle: artwork.subtitle,
-                    imageFileName: artwork.imageFileName,
-                    appURL: artwork.appURL,
-                    failureMessage: nil
-                )
-            }
-
-            return WidgetArtworkEntry(
-                date: date,
-                renderID: renderID,
-                instanceToken: resolvedInstanceToken,
-                scopeRawValue: scope.rawValue,
-                phase: .refreshing,
-                museumName: scope.displayName,
-                title: "刷新中",
-                subtitle: "正在拉取新展品",
-                imageFileName: nil,
-                appURL: nil,
-                failureMessage: nil
-            )
         case .failure:
             return WidgetArtworkEntry(
                 date: date,
@@ -233,7 +199,7 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
                 appURL: nil,
                 failureMessage: state.failureMessage
             )
-        case .idle:
+        case .idle, .refreshing:
             break
         }
 

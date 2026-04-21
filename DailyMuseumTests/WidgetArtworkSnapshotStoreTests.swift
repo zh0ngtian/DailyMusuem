@@ -236,6 +236,62 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
         XCTAssertNil(rendered.artwork)
     }
 
+    func testRenderStateKeepsPreviousArtworkVisibleWhileRefreshIsInFlight() async throws {
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let scope = WidgetMuseumScope.single(.met).rawValue
+
+        _ = await store.beginRefresh(
+            instanceToken: "instance-visible-refresh",
+            scopeRawValue: scope
+        )
+        _ = await store.markSuccess(
+            instanceToken: "instance-visible-refresh",
+            expectedNonce: 1,
+            payload: makePayload(
+                museumID: .met,
+                museumName: "大都会艺术博物馆",
+                title: "旧展品"
+            ),
+            imageData: nil
+        )
+        _ = await store.beginRefresh(
+            instanceToken: "instance-visible-refresh",
+            scopeRawValue: scope
+        )
+
+        let rendered = await store.renderState(
+            for: "instance-visible-refresh",
+            scopeRawValue: scope
+        )
+        let persisted = await store.state(for: "instance-visible-refresh")
+
+        XCTAssertEqual(rendered.phase, .success)
+        XCTAssertEqual(rendered.artwork?.title, "旧展品")
+        XCTAssertEqual(persisted?.phase, .refreshing)
+        XCTAssertEqual(persisted?.artwork?.title, "旧展品")
+    }
+
+    func testRenderStateFallsBackToIdlePlaceholderWhenRefreshStartsWithoutArtwork() async throws {
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let scope = WidgetMuseumScope.single(.tnm).rawValue
+
+        _ = await store.beginRefresh(
+            instanceToken: "instance-empty-refresh",
+            scopeRawValue: scope
+        )
+
+        let rendered = await store.renderState(
+            for: "instance-empty-refresh",
+            scopeRawValue: scope
+        )
+        let persisted = await store.state(for: "instance-empty-refresh")
+
+        XCTAssertEqual(rendered.phase, .idle)
+        XCTAssertNil(rendered.artwork)
+        XCTAssertEqual(persisted?.phase, .refreshing)
+        XCTAssertNil(persisted?.artwork)
+    }
+
     func testRenderStateDoesNotRecoverStaleSameFamilyStateAfterRecoveryWindow() async throws {
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
         let scope = WidgetMuseumScope.single(.met).rawValue
