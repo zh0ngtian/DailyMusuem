@@ -219,6 +219,10 @@ struct ArtworkShareContent: Identifiable, Hashable {
     var plainText: String {
         "\(title)｜\(museumID.displayName)｜\(officialURL.absoluteString)"
     }
+
+    var doubaoShortcutInputText: String {
+        "\(officialURL.absoluteString) 解释一下这个展品"
+    }
 }
 
 extension String {

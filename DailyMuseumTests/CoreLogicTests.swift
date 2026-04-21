@@ -127,6 +127,25 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertNil(AppDeepLink.parse(url: URL(string: "dailymuseum://artwork/unknown/1")!))
     }
 
+    func testShortcutInstallPromptDeepLinkRoundTripPreservesPayload() throws {
+        let installURL = try XCTUnwrap(URL(string: "https://www.icloud.com/shortcuts/50a57de8c0884898a895556c3e8b01b5"))
+        let callbackURL = try XCTUnwrap(
+            AppDeepLink.shortcutInstallPromptURL(
+                shortcutName: "DoubaoMuseum",
+                installURL: installURL
+            )
+        )
+        let callbackWithError = try XCTUnwrap(
+            URL(string: "\(callbackURL.absoluteString)&errorMessage=\("missing shortcut".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!)")
+        )
+
+        let parsed = AppDeepLink.parseShortcutInstallPrompt(url: callbackWithError)
+
+        XCTAssertEqual(parsed?.shortcutName, "DoubaoMuseum")
+        XCTAssertEqual(parsed?.installURL, installURL)
+        XCTAssertEqual(parsed?.errorMessage, "missing shortcut")
+    }
+
     func testWidgetMuseumScopeRawValueRoundTrip() {
         XCTAssertEqual(WidgetMuseumScope(rawValue: WidgetMuseumScope.all.rawValue), .all)
         XCTAssertEqual(WidgetMuseumScope(rawValue: WidgetMuseumScope.single(.tnm).rawValue), .single(.tnm))
@@ -270,6 +289,22 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertEqual(
             content.plainText,
             "睡莲｜大都会艺术博物馆｜https://example.com/object/1"
+        )
+    }
+
+    func testArtworkShareContentBuildsDoubaoShortcutInputTextFromOfficialURL() throws {
+        let officialURL = try XCTUnwrap(URL(string: "https://example.com/object/2"))
+        let artwork = makeArtwork(
+            museumID: .shm,
+            title: "青铜鼎",
+            description: nil,
+            objectURL: officialURL
+        )
+        let content = try XCTUnwrap(ArtworkShareContent(artwork: artwork))
+
+        XCTAssertEqual(
+            content.doubaoShortcutInputText,
+            "https://example.com/object/2 解释一下这个展品"
         )
     }
 

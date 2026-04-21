@@ -197,7 +197,7 @@ struct ArtworkDetailView: View {
                     systemShareContent = selectedContent
                 }
             }
-            .presentationDetents([.height(224)])
+            .presentationDetents([.height(316)])
             .presentationDragIndicator(.hidden)
             .presentationBackground(Color(.systemGroupedBackground))
         }
@@ -442,6 +442,36 @@ struct ArtworkDetailView: View {
     }
 }
 
+private enum ArtworkShareShortcutConfiguration {
+    static let doubaoShortcutName = "DoubaoMuseum"
+
+    static var doubaoInstallURL: URL? {
+        URL(string: "https://www.icloud.com/shortcuts/50a57de8c0884898a895556c3e8b01b5")
+    }
+
+    static func doubaoRunURL(inputText: String) -> URL? {
+        guard let installURL = doubaoInstallURL,
+              let errorCallbackURL = AppDeepLink.shortcutInstallPromptURL(
+                shortcutName: doubaoShortcutName,
+                installURL: installURL
+              ) else {
+            return nil
+        }
+
+        var components = URLComponents()
+        components.scheme = "shortcuts"
+        components.host = "x-callback-url"
+        components.path = "/run-shortcut"
+        components.queryItems = [
+            URLQueryItem(name: "name", value: doubaoShortcutName),
+            URLQueryItem(name: "input", value: "text"),
+            URLQueryItem(name: "text", value: inputText),
+            URLQueryItem(name: "x-error", value: errorCallbackURL.absoluteString)
+        ]
+        return components.url
+    }
+}
+
 private struct ArtworkShareDestinationSheet: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -464,6 +494,14 @@ private struct ArtworkShareDestinationSheet: View {
                     systemImage: "message.fill",
                     tint: .green,
                     action: shareToWeChat
+                )
+
+                shareOptionCard(
+                    title: "问问豆包",
+                    subtitle: "通过快捷指令发给豆包解读",
+                    systemImage: "sparkles.rectangle.stack.fill",
+                    tint: .orange,
+                    action: shareToDoubao
                 )
 
                 shareOptionCard(
@@ -558,6 +596,26 @@ private struct ArtworkShareDestinationSheet: View {
 
         dismiss()
         UIApplication.shared.open(weChatURL)
+    }
+
+    private func shareToDoubao() {
+        guard let installURL = ArtworkShareShortcutConfiguration.doubaoInstallURL,
+              let runURL = ArtworkShareShortcutConfiguration.doubaoRunURL(
+                inputText: content.doubaoShortcutInputText
+              ) else {
+            return
+        }
+
+        dismiss()
+        UIApplication.shared.open(runURL) { didOpen in
+            guard !didOpen else {
+                return
+            }
+            ShortcutInstallPromptController.shared.show(
+                shortcutName: ArtworkShareShortcutConfiguration.doubaoShortcutName,
+                installURL: installURL
+            )
+        }
     }
 }
 
