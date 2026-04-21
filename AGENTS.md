@@ -705,6 +705,9 @@
 ### 6.1 默认验证策略
 
 - 后续每次修复问题或新增功能后，都需要优先使用模拟器 `iPhone 17 Pro` 作为默认构建和运行目标再交付。
+- 运行 iOS 单元测试时，当前默认关闭 parallel testing：
+  - `DailyMuseumTests` scheme 不应使用克隆模拟器并行执行
+  - 当前环境下 clone simulator 容易在 `Failed to install or launch the test runner` 阶段失败
 - 涉及微信跳转、真机权限、真机网络、真机分享链路或其他模拟器无法稳定覆盖的场景时，再补充使用真机 `Yao iPhone 17 Pro` 验证。
 - 涉及详情页分享能力时：
   - App 内置分享页面是否正常展示，可先用模拟器做基础验证
