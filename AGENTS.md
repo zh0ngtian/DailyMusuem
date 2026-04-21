@@ -585,7 +585,7 @@
 - 每个小组件实例独立：
   - 按实例维护展示范围、当前渲染状态和进行中的刷新任务
   - 不再使用旧的跨尺寸共享快照、全局 snapshot reuse 或 family 级刷新同步逻辑
-- 小组件首次安装、迁移后或尚未成功拉到展品时，应显示中性占位态，例如：
+- 小组件首次安装或尚未成功拉到展品时，应显示中性占位态，例如：
   - `点击刷新获取展品`
 
 ### 5.2 配置要求
@@ -679,16 +679,15 @@
     - `Widget archival failed due to image being too large`
     - `imageTooLarge`
   - 成功态背景图必须先按小组件目标比例裁剪，并降采样到受控像素尺寸后再渲染。
-- 当 widget 配置里的隐藏 `instanceToken` 缺失、变化或未正确回传时：
-  - provider 可能只能按 `scope` 收养最近一次可展示状态。
-  - 这类回退逻辑必须优先采用最近一次 `success`，不能优先采用较新的 `refreshing`，否则桌面容易回退到占位态并丢失上一件可见展品。
+- 当 widget 配置里的隐藏 `instanceToken` 发生变化，但同 `scope`、同 `family` 仍能唯一命中最近一次非 `idle` 状态时：
+  - provider 允许收养这次最近渲染结果，避免同一桌面实例因 token 漂移直接回退到占位态。
 - 用 `scope` 级别调试刷新时，同 scope 的多个实例可能被一起触发：
   - 容易污染日志。
   - 也容易让当前可见桌面实例被后续刷新覆盖。
   - 需要稳定复现时，优先按 `instanceToken` 定向触发。
 - Widget 配置里的隐藏 `instanceToken` 需要在实例创建时生成唯一值并持久化：
   - 同 scope、同尺寸的两个桌面实例也必须拿到不同 `instanceToken`
-  - `legacy-<scope>-<family>` 只允许作为旧实例缺少持久化 token 时的兜底回退，不应成为新实例的常态
+  - 不再支持旧 widget 缺少持久化 `instanceToken` 的迁移兼容；出现这类实例时按新实例处理
 - Widget 相关 request logs 当前需要显式打印 `instanceToken`：
   - 排查多实例污染、日志归属和桌面截图对应关系时，不能只看 `scope` 或 `family`。
 - Widget 的 request logs、实例状态和主 App 日志页依赖主 App 与 Widget Extension 共享同一个 App Group：

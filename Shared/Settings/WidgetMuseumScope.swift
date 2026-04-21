@@ -36,20 +36,15 @@ struct WidgetInstanceTokenResolver {
 
     static func resolve(
         from rawValue: String?,
-        scope: WidgetMuseumScope,
-        family: WidgetFamily?
+        scope _: WidgetMuseumScope,
+        family _: WidgetFamily?
     ) -> String {
         let trimmed = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !trimmed.isEmpty {
             return trimmed
         }
 
-        // Legacy widgets created before the hidden token was persisted can still arrive
-        // without an instance token. Keep the old deterministic fallback only for those
-        // migrated widgets so newer instances always rely on their stored token instead.
-        let scopeKey = scope.rawValue.replacingOccurrences(of: ":", with: "-")
-        let familyKey = family?.debugToken ?? "unknown"
-        return "legacy-\(scopeKey)-\(familyKey)"
+        return makeDefaultToken()
     }
 }
 
