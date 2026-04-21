@@ -1,6 +1,42 @@
 import Foundation
 import WidgetKit
 
+struct ShortcutInstallPrompt: Identifiable {
+    let id = UUID()
+    let shortcutName: String
+    let installURL: URL
+    let errorMessage: String?
+
+    var title: String {
+        "需要安装快捷指令"
+    }
+
+    var message: String {
+        let baseMessage = "请先安装“\(shortcutName)”快捷指令后再试。"
+        guard let errorMessage, !errorMessage.isEmpty else {
+            return baseMessage
+        }
+        return "\(baseMessage)\n\n系统返回：\(errorMessage)"
+    }
+}
+
+@MainActor
+final class ShortcutInstallPromptController: ObservableObject {
+    static let shared = ShortcutInstallPromptController()
+
+    @Published var prompt: ShortcutInstallPrompt?
+
+    private init() {}
+
+    func show(shortcutName: String, installURL: URL, errorMessage: String? = nil) {
+        prompt = ShortcutInstallPrompt(
+            shortcutName: shortcutName,
+            installURL: installURL,
+            errorMessage: errorMessage
+        )
+    }
+}
+
 @MainActor
 final class AppRouter: ObservableObject {
     @Published var path: [Route] = []
@@ -11,6 +47,14 @@ final class AppRouter: ObservableObject {
             return
         }
         #endif
+        if let promptReference = AppDeepLink.parseShortcutInstallPrompt(url: url) {
+            ShortcutInstallPromptController.shared.show(
+                shortcutName: promptReference.shortcutName,
+                installURL: promptReference.installURL,
+                errorMessage: promptReference.errorMessage
+            )
+            return
+        }
         guard let reference = AppDeepLink.parse(url: url) else { return }
         path = [.artwork(reference)]
     }

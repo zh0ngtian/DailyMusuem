@@ -1,7 +1,9 @@
 import SwiftUI
+import UIKit
 
 struct RootView: View {
     @ObservedObject var router: AppRouter
+    @ObservedObject private var shortcutInstallPromptController = ShortcutInstallPromptController.shared
     @State private var isShowingRequestLogs = false
 
     var body: some View {
@@ -24,6 +26,16 @@ struct RootView: View {
                 }
             }
             .presentationDetents([.medium, .large])
+        }
+        .alert(item: $shortcutInstallPromptController.prompt) { prompt in
+            Alert(
+                title: Text(prompt.title),
+                message: Text(prompt.message),
+                primaryButton: .default(Text("去安装")) {
+                    UIApplication.shared.open(prompt.installURL)
+                },
+                secondaryButton: .cancel(Text("取消"))
+            )
         }
     }
 
