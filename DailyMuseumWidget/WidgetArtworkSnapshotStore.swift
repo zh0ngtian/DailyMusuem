@@ -27,11 +27,6 @@ actor WidgetArtworkSnapshotStore {
         static let imagesDirectoryName = "images"
         static let widgetImageMaximumDimension: CGFloat = 1200
         static let tokenRecoveryWindow: TimeInterval = 180
-        static let legacyPaths = [
-            "WidgetCache",
-            "WidgetRefresh",
-            "WidgetRender",
-        ]
     }
 
     struct ArtworkPayload: Codable, Equatable {
@@ -126,7 +121,6 @@ actor WidgetArtworkSnapshotStore {
     private let imagesDirectoryURL: URL
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
-    private var didMigrateLegacyArtifacts = false
 
     init(fileManager: FileManager = .default) {
         let containerURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: SettingsKeys.appGroupID)
@@ -147,8 +141,6 @@ actor WidgetArtworkSnapshotStore {
         familyToken: String? = nil,
         now: Date = .now
     ) -> InstanceState {
-        migrateLegacyArtifactsIfNeeded()
-
         var instances = loadInstances()
         let previousImageFileName = instances[instanceToken]?.artwork?.imageFileName
         var state = instances[instanceToken] ?? makeInitialState(
@@ -179,7 +171,6 @@ actor WidgetArtworkSnapshotStore {
     }
 
     func state(for instanceToken: String) -> InstanceState? {
-        migrateLegacyArtifactsIfNeeded()
         return loadInstances()[instanceToken]
     }
 
@@ -189,8 +180,6 @@ actor WidgetArtworkSnapshotStore {
         familyToken: String? = nil,
         now: Date = .now
     ) -> InstanceState {
-        migrateLegacyArtifactsIfNeeded()
-
         var instances = loadInstances()
         if let current = instances[instanceToken] {
             if current.scopeRawValue == scopeRawValue {
@@ -246,8 +235,6 @@ actor WidgetArtworkSnapshotStore {
         for instanceToken: String,
         scopeRawValue: String? = nil
     ) -> Set<String> {
-        migrateLegacyArtifactsIfNeeded()
-
         guard let state = loadInstances()[instanceToken] else {
             return []
         }
@@ -262,8 +249,6 @@ actor WidgetArtworkSnapshotStore {
         scopeRawValue: String,
         now: Date = .now
     ) -> InstanceState? {
-        migrateLegacyArtifactsIfNeeded()
-
         var instances = loadInstances()
         guard var state = instances[instanceToken], state.scopeRawValue == scopeRawValue else {
             return nil
@@ -282,8 +267,6 @@ actor WidgetArtworkSnapshotStore {
         familyToken: String? = nil,
         now: Date = .now
     ) -> InstanceState {
-        migrateLegacyArtifactsIfNeeded()
-
         var instances = loadInstances()
         let previousImageFileName = instances[instanceToken]?.artwork?.imageFileName
         var state = instances[instanceToken] ?? makeInitialState(
@@ -323,8 +306,6 @@ actor WidgetArtworkSnapshotStore {
         familyToken: String? = nil,
         now: Date = .now
     ) -> InstanceState? {
-        migrateLegacyArtifactsIfNeeded()
-
         var instances = loadInstances()
         guard var state = instances[instanceToken], state.nonce == expectedNonce else {
             return nil
@@ -361,8 +342,6 @@ actor WidgetArtworkSnapshotStore {
         familyToken: String? = nil,
         now: Date = .now
     ) -> InstanceState? {
-        migrateLegacyArtifactsIfNeeded()
-
         var instances = loadInstances()
         guard var state = instances[instanceToken], state.nonce == expectedNonce else {
             return nil
@@ -383,21 +362,8 @@ actor WidgetArtworkSnapshotStore {
     }
 
     func knownInstances() -> [InstanceState] {
-        migrateLegacyArtifactsIfNeeded()
         return loadInstances().values.sorted { lhs, rhs in
             lhs.instanceToken < rhs.instanceToken
-        }
-    }
-
-    func migrateLegacyArtifactsIfNeeded() {
-        guard !didMigrateLegacyArtifacts else {
-            return
-        }
-
-        didMigrateLegacyArtifacts = true
-        for relativePath in Constants.legacyPaths {
-            let legacyURL = baseURL.appendingPathComponent(relativePath, isDirectory: true)
-            try? FileManager.default.removeItem(at: legacyURL)
         }
     }
 
@@ -495,26 +461,8 @@ actor WidgetArtworkSnapshotStore {
             }
             .sorted { $0.lastUpdatedAt > $1.lastUpdatedAt }
 
-        let fallbackMatches = instances.values
-            .filter { candidate in
-                candidate.instanceToken != instanceToken &&
-                candidate.scopeRawValue == scopeRawValue &&
-                candidate.phase != .idle &&
-                nowValue - candidate.lastUpdatedAt <= Constants.tokenRecoveryWindow &&
-                candidate.familyToken == nil
-            }
-            .sorted { $0.lastUpdatedAt > $1.lastUpdatedAt }
-
-        let candidate: InstanceState?
-        if exactFamilyMatches.count == 1 {
-            candidate = exactFamilyMatches.first
-        } else if exactFamilyMatches.isEmpty, fallbackMatches.count == 1 {
-            candidate = fallbackMatches.first
-        } else {
-            candidate = nil
-        }
-
-        guard let candidate else {
+        guard exactFamilyMatches.count == 1,
+              let candidate = exactFamilyMatches.first else {
             return nil
         }
 

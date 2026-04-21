@@ -43,14 +43,21 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(token, "instance-123")
     }
 
-    func testWidgetInstanceTokenResolverUsesStableLegacyFallbackForMissingToken() {
-        let token = WidgetInstanceTokenResolver.resolve(
+    func testWidgetInstanceTokenResolverGeneratesFreshTokenWhenPersistedTokenMissing() {
+        let first = WidgetInstanceTokenResolver.resolve(
             from: "   ",
             scope: .single(.tnm),
             family: .systemMedium
         )
+        let second = WidgetInstanceTokenResolver.resolve(
+            from: nil,
+            scope: .single(.tnm),
+            family: .systemMedium
+        )
 
-        XCTAssertEqual(token, "legacy-single-tnm-medium")
+        XCTAssertFalse(first.isEmpty)
+        XCTAssertFalse(second.isEmpty)
+        XCTAssertNotEqual(first, second)
     }
 
     func testWidgetInstanceTokenResolverGeneratesNonEmptyDefaultToken() {

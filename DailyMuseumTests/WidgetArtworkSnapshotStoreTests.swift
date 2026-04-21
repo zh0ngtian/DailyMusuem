@@ -110,26 +110,6 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
         XCTAssertEqual(currentState?.phase, .refreshing)
     }
 
-    func testRegisterInstanceClearsLegacyDirectories() async throws {
-        let legacyDirectories = ["WidgetCache", "WidgetRefresh", "WidgetRender"]
-        for directoryName in legacyDirectories {
-            let directoryURL = baseURL.appendingPathComponent(directoryName, isDirectory: true)
-            try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-            try Data("legacy".utf8).write(to: directoryURL.appendingPathComponent("file.txt"))
-        }
-
-        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
-        _ = await store.registerInstance(
-            instanceToken: "instance-d",
-            scopeRawValue: WidgetMuseumScope.single(.shm).rawValue
-        )
-
-        for directoryName in legacyDirectories {
-            let directoryURL = baseURL.appendingPathComponent(directoryName, isDirectory: true)
-            XCTAssertFalse(FileManager.default.fileExists(atPath: directoryURL.path))
-        }
-    }
-
     func testRenderStateDoesNotAdoptOtherInstanceStateForSameScope() async throws {
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
         let scope = WidgetMuseumScope.single(.met).rawValue
@@ -329,42 +309,6 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
         XCTAssertNil(rendered.artwork)
         let staleState = await store.state(for: "stale-token")
         XCTAssertNotNil(staleState)
-    }
-
-    func testRenderStateRecoversLegacyFamilylessStateForMatchingScope() async throws {
-        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
-        let scope = WidgetMuseumScope.single(.tnm).rawValue
-
-        _ = await store.beginRefresh(
-            instanceToken: "legacy-token",
-            scopeRawValue: scope,
-            now: Date(timeIntervalSince1970: 10)
-        )
-        _ = await store.markSuccess(
-            instanceToken: "legacy-token",
-            expectedNonce: 1,
-            payload: makePayload(
-                museumID: .tnm,
-                museumName: "东京国立博物馆",
-                title: "Legacy"
-            ),
-            imageData: nil,
-            now: Date(timeIntervalSince1970: 20)
-        )
-
-        let rendered = await store.renderState(
-            for: "migrated-medium-token",
-            scopeRawValue: scope,
-            familyToken: WidgetFamily.systemMedium.debugToken,
-            now: Date(timeIntervalSince1970: 30)
-        )
-
-        XCTAssertEqual(rendered.instanceToken, "migrated-medium-token")
-        XCTAssertEqual(rendered.familyToken, WidgetFamily.systemMedium.debugToken)
-        XCTAssertEqual(rendered.phase, .success)
-        XCTAssertEqual(rendered.artwork?.title, "Legacy")
-        let originalLegacyState = await store.state(for: "legacy-token")
-        XCTAssertNil(originalLegacyState)
     }
 
     func testScopeChangeResetsArtworkFailureAndDisplayedHistory() async throws {
