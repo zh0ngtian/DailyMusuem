@@ -72,7 +72,11 @@ struct ArtworkDetailView: View {
     @State private var translationConfiguration: TranslationSession.Configuration?
     @State private var loadedPreviewImage: UIImage?
     @State private var loadedImageAspectRatio: CGFloat?
-    @State private var translationAlertMessage: String?
+    @State private var alertState: DetailAlertState?
+    @State private var sharePreviewItem: SharedImageSheetItem?
+    @State private var shareSheetItem: SharedImageSheetItem?
+    @State private var pendingShareSheetItem: SharedImageSheetItem?
+    @State private var isPreparingShareImage = false
 
     var body: some View {
         ScrollView {
@@ -177,6 +181,15 @@ struct ArtworkDetailView: View {
                     translationToolbarButton
                 }
 
+                Button {
+                    handleShareButtonTap()
+                } label: {
+                    Label("分享", systemImage: "square.and.arrow.up")
+                        .labelStyle(.iconOnly)
+                }
+                .disabled(isPreparingShareImage)
+                .accessibilityLabel("分享当前详情页截图")
+
                 Button(action: onFavoriteButtonTap) {
                     Image(systemName: isFavorite ? "star.fill" : "star")
                 }
@@ -195,6 +208,20 @@ struct ArtworkDetailView: View {
         .translationTask(translationConfiguration) { session in
             await performTranslation(using: session)
         }
+        .sheet(item: $sharePreviewItem, onDismiss: presentPendingShareSheetIfNeeded) { item in
+            ArtworkSharePreviewSheet(
+                item: item,
+                onShare: {
+                    pendingShareSheetItem = item
+                    sharePreviewItem = nil
+                }
+            )
+            .presentationDetents([.fraction(0.5)])
+            .presentationDragIndicator(.hidden)
+        }
+        .sheet(item: $shareSheetItem) { item in
+            ActivityView(activityItems: [item.image])
+        }
         .onChange(of: imageReloadToken) { _, _ in
             loadedPreviewImage = nil
             loadedImageAspectRatio = nil
@@ -202,13 +229,12 @@ struct ArtworkDetailView: View {
         .onChange(of: artwork) { _, _ in
             resetTranslationState()
         }
-        .alert("翻译提示", isPresented: Binding(
-            get: { translationAlertMessage != nil },
-            set: { if !$0 { translationAlertMessage = nil } }
-        )) {
-            Button("知道了", role: .cancel) {}
-        } message: {
-            Text(translationAlertMessage ?? "")
+        .alert(item: $alertState) { state in
+            Alert(
+                title: Text(state.title),
+                message: Text(state.message),
+                dismissButton: .default(Text("知道了"))
+            )
         }
     }
 
@@ -288,7 +314,7 @@ struct ArtworkDetailView: View {
             return
         }
 
-        translationAlertMessage = nil
+        alertState = nil
         isTranslating = true
         let sourceArtwork = artwork
         Task {
@@ -337,7 +363,7 @@ struct ArtworkDetailView: View {
             }
         } catch {
             await MainActor.run {
-                translationAlertMessage = error.localizedDescription
+                presentTranslationAlert(message: error.localizedDescription)
                 isTranslating = false
                 translationConfiguration = nil
             }
@@ -361,15 +387,15 @@ struct ArtworkDetailView: View {
                         target: Constants.translationTargetLanguage
                     )
                 case .supported:
-                    translationAlertMessage = Constants.translationAssetsNotReadyMessage
+                    presentTranslationAlert(message: Constants.translationAssetsNotReadyMessage)
                     isTranslating = false
                     translationConfiguration = nil
                 case .unsupported:
-                    translationAlertMessage = Constants.unsupportedTranslationMessage
+                    presentTranslationAlert(message: Constants.unsupportedTranslationMessage)
                     isTranslating = false
                     translationConfiguration = nil
                 @unknown default:
-                    translationAlertMessage = Constants.unsupportedTranslationMessage
+                    presentTranslationAlert(message: Constants.unsupportedTranslationMessage)
                     isTranslating = false
                     translationConfiguration = nil
                 }
@@ -377,9 +403,9 @@ struct ArtworkDetailView: View {
         } catch {
             await MainActor.run {
                 if TranslationError.unableToIdentifyLanguage ~= error {
-                    translationAlertMessage = Constants.unidentifiedSourceLanguageMessage
+                    presentTranslationAlert(message: Constants.unidentifiedSourceLanguageMessage)
                 } else {
-                    translationAlertMessage = error.localizedDescription
+                    presentTranslationAlert(message: error.localizedDescription)
                 }
                 isTranslating = false
                 translationConfiguration = nil
@@ -423,7 +449,7 @@ struct ArtworkDetailView: View {
         showsTranslatedArtwork = false
         isTranslating = false
         translationConfiguration = nil
-        translationAlertMessage = nil
+        alertState = nil
     }
 
     private func handleAIAssistantButtonTap(officialURL: URL) {
@@ -450,6 +476,45 @@ struct ArtworkDetailView: View {
                 installURL: shortcutInstallURL
             )
         }
+    }
+
+    private func presentTranslationAlert(message: String) {
+        alertState = DetailAlertState(
+            title: "翻译提示",
+            message: message
+        )
+    }
+
+    @MainActor
+    private func handleShareButtonTap() {
+        guard !isPreparingShareImage else {
+            return
+        }
+
+        isPreparingShareImage = true
+        defer { isPreparingShareImage = false }
+
+        guard let image = DetailScreenshotRenderer.render(
+            artwork: displayedArtwork,
+            image: loadedPreviewImage,
+            imageAspectRatio: effectiveImageAspectRatio
+        ) else {
+            alertState = DetailAlertState(
+                title: "分享失败",
+                message: "当前详情页暂时无法生成截图，请稍后重试。"
+            )
+            return
+        }
+
+        sharePreviewItem = SharedImageSheetItem(image: image)
+    }
+
+    private func presentPendingShareSheetIfNeeded() {
+        guard let pendingShareSheetItem else {
+            return
+        }
+        self.pendingShareSheetItem = nil
+        shareSheetItem = pendingShareSheetItem
     }
 }
 
@@ -492,6 +557,153 @@ private enum ArtworkAIShortcutConfiguration {
             URLQueryItem(name: "x-error", value: errorCallbackURL.absoluteString)
         ]
         return components.url
+    }
+}
+
+private struct SharedImageSheetItem: Identifiable {
+    let id = UUID()
+    let image: UIImage
+}
+
+private struct DetailAlertState: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
+}
+
+private struct ActivityView: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(
+            activityItems: activityItems,
+            applicationActivities: nil
+        )
+        if let popoverPresentationController = controller.popoverPresentationController {
+            controller.loadViewIfNeeded()
+            guard let sourceView = controller.view else {
+                return controller
+            }
+            popoverPresentationController.sourceView = sourceView
+            popoverPresentationController.sourceRect = CGRect(
+                x: sourceView.bounds.midX,
+                y: sourceView.bounds.maxY,
+                width: 1,
+                height: 1
+            )
+        }
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+private struct ArtworkSharePreviewSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let item: SharedImageSheetItem
+    let onShare: () -> Void
+
+    var body: some View {
+        GeometryReader { proxy in
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("分享预览")
+                        .font(.headline)
+                        .foregroundStyle(Color(.label))
+
+                    Text("确认图片内容后，再进入系统分享页面。")
+                        .font(.subheadline)
+                        .foregroundStyle(Color(.secondaryLabel))
+                }
+
+                ZStack {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(Color(.secondarySystemBackground))
+
+                    Image(uiImage: item.image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(12)
+                }
+                .frame(maxWidth: .infinity)
+                .layoutPriority(1)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(Color.black.opacity(0.06), lineWidth: 1)
+                }
+                .shadow(color: .black.opacity(0.06), radius: 16, x: 0, y: 8)
+
+                HStack(spacing: 12) {
+                    Button("取消") {
+                        dismiss()
+                    }
+                    .buttonStyle(SharePreviewSecondaryButtonStyle())
+
+                    Button("分享") {
+                        onShare()
+                    }
+                    .buttonStyle(SharePreviewPrimaryButtonStyle())
+                }
+            }
+            .padding(16)
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
+        }
+        .background(Color(.systemGroupedBackground))
+    }
+}
+
+private struct SharePreviewPrimaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.headline)
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .frame(height: 50)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.accentColor.opacity(configuration.isPressed ? 0.8 : 1))
+            )
+    }
+}
+
+private struct SharePreviewSecondaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.headline)
+            .foregroundStyle(Color(.label))
+            .frame(maxWidth: .infinity)
+            .frame(height: 50)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color(.secondarySystemBackground).opacity(configuration.isPressed ? 0.8 : 1))
+            )
+    }
+}
+
+private enum DetailScreenshotRenderer {
+    @MainActor
+    static func render(
+        artwork: Artwork,
+        image: UIImage?,
+        imageAspectRatio: CGFloat
+    ) -> UIImage? {
+        let metrics = ShareSnapshotMetrics.current
+        let content = ArtworkDetailShareSnapshotView(
+            artwork: artwork,
+            previewImage: image,
+            imageAspectRatio: imageAspectRatio,
+            metrics: metrics
+        )
+        .frame(width: metrics.width)
+        .background(Color(.systemBackground))
+
+        let renderer = ImageRenderer(content: content)
+        renderer.scale = metrics.scale
+        renderer.proposedSize = ProposedViewSize(width: metrics.width, height: nil)
+        renderer.isOpaque = true
+        return renderer.uiImage
     }
 }
 
@@ -719,6 +931,133 @@ private enum PreviewImageSaveError: LocalizedError {
         switch self {
         case .unknown:
             return "系统相册返回了未知结果，请稍后重试。"
+        }
+    }
+}
+
+private struct ShareSnapshotMetrics {
+    let width: CGFloat
+    let scale: CGFloat
+
+    @MainActor
+    static var current: ShareSnapshotMetrics {
+        let screenBounds = UIScreen.main.bounds
+        let width = screenBounds.width > 0 ? screenBounds.width : 393
+        let scale = UIScreen.main.scale > 0 ? UIScreen.main.scale : 3
+
+        return ShareSnapshotMetrics(
+            width: width,
+            scale: scale
+        )
+    }
+}
+
+private struct ArtworkDetailShareSnapshotView: View {
+    let artwork: Artwork
+    let previewImage: UIImage?
+    let imageAspectRatio: CGFloat
+    let metrics: ShareSnapshotMetrics
+
+    private var infoRows: [(String, String)] {
+        [
+            ("作者", artwork.artistDisplayName),
+            ("年代", artwork.objectDate),
+            ("材质", artwork.medium),
+            ("尺寸", artwork.dimensions),
+            ("类别", artwork.department),
+            ("文化", artwork.culture),
+            ("国家", artwork.country)
+        ]
+        .compactMap { label, value in
+            guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !trimmed.isEmpty else {
+                return nil
+            }
+            return (label, trimmed)
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            imageSection
+
+            Text(artwork.title)
+                .font(.system(.title2, weight: .semibold))
+                .foregroundStyle(Color(.label))
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let description = artwork.normalizedDescriptionText {
+                Text(description)
+                    .font(.body)
+                    .foregroundStyle(Color(.label))
+                    .lineSpacing(5)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.vertical, 4)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(infoRows, id: \.0) { row in
+                    shareInfoRow(label: row.0, value: row.1)
+                }
+            }
+
+            Text(artwork.museumID.copyrightNotice)
+                .font(.footnote)
+                .foregroundStyle(Color(.secondaryLabel))
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 8)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.systemBackground))
+    }
+
+    @ViewBuilder
+    private var imageSection: some View {
+        if let previewImage {
+            Image(uiImage: previewImage)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: .infinity)
+                .aspectRatio(normalizedImageAspectRatio, contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        } else {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(.systemGray5))
+                .overlay {
+                    VStack(spacing: 12) {
+                        Image(systemName: "photo")
+                            .font(.system(size: 30, weight: .medium))
+                        Text("加载图片中")
+                            .font(.footnote)
+                    }
+                    .foregroundStyle(Color(.secondaryLabel))
+                }
+                .frame(maxWidth: .infinity)
+                .aspectRatio(normalizedImageAspectRatio, contentMode: .fit)
+        }
+    }
+
+    private var normalizedImageAspectRatio: CGFloat {
+        guard imageAspectRatio.isFinite, imageAspectRatio > 0 else {
+            return 0.8
+        }
+        return imageAspectRatio
+    }
+
+    private func shareInfoRow(label: String, value: String) -> some View {
+        HStack(alignment: .top, spacing: 16) {
+            Text(label)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color(.secondaryLabel))
+                .frame(width: 44, alignment: .leading)
+
+            Text(value)
+                .font(.subheadline)
+                .foregroundStyle(Color(.label))
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
