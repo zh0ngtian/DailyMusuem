@@ -221,7 +221,7 @@ struct ArtworkShareContent: Identifiable, Hashable {
     }
 
     var doubaoShortcutInputText: String {
-        "\(officialURL.absoluteString) 解释一下这个展品"
+        "介绍一下这个展品：\(officialURL.absoluteString)"
     }
 }
 

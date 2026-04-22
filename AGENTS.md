@@ -518,6 +518,8 @@
   - “其他 App” 再打开系统分享面板，并按纯文本分享
   - “其他 App” 的分享文案固定为：`当前详情页标题｜博物馆名称｜官方网页链接`
   - “微信” 需要先把上述分享文案复制到剪贴板，再尝试跳转到微信
+  - 主 App 的 `DailyMuseum/Info.plist` 必须声明 `LSApplicationQueriesSchemes = weixin`，确保 `canOpenURL("weixin://")` 能准确判断微信是否可拉起
+  - “微信” 若无法跳转，需要把具体失败原因写入 App 内“请求日志”，至少区分 `canOpenURL` 失败、`UIApplication.open` 回调失败，以及 `LSApplicationQueriesSchemes` 是否已声明 `weixin`
   - “问问豆包” 需要调用固定名称的快捷指令 `DoubaoMuseum`
   - “问问豆包” 传入的文本固定为：`当前详情页官方网页链接 + 空格 + 解释一下这个展品`
   - 若系统检测到 `DoubaoMuseum` 快捷指令缺失或无法运行，需要回到 App 内提示用户先安装该快捷指令，再重试分享
