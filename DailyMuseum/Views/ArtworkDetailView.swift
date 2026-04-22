@@ -72,8 +72,6 @@ struct ArtworkDetailView: View {
     @State private var translationConfiguration: TranslationSession.Configuration?
     @State private var loadedPreviewImage: UIImage?
     @State private var loadedImageAspectRatio: CGFloat?
-    @State private var shareDestinationContent: ArtworkShareContent?
-    @State private var systemShareContent: ArtworkShareContent?
     @State private var translationAlertMessage: String?
 
     var body: some View {
@@ -157,16 +155,6 @@ struct ArtworkDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                if let shareContent = ArtworkShareContent(artwork: artwork) {
-                    Button {
-                        shareDestinationContent = shareContent
-                    } label: {
-                        Label("分享", systemImage: "square.and.arrow.up")
-                            .labelStyle(.iconOnly)
-                    }
-                    .accessibilityLabel("分享")
-                }
-
                 if let url = artwork.objectURL {
                     Link(destination: url) {
                         Label("官网", systemImage: "safari")
@@ -190,19 +178,6 @@ struct ArtworkDetailView: View {
                 initialImage: loadedPreviewImage,
                 imageURL: displayedArtwork.primaryImageURL ?? displayedArtwork.primaryImageSmallURL
             )
-        }
-        .sheet(item: $shareDestinationContent) { shareContent in
-            ArtworkShareDestinationSheet(content: shareContent) { selectedContent in
-                DispatchQueue.main.async {
-                    systemShareContent = selectedContent
-                }
-            }
-            .presentationDetents([.height(316)])
-            .presentationDragIndicator(.hidden)
-            .presentationBackground(Color(.systemGroupedBackground))
-        }
-        .sheet(item: $systemShareContent) { shareContent in
-            ArtworkOtherAppsShareSheet(text: shareContent.plainText)
         }
         .refreshable {
             await onRefresh()
@@ -440,230 +415,6 @@ struct ArtworkDetailView: View {
         translationConfiguration = nil
         translationAlertMessage = nil
     }
-}
-
-private enum ArtworkShareShortcutConfiguration {
-    static let doubaoShortcutName = "DoubaoMuseum"
-
-    static var doubaoInstallURL: URL? {
-        URL(string: "https://www.icloud.com/shortcuts/50a57de8c0884898a895556c3e8b01b5")
-    }
-
-    static func doubaoRunURL(inputText: String) -> URL? {
-        guard let installURL = doubaoInstallURL,
-              let errorCallbackURL = AppDeepLink.shortcutInstallPromptURL(
-                shortcutName: doubaoShortcutName,
-                installURL: installURL
-              ) else {
-            return nil
-        }
-
-        var components = URLComponents()
-        components.scheme = "shortcuts"
-        components.host = "x-callback-url"
-        components.path = "/run-shortcut"
-        components.queryItems = [
-            URLQueryItem(name: "name", value: doubaoShortcutName),
-            URLQueryItem(name: "input", value: "text"),
-            URLQueryItem(name: "text", value: inputText),
-            URLQueryItem(name: "x-error", value: errorCallbackURL.absoluteString)
-        ]
-        return components.url
-    }
-}
-
-private struct ArtworkShareDestinationSheet: View {
-    @Environment(\.dismiss) private var dismiss
-
-    let content: ArtworkShareContent
-    let onShareToOtherApps: (ArtworkShareContent) -> Void
-
-    @State private var alertState: ShareActionAlertState?
-
-    var body: some View {
-        ZStack {
-            Color(.systemGroupedBackground)
-                .ignoresSafeArea()
-
-            VStack(spacing: 14) {
-                Spacer(minLength: 0)
-
-                shareOptionCard(
-                    title: "微信",
-                    subtitle: "跳转到微信并手动粘贴",
-                    systemImage: "message.fill",
-                    tint: .green,
-                    action: shareToWeChat
-                )
-
-                shareOptionCard(
-                    title: "问问豆包",
-                    subtitle: "通过快捷指令发给豆包解读",
-                    systemImage: "sparkles.rectangle.stack.fill",
-                    tint: .orange,
-                    action: shareToDoubao
-                )
-
-                shareOptionCard(
-                    title: "其他 App",
-                    subtitle: "分享到其他 App",
-                    systemImage: "square.and.arrow.up",
-                    tint: .accentColor
-                ) {
-                    dismiss()
-                    onShareToOtherApps(content)
-                }
-
-                Spacer(minLength: 0)
-            }
-            .frame(maxHeight: .infinity)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
-        }
-        .alert(item: $alertState) { state in
-            Alert(
-                title: Text(state.title),
-                message: Text(state.message),
-                dismissButton: .default(Text("知道了"))
-            )
-        }
-    }
-
-    private func shareOptionCard(
-        title: String,
-        subtitle: String,
-        systemImage: String,
-        tint: Color,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: 16) {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color(.secondarySystemBackground))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(Color.black.opacity(0.05), lineWidth: 1)
-                    }
-                    .overlay {
-                        Image(systemName: systemImage)
-                            .font(.system(size: 22, weight: .semibold))
-                            .foregroundStyle(tint)
-                    }
-                    .frame(width: 56, height: 56)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 0)
-
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 18)
-            .background(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(.background)
-                    .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 6)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func shareToWeChat() {
-        UIPasteboard.general.string = content.plainText
-
-        guard let weChatURL = URL(string: WeChatShareDiagnostics.urlString) else {
-            logWeChatShareFailure(WeChatShareDiagnostics.invalidURLSummary)
-            return
-        }
-
-        let isSchemeDeclared = WeChatShareDiagnostics.isSchemeDeclared(in: Bundle.main.infoDictionary)
-
-        guard UIApplication.shared.canOpenURL(weChatURL) else {
-            logWeChatShareFailure(
-                WeChatShareDiagnostics.canOpenFailureSummary(isSchemeDeclared: isSchemeDeclared)
-            )
-            alertState = ShareActionAlertState(
-                title: "无法打开微信",
-                message: "分享内容已复制到剪贴板，请手动打开微信粘贴发送。"
-            )
-            return
-        }
-
-        dismiss()
-        UIApplication.shared.open(weChatURL) { didOpen in
-            guard !didOpen else {
-                return
-            }
-
-            logWeChatShareFailure(
-                WeChatShareDiagnostics.openFailureSummary(isSchemeDeclared: isSchemeDeclared)
-            )
-        }
-    }
-
-    private func shareToDoubao() {
-        guard let installURL = ArtworkShareShortcutConfiguration.doubaoInstallURL,
-              let runURL = ArtworkShareShortcutConfiguration.doubaoRunURL(
-                inputText: content.doubaoShortcutInputText
-              ) else {
-            return
-        }
-
-        dismiss()
-        UIApplication.shared.open(runURL) { didOpen in
-            guard !didOpen else {
-                return
-            }
-            ShortcutInstallPromptController.shared.show(
-                shortcutName: ArtworkShareShortcutConfiguration.doubaoShortcutName,
-                installURL: installURL
-            )
-        }
-    }
-
-    private func logWeChatShareFailure(_ summary: String) {
-        Task {
-            await RequestLogger.shared.logEvent(
-                source: "微信分享",
-                summary: summary
-            )
-        }
-    }
-}
-
-private struct ArtworkOtherAppsShareSheet: UIViewControllerRepresentable {
-    let text: String
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        let controller = UIActivityViewController(
-            activityItems: [text],
-            applicationActivities: nil
-        )
-        controller.excludedActivityTypes = [
-            UIActivity.ActivityType("com.tencent.xin.session"),
-            UIActivity.ActivityType("com.tencent.xin.sharetimeline")
-        ]
-        return controller
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-}
-
-private struct ShareActionAlertState: Identifiable {
-    let id = UUID()
-    let title: String
-    let message: String
 }
 
 private struct ArtworkImagePreviewView: View {

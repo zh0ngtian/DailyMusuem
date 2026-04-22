@@ -5,40 +5,6 @@ extension Notification.Name {
     static let requestLoggerDidChange = Notification.Name("requestLoggerDidChange")
 }
 
-enum WeChatShareDiagnostics {
-    static let scheme = "weixin"
-    static let urlString = "\(scheme)://"
-
-    static func isSchemeDeclared(in infoDictionary: [String: Any]?) -> Bool {
-        guard let rawSchemes = infoDictionary?["LSApplicationQueriesSchemes"] as? [String] else {
-            return false
-        }
-
-        return rawSchemes.contains { candidate in
-            candidate.caseInsensitiveCompare(scheme) == .orderedSame
-        }
-    }
-
-    static var invalidURLSummary: String {
-        "分享失败：无法构造微信 URL（\(urlString)）。"
-    }
-
-    static func canOpenFailureSummary(isSchemeDeclared: Bool) -> String {
-        if isSchemeDeclared {
-            return "分享失败：canOpenURL(\(urlString)) 返回 false，可能未安装微信，或系统当前无法拉起微信。"
-        }
-
-        return "分享失败：canOpenURL(\(urlString)) 返回 false，且 Info.plist 未声明 LSApplicationQueriesSchemes=\(scheme)，当前无法准确判断是否已安装微信。"
-    }
-
-    static func openFailureSummary(isSchemeDeclared: Bool) -> String {
-        let declaration = isSchemeDeclared
-            ? "Info.plist 已声明 LSApplicationQueriesSchemes=\(scheme)。"
-            : "Info.plist 未声明 LSApplicationQueriesSchemes=\(scheme)。"
-        return "分享失败：UIApplication.open(\(urlString)) 回调返回 false。\(declaration)"
-    }
-}
-
 struct RequestLogEntry: Identifiable, Codable, Hashable {
     let id: UUID
     let timestamp: Date
