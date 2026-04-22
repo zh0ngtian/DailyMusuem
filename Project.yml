@@ -34,6 +34,8 @@ targets:
           - UIApplicationShortcutItemIconType: UIApplicationShortcutIconTypeUpdate
             UIApplicationShortcutItemType: tech.zh0ngtian.DailyMuseum.shortcuts.forceRefreshAllWidgets
             UIApplicationShortcutItemTitle: 强制刷新所有小组件
+        LSApplicationQueriesSchemes:
+          - weixin
         UILaunchStoryboardName: LaunchScreen
         UIApplicationSupportsIndirectInputEvents: true
         UISupportedInterfaceOrientations~iphone:

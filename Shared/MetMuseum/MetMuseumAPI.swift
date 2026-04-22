@@ -148,35 +148,22 @@ final class MetMuseumAPI {
             return cached
         }
 
-        let start = Date()
-        await logger.logRequestStart(source: "Met 官网", url: objectURL)
-
-        do {
-            let (data, response) = try await session.data(from: objectURL)
-            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
-            try validate(response: response)
-            let html = String(data: data, encoding: .utf8) ?? ""
-            let description = Self.extractWebDescription(from: html)
-            await logger.logRequestSuccess(
-                source: "Met 官网",
-                url: objectURL,
-                statusCode: statusCode,
-                duration: Date().timeIntervalSince(start),
-                responseBytes: data.count
-            )
-            if let description, !description.isEmpty {
+        let candidateURLs = Self.webDescriptionCandidateURLs(from: objectURL)
+        for (index, candidateURL) in candidateURLs.enumerated() {
+            if let description = await fetchWebDescription(at: candidateURL, logger: logger) {
                 await responseCache.setWebDescription(description, forID: objectID)
+                return description
             }
-            return description
-        } catch {
-            await logger.logRequestFailure(
-                source: "Met 官网",
-                url: objectURL,
-                duration: Date().timeIntervalSince(start),
-                error: error
-            )
-            return nil
+
+            if index == 0, candidateURLs.count > 1 {
+                await logger.logEvent(
+                    source: "Met 官网",
+                    summary: "中文页无可用概述或请求失败，回退英文页，objectID=\(objectID)"
+                )
+            }
         }
+
+        return nil
     }
 
     private func validate(response: URLResponse) throws {
@@ -184,6 +171,68 @@ final class MetMuseumAPI {
         guard (200..<300).contains(http.statusCode) else {
             throw URLError(.badServerResponse)
         }
+    }
+
+    private func fetchWebDescription(at url: URL, logger: RequestLogger) async -> String? {
+        let start = Date()
+        await logger.logRequestStart(source: "Met 官网", url: url)
+
+        do {
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            let (data, response) = try await session.data(for: request)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            try validate(response: response)
+            let html = String(data: data, encoding: .utf8) ?? ""
+            let description = Self.extractWebDescription(from: html)
+            await logger.logRequestSuccess(
+                source: "Met 官网",
+                url: url,
+                statusCode: statusCode,
+                duration: Date().timeIntervalSince(start),
+                responseBytes: data.count
+            )
+            return description
+        } catch {
+            await logger.logRequestFailure(
+                source: "Met 官网",
+                url: url,
+                duration: Date().timeIntervalSince(start),
+                error: error
+            )
+            return nil
+        }
+    }
+
+    private static func webDescriptionCandidateURLs(from objectURL: URL) -> [URL] {
+        guard var components = URLComponents(url: objectURL, resolvingAgainstBaseURL: false) else {
+            return [objectURL]
+        }
+
+        let englishPrefix = "/art/collection/search/"
+        let chinesePrefix = "/zh/art/collection/search/"
+        let path = components.path
+
+        if path.hasPrefix(chinesePrefix) {
+            let suffix = String(path.dropFirst(chinesePrefix.count))
+            components.path = englishPrefix + suffix
+            guard let englishURL = components.url else {
+                return [objectURL]
+            }
+            return [objectURL, englishURL]
+        }
+
+        guard path.hasPrefix(englishPrefix) else {
+            return [objectURL]
+        }
+
+        let suffix = String(path.dropFirst(englishPrefix.count))
+        components.path = chinesePrefix + suffix
+        guard let chineseURL = components.url else {
+            return [objectURL]
+        }
+
+        return [chineseURL, objectURL]
     }
 
     static func extractWebDescription(from html: String) -> String? {

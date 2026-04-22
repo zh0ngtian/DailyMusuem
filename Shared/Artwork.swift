@@ -10,6 +10,26 @@ struct ArtworkTranslationEntry: Equatable {
     let text: String
 }
 
+struct ArtworkShareContent: Equatable {
+    let plainText: String
+    let doubaoShortcutInputText: String
+    let shareSheetSubject: String
+    let linkMetadataTitle: String
+    let officialURL: URL
+
+    init?(artwork: Artwork) {
+        guard let officialURL = artwork.objectURL else {
+            return nil
+        }
+
+        self.officialURL = officialURL
+        self.shareSheetSubject = artwork.title
+        self.linkMetadataTitle = artwork.title
+        self.plainText = "\(artwork.title)｜\(artwork.museumID.displayName)｜\(officialURL.absoluteString)"
+        self.doubaoShortcutInputText = "介绍一下这个展品：\(officialURL.absoluteString)"
+    }
+}
+
 struct Artwork: Identifiable, Hashable, Codable {
     let id: String
     let museumID: MuseumID

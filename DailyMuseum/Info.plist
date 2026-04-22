@@ -44,6 +44,10 @@
 			<string>tech.zh0ngtian.DailyMuseum.shortcuts.forceRefreshAllWidgets</string>
 		</dict>
 	</array>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>weixin</string>
+	</array>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
