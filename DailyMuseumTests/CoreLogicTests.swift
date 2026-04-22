@@ -304,7 +304,7 @@ final class CoreLogicTests: XCTestCase {
 
         XCTAssertEqual(
             content.doubaoShortcutInputText,
-            "https://example.com/object/2 解释一下这个展品"
+            "介绍一下这个展品：https://example.com/object/2"
         )
     }
 
@@ -456,6 +456,55 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertEqual(
             LogTimestampFormatter.feedLogTimestamp(from: date, timeZone: timeZone),
             "23:59:01.900"
+        )
+    }
+
+    func testWeChatShareDiagnosticsDetectsDeclaredSchemeCaseInsensitively() {
+        XCTAssertTrue(
+            WeChatShareDiagnostics.isSchemeDeclared(
+                in: ["LSApplicationQueriesSchemes": ["wechat", "WeiXin"]]
+            )
+        )
+        XCTAssertFalse(
+            WeChatShareDiagnostics.isSchemeDeclared(
+                in: ["LSApplicationQueriesSchemes": ["wechat", "doubao"]]
+            )
+        )
+        XCTAssertFalse(WeChatShareDiagnostics.isSchemeDeclared(in: nil))
+    }
+
+    func testWeChatShareDiagnosticsCanOpenFailureSummaryMentionsMissingSchemeDeclaration() {
+        XCTAssertEqual(
+            WeChatShareDiagnostics.canOpenFailureSummary(isSchemeDeclared: false),
+            "分享失败：canOpenURL(weixin://) 返回 false，且 Info.plist 未声明 LSApplicationQueriesSchemes=weixin，当前无法准确判断是否已安装微信。"
+        )
+        XCTAssertEqual(
+            WeChatShareDiagnostics.canOpenFailureSummary(isSchemeDeclared: true),
+            "分享失败：canOpenURL(weixin://) 返回 false，可能未安装微信，或系统当前无法拉起微信。"
+        )
+    }
+
+    func testWeChatShareDiagnosticsOpenFailureSummaryIncludesDeclarationState() {
+        XCTAssertEqual(
+            WeChatShareDiagnostics.openFailureSummary(isSchemeDeclared: false),
+            "分享失败：UIApplication.open(weixin://) 回调返回 false。Info.plist 未声明 LSApplicationQueriesSchemes=weixin。"
+        )
+        XCTAssertEqual(
+            WeChatShareDiagnostics.openFailureSummary(isSchemeDeclared: true),
+            "分享失败：UIApplication.open(weixin://) 回调返回 false。Info.plist 已声明 LSApplicationQueriesSchemes=weixin。"
+        )
+    }
+
+    func testAppInfoPlistDeclaresWeixinQueryScheme() {
+        let projectRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let infoPlistURL = projectRoot.appendingPathComponent("DailyMuseum/Info.plist")
+        let plist = NSDictionary(contentsOf: infoPlistURL) as? [String: Any]
+
+        XCTAssertTrue(
+            WeChatShareDiagnostics.isSchemeDeclared(in: plist),
+            "DailyMuseum/Info.plist must declare LSApplicationQueriesSchemes=weixin for WeChat share detection."
         )
     }
 

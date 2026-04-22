@@ -582,11 +582,17 @@ private struct ArtworkShareDestinationSheet: View {
     private func shareToWeChat() {
         UIPasteboard.general.string = content.plainText
 
-        guard let weChatURL = URL(string: "weixin://") else {
+        guard let weChatURL = URL(string: WeChatShareDiagnostics.urlString) else {
+            logWeChatShareFailure(WeChatShareDiagnostics.invalidURLSummary)
             return
         }
 
+        let isSchemeDeclared = WeChatShareDiagnostics.isSchemeDeclared(in: Bundle.main.infoDictionary)
+
         guard UIApplication.shared.canOpenURL(weChatURL) else {
+            logWeChatShareFailure(
+                WeChatShareDiagnostics.canOpenFailureSummary(isSchemeDeclared: isSchemeDeclared)
+            )
             alertState = ShareActionAlertState(
                 title: "无法打开微信",
                 message: "分享内容已复制到剪贴板，请手动打开微信粘贴发送。"
@@ -595,7 +601,15 @@ private struct ArtworkShareDestinationSheet: View {
         }
 
         dismiss()
-        UIApplication.shared.open(weChatURL)
+        UIApplication.shared.open(weChatURL) { didOpen in
+            guard !didOpen else {
+                return
+            }
+
+            logWeChatShareFailure(
+                WeChatShareDiagnostics.openFailureSummary(isSchemeDeclared: isSchemeDeclared)
+            )
+        }
     }
 
     private func shareToDoubao() {
@@ -614,6 +628,15 @@ private struct ArtworkShareDestinationSheet: View {
             ShortcutInstallPromptController.shared.show(
                 shortcutName: ArtworkShareShortcutConfiguration.doubaoShortcutName,
                 installURL: installURL
+            )
+        }
+    }
+
+    private func logWeChatShareFailure(_ summary: String) {
+        Task {
+            await RequestLogger.shared.logEvent(
+                source: "微信分享",
+                summary: summary
             )
         }
     }
