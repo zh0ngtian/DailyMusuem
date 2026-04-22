@@ -17,8 +17,35 @@ struct ArtworkReference: Hashable, Codable {
 
 struct ShortcutInstallPromptReference: Hashable {
     let shortcutName: String
-    let installURL: URL
+    let shortcutInstallURL: URL
+    let appName: String?
+    let appInstallURL: URL?
     let errorMessage: String?
+}
+
+enum AIAssistantInstallPromptKind: Equatable {
+    case shortcut
+    case app
+
+    static func resolve(errorMessage: String?) -> Self {
+        guard let normalizedErrorMessage = errorMessage?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased(),
+              !normalizedErrorMessage.isEmpty else {
+            return .shortcut
+        }
+
+        let appFailureMarkers = [
+            "the app could not be opened",
+            "该app无法打开",
+            "app无法打开"
+        ]
+        if appFailureMarkers.contains(where: normalizedErrorMessage.contains) {
+            return .app
+        }
+
+        return .shortcut
+    }
 }
 
 enum AppDeepLink {
@@ -40,15 +67,27 @@ enum AppDeepLink {
         return components.url
     }
 
-    static func shortcutInstallPromptURL(shortcutName: String, installURL: URL) -> URL? {
+    static func shortcutInstallPromptURL(
+        shortcutName: String,
+        installURL: URL,
+        appName: String? = nil,
+        appInstallURL: URL? = nil
+    ) -> URL? {
         var components = URLComponents()
         components.scheme = scheme
         components.host = shortcutHost
         components.path = shortcutInstallPromptPath
-        components.queryItems = [
+        var queryItems = [
             URLQueryItem(name: "shortcutName", value: shortcutName),
-            URLQueryItem(name: "installURL", value: installURL.absoluteString)
+            URLQueryItem(name: "shortcutInstallURL", value: installURL.absoluteString)
         ]
+        if let appName, !appName.isEmpty {
+            queryItems.append(URLQueryItem(name: "appName", value: appName))
+        }
+        if let appInstallURL {
+            queryItems.append(URLQueryItem(name: "appInstallURL", value: appInstallURL.absoluteString))
+        }
+        components.queryItems = queryItems
         return components.url
     }
 
@@ -81,14 +120,19 @@ enum AppDeepLink {
         let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         guard let shortcutName = queryItems.first(where: { $0.name == "shortcutName" })?.value,
               !shortcutName.isEmpty,
-              let installURLString = queryItems.first(where: { $0.name == "installURL" })?.value,
-              let installURL = URL(string: installURLString) else {
+              let installURLString = queryItems.first(where: { $0.name == "shortcutInstallURL" })?.value,
+              let shortcutInstallURL = URL(string: installURLString) else {
             return nil
         }
 
         return ShortcutInstallPromptReference(
             shortcutName: shortcutName,
-            installURL: installURL,
+            shortcutInstallURL: shortcutInstallURL,
+            appName: queryItems.first(where: { $0.name == "appName" })?.value,
+            appInstallURL: queryItems
+                .first(where: { $0.name == "appInstallURL" })?
+                .value
+                .flatMap(URL.init(string:)),
             errorMessage: queryItems.first(where: { $0.name == "errorMessage" })?.value
         )
     }

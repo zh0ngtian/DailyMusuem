@@ -129,10 +129,13 @@ final class CoreLogicTests: XCTestCase {
 
     func testShortcutInstallPromptDeepLinkRoundTripPreservesPayload() throws {
         let installURL = try XCTUnwrap(URL(string: "https://www.icloud.com/shortcuts/50a57de8c0884898a895556c3e8b01b5"))
+        let appInstallURL = try XCTUnwrap(URL(string: "https://apps.apple.com/cn/app/id6459478672"))
         let callbackURL = try XCTUnwrap(
             AppDeepLink.shortcutInstallPromptURL(
                 shortcutName: "DoubaoMuseum",
-                installURL: installURL
+                installURL: installURL,
+                appName: "豆包",
+                appInstallURL: appInstallURL
             )
         )
         let callbackWithError = try XCTUnwrap(
@@ -142,8 +145,29 @@ final class CoreLogicTests: XCTestCase {
         let parsed = AppDeepLink.parseShortcutInstallPrompt(url: callbackWithError)
 
         XCTAssertEqual(parsed?.shortcutName, "DoubaoMuseum")
-        XCTAssertEqual(parsed?.installURL, installURL)
+        XCTAssertEqual(parsed?.shortcutInstallURL, installURL)
+        XCTAssertEqual(parsed?.appName, "豆包")
+        XCTAssertEqual(parsed?.appInstallURL, appInstallURL)
         XCTAssertEqual(parsed?.errorMessage, "missing shortcut")
+    }
+
+    func testAIAssistantInstallPromptKindResolvesExpectedFailures() {
+        XCTAssertEqual(
+            AIAssistantInstallPromptKind.resolve(errorMessage: "未找到快捷指令"),
+            .shortcut
+        )
+        XCTAssertEqual(
+            AIAssistantInstallPromptKind.resolve(errorMessage: "The app could not be opened."),
+            .app
+        )
+        XCTAssertEqual(
+            AIAssistantInstallPromptKind.resolve(errorMessage: "该App无法打开"),
+            .app
+        )
+        XCTAssertEqual(
+            AIAssistantInstallPromptKind.resolve(errorMessage: nil),
+            .shortcut
+        )
     }
 
     func testWidgetMuseumScopeRawValueRoundTrip() {

@@ -1,39 +1,56 @@
 import Foundation
 import WidgetKit
 
-struct ShortcutInstallPrompt: Identifiable {
+struct InstallPrompt: Identifiable {
     let id = UUID()
-    let shortcutName: String
+    let title: String
+    let message: String
     let installURL: URL
-    let errorMessage: String?
+}
 
-    var title: String {
-        "需要安装快捷指令"
+@MainActor
+final class InstallPromptController: ObservableObject {
+    static let shared = InstallPromptController()
+
+    @Published var prompt: InstallPrompt?
+
+    private init() {}
+
+    func showShortcutInstallPrompt(
+        shortcutName: String,
+        installURL: URL,
+        errorMessage: String? = nil
+    ) {
+        prompt = InstallPrompt(
+            title: "需要安装快捷指令",
+            message: installPromptMessage(
+                baseMessage: "请先安装“\(shortcutName)”快捷指令后再试。",
+                errorMessage: errorMessage
+            ),
+            installURL: installURL
+        )
     }
 
-    var message: String {
-        let baseMessage = "请先安装“\(shortcutName)”快捷指令后再试。"
+    func showAppInstallPrompt(
+        appName: String,
+        installURL: URL,
+        errorMessage: String? = nil
+    ) {
+        prompt = InstallPrompt(
+            title: "需要安装 App",
+            message: installPromptMessage(
+                baseMessage: "请先安装“\(appName)”App后再试。",
+                errorMessage: errorMessage
+            ),
+            installURL: installURL
+        )
+    }
+
+    private func installPromptMessage(baseMessage: String, errorMessage: String?) -> String {
         guard let errorMessage, !errorMessage.isEmpty else {
             return baseMessage
         }
         return "\(baseMessage)\n\n系统返回：\(errorMessage)"
-    }
-}
-
-@MainActor
-final class ShortcutInstallPromptController: ObservableObject {
-    static let shared = ShortcutInstallPromptController()
-
-    @Published var prompt: ShortcutInstallPrompt?
-
-    private init() {}
-
-    func show(shortcutName: String, installURL: URL, errorMessage: String? = nil) {
-        prompt = ShortcutInstallPrompt(
-            shortcutName: shortcutName,
-            installURL: installURL,
-            errorMessage: errorMessage
-        )
     }
 }
 
@@ -48,15 +65,31 @@ final class AppRouter: ObservableObject {
         }
         #endif
         if let promptReference = AppDeepLink.parseShortcutInstallPrompt(url: url) {
-            ShortcutInstallPromptController.shared.show(
-                shortcutName: promptReference.shortcutName,
-                installURL: promptReference.installURL,
-                errorMessage: promptReference.errorMessage
-            )
+            showInstallPrompt(for: promptReference)
             return
         }
         guard let reference = AppDeepLink.parse(url: url) else { return }
         path = [.artwork(reference)]
+    }
+
+    private func showInstallPrompt(for promptReference: ShortcutInstallPromptReference) {
+        let promptKind = AIAssistantInstallPromptKind.resolve(errorMessage: promptReference.errorMessage)
+        if promptKind == .app,
+           let appName = promptReference.appName,
+           let appInstallURL = promptReference.appInstallURL {
+            InstallPromptController.shared.showAppInstallPrompt(
+                appName: appName,
+                installURL: appInstallURL,
+                errorMessage: promptReference.errorMessage
+            )
+            return
+        }
+
+        InstallPromptController.shared.showShortcutInstallPrompt(
+            shortcutName: promptReference.shortcutName,
+            installURL: promptReference.shortcutInstallURL,
+            errorMessage: promptReference.errorMessage
+        )
     }
 
     #if DEBUG

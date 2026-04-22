@@ -155,6 +155,16 @@ struct ArtworkDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                if let officialURL = artwork.objectURL {
+                    Button {
+                        handleAIAssistantButtonTap(officialURL: officialURL)
+                    } label: {
+                        Label("AI 解读", systemImage: "apple.intelligence")
+                            .labelStyle(.iconOnly)
+                    }
+                    .accessibilityLabel("AI 解读")
+                }
+
                 if let url = artwork.objectURL {
                     Link(destination: url) {
                         Label("官网", systemImage: "safari")
@@ -414,6 +424,74 @@ struct ArtworkDetailView: View {
         isTranslating = false
         translationConfiguration = nil
         translationAlertMessage = nil
+    }
+
+    private func handleAIAssistantButtonTap(officialURL: URL) {
+        guard let shortcutInstallURL = ArtworkAIShortcutConfiguration.doubaoInstallURL else {
+            return
+        }
+
+        guard let runURL = ArtworkAIShortcutConfiguration.doubaoRunURL(
+            inputText: ArtworkAIShortcutConfiguration.doubaoInputText(for: officialURL)
+        ) else {
+            InstallPromptController.shared.showShortcutInstallPrompt(
+                shortcutName: ArtworkAIShortcutConfiguration.doubaoShortcutName,
+                installURL: shortcutInstallURL
+            )
+            return
+        }
+
+        UIApplication.shared.open(runURL) { didOpen in
+            guard !didOpen else {
+                return
+            }
+            InstallPromptController.shared.showShortcutInstallPrompt(
+                shortcutName: ArtworkAIShortcutConfiguration.doubaoShortcutName,
+                installURL: shortcutInstallURL
+            )
+        }
+    }
+}
+
+private enum ArtworkAIShortcutConfiguration {
+    static let doubaoShortcutName = "DoubaoMuseum"
+    static let doubaoAppName = "豆包"
+
+    static var doubaoInstallURL: URL? {
+        URL(string: "https://www.icloud.com/shortcuts/50a57de8c0884898a895556c3e8b01b5")
+    }
+
+    static var doubaoAppInstallURL: URL? {
+        URL(string: "https://apps.apple.com/cn/app/id6459478672")
+    }
+
+    static func doubaoInputText(for officialURL: URL) -> String {
+        "介绍一下这个展品：\(officialURL.absoluteString)"
+    }
+
+    static func doubaoRunURL(inputText: String) -> URL? {
+        guard let shortcutInstallURL = doubaoInstallURL,
+              let appInstallURL = doubaoAppInstallURL,
+              let errorCallbackURL = AppDeepLink.shortcutInstallPromptURL(
+                shortcutName: doubaoShortcutName,
+                installURL: shortcutInstallURL,
+                appName: doubaoAppName,
+                appInstallURL: appInstallURL
+              ) else {
+            return nil
+        }
+
+        var components = URLComponents()
+        components.scheme = "shortcuts"
+        components.host = "x-callback-url"
+        components.path = "/run-shortcut"
+        components.queryItems = [
+            URLQueryItem(name: "name", value: doubaoShortcutName),
+            URLQueryItem(name: "input", value: "text"),
+            URLQueryItem(name: "text", value: inputText),
+            URLQueryItem(name: "x-error", value: errorCallbackURL.absoluteString)
+        ]
+        return components.url
     }
 }
 
