@@ -5,8 +5,8 @@ struct RefreshWidgetIntent: AppIntent {
     static var title: LocalizedStringResource = "刷新展品"
     static var openAppWhenRun = false
 
-    @Parameter(title: "实例标识")
-    var instanceToken: String
+    @Parameter(title: "刷新键")
+    var refreshKey: String
 
     @Parameter(title: "展示范围")
     var museumScope: WidgetConfiguredMuseumScope
@@ -15,20 +15,20 @@ struct RefreshWidgetIntent: AppIntent {
     var widgetFamilyToken: String
 
     init() {
-        instanceToken = ""
+        refreshKey = ""
         museumScope = .all
         widgetFamilyToken = ""
     }
 
-    init(instanceToken: String, museumScope: WidgetConfiguredMuseumScope, widgetFamilyToken: String) {
-        self.instanceToken = instanceToken
+    init(refreshKey: String, museumScope: WidgetConfiguredMuseumScope, widgetFamilyToken: String) {
+        self.refreshKey = refreshKey
         self.museumScope = museumScope
         self.widgetFamilyToken = widgetFamilyToken
     }
 
     func perform() async throws -> some IntentResult {
         await WidgetRefreshCoordinator.shared.refresh(
-            instanceToken: instanceToken,
+            refreshKey: refreshKey,
             scope: museumScope.scope,
             familyToken: widgetFamilyToken.nilIfBlank,
             logSource: "Widget 刷新按钮"

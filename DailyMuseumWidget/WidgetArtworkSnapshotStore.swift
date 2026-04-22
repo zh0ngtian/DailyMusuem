@@ -26,7 +26,6 @@ actor WidgetArtworkSnapshotStore {
         static let stateFileName = "instances.json"
         static let imagesDirectoryName = "images"
         static let widgetImageMaximumDimension: CGFloat = 1200
-        static let tokenRecoveryWindow: TimeInterval = 180
     }
 
     struct ArtworkPayload: Codable, Equatable {
@@ -54,7 +53,7 @@ actor WidgetArtworkSnapshotStore {
     }
 
     struct InstanceState: Codable, Equatable {
-        let instanceToken: String
+        var instanceToken: String
         var scopeRawValue: String
         var familyToken: String?
         var nonce: Int
@@ -207,17 +206,6 @@ actor WidgetArtworkSnapshotStore {
                 deleteImageFile(named: previousImageFileName)
             }
             return presentationState(for: resetState)
-        }
-
-        if let recoveredState = recoverRecentRenderState(
-            for: instanceToken,
-            scopeRawValue: scopeRawValue,
-            familyToken: familyToken,
-            now: now,
-            instances: &instances
-        ) {
-            persist(instances)
-            return presentationState(for: recoveredState)
         }
 
         let state = makeInitialState(
@@ -373,9 +361,16 @@ actor WidgetArtworkSnapshotStore {
             return [:]
         }
 
-        return Dictionary(
-            uniqueKeysWithValues: persisted.instances.map { ($0.instanceToken, $0) }
-        )
+        var normalized: [String: InstanceState] = [:]
+        for state in persisted.instances {
+            let normalizedState = normalizedState(for: state)
+            if let current = normalized[normalizedState.instanceToken] {
+                normalized[normalizedState.instanceToken] = mergedState(current, normalizedState)
+            } else {
+                normalized[normalizedState.instanceToken] = normalizedState
+            }
+        }
+        return normalized
     }
 
     private func persist(_ instances: [String: InstanceState]) {
@@ -438,48 +433,59 @@ actor WidgetArtworkSnapshotStore {
         return visibleState
     }
 
-    private func recoverRecentRenderState(
-        for instanceToken: String,
-        scopeRawValue: String,
-        familyToken: String?,
-        now: Date,
-        instances: inout [String: InstanceState]
-    ) -> InstanceState? {
-        guard let familyToken else {
-            return nil
-        }
-
-        let nowValue = now.timeIntervalSince1970
-
-        let exactFamilyMatches = instances.values
-            .filter { candidate in
-                candidate.instanceToken != instanceToken &&
-                candidate.scopeRawValue == scopeRawValue &&
-                candidate.phase != .idle &&
-                nowValue - candidate.lastUpdatedAt <= Constants.tokenRecoveryWindow &&
-                candidate.familyToken == familyToken
-            }
-            .sorted { $0.lastUpdatedAt > $1.lastUpdatedAt }
-
-        guard exactFamilyMatches.count == 1,
-              let candidate = exactFamilyMatches.first else {
-            return nil
-        }
-
-        instances.removeValue(forKey: candidate.instanceToken)
-        let migratedState = InstanceState(
-            instanceToken: instanceToken,
-            scopeRawValue: scopeRawValue,
-            familyToken: familyToken,
-            nonce: candidate.nonce,
-            phase: candidate.phase,
-            artwork: candidate.artwork,
-            displayedArtworkKeys: candidate.displayedArtworkKeys,
-            failureMessage: candidate.failureMessage,
-            lastUpdatedAt: nowValue
+    private func normalizedState(for state: InstanceState) -> InstanceState {
+        var normalized = state
+        normalized.familyToken = normalizedFamilyToken(state.familyToken)
+        normalized.instanceToken = WidgetRefreshGroupKey.make(
+            scopeRawValue: state.scopeRawValue,
+            familyToken: normalized.familyToken ?? ""
         )
-        instances[instanceToken] = migratedState
-        return migratedState
+        return normalized
+    }
+
+    private func mergedState(_ lhs: InstanceState, _ rhs: InstanceState) -> InstanceState {
+        let orderedStates = [lhs, rhs].sorted { left, right in
+            if left.phase == .idle, right.phase != .idle {
+                return false
+            }
+            if left.phase != .idle, right.phase == .idle {
+                return true
+            }
+            return left.lastUpdatedAt > right.lastUpdatedAt
+        }
+        let primary = orderedStates[0]
+        let fallback = orderedStates[1]
+
+        var merged = primary
+        merged.instanceToken = primary.instanceToken
+        merged.familyToken = primary.familyToken ?? fallback.familyToken
+        merged.nonce = max(lhs.nonce, rhs.nonce)
+        merged.artwork = primary.artwork ?? fallback.artwork
+        merged.displayedArtworkKeys = mergedDisplayedArtworkKeys(from: orderedStates)
+        merged.failureMessage = primary.failureMessage ?? fallback.failureMessage
+        merged.lastUpdatedAt = max(lhs.lastUpdatedAt, rhs.lastUpdatedAt)
+        return merged
+    }
+
+    private func mergedDisplayedArtworkKeys(from states: [InstanceState]) -> [String] {
+        var seen: Set<String> = []
+        var merged: [String] = []
+
+        for state in states {
+            for key in state.displayedArtworkKeys where seen.insert(key).inserted {
+                merged.append(key)
+            }
+        }
+
+        return merged
+    }
+
+    private func normalizedFamilyToken(_ familyToken: String?) -> String? {
+        guard let familyToken = familyToken?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !familyToken.isEmpty else {
+            return nil
+        }
+        return familyToken
     }
 
     private func storeImageData(_ imageData: Data?, instanceToken: String, nonce: Int) -> String? {

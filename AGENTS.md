@@ -591,9 +591,10 @@
   - `systemLarge`
 - 小组件用于随机展示一件展品。
 - 当前小组件只支持手动刷新，不再支持定时刷新。
-- 每个小组件实例独立：
-  - 按实例维护展示范围、当前渲染状态和进行中的刷新任务
-  - 不再使用旧的跨尺寸共享快照、全局 snapshot reuse 或 family 级刷新同步逻辑
+- 小组件仍按实例单独配置展示范围，但渲染状态和刷新任务改为按 `scope` 共享：
+  - 同展示范围的多个桌面实例必须显示同一件展品
+  - 任一同范围实例手动刷新后，该范围其他实例也应显示同一刷新结果
+  - 不同展示范围之间仍保持独立
 - 小组件首次安装或尚未成功拉到展品时，应显示中性占位态，例如：
   - `点击刷新获取展品`
 
@@ -601,6 +602,9 @@
 
 - 小组件改为按实例配置，不再使用旧的全局小组件设置页语义。
 - 每个小组件实例都需要单独配置展示范围。
+- 如果新添加的小组件与桌面上已有实例属于同 `scope`：
+  - 新实例需要直接复用这组当前共享内容
+  - 不应因为是新实例而回退到独立占位态
 - 展示范围支持：
   - 所有博物馆
   - 单个博物馆
@@ -619,18 +623,20 @@
 
 ### 5.3 刷新逻辑
 
-- 点击刷新按钮时，只刷新当前小组件实例。
-- 同一实例连续点击刷新时，后一次必须立即抢占前一次：
+- 点击刷新按钮时，需要刷新当前 `scope` 对应的共享组。
+- 同一共享组连续点击刷新时，后一次必须立即抢占前一次：
   - 立即取消前一次仍在执行的搜索、详情、图片拉取和等待行为
   - 直接开始第二次刷新
 - 小组件不再展示单独的“刷新中”可见状态：
   - 已有成功展品时，刷新过程中继续保留上一件展品，直到新结果成功或失败后再切换
   - 尚无成功展品时，刷新过程中继续保留占位态，不显示“刷新中”文案或转圈态
-- 不同实例之间互不影响：
-  - 不允许一个实例的刷新取消、覆盖或污染另一个实例的状态和日志
+- 同 `scope` 的多个实例需要共享状态与日志：
+  - 不允许同组实例各自保留不同展品或不同刷新任务
+- 不同展示范围之间互不影响：
+  - 不允许一个组的刷新取消、覆盖或污染另一个组的状态和日志
 - 小组件刷新必须走 `network-only`：
   - 刷新时不依赖搜索、详情或图片缓存来选取展品
-  - 仅允许持久化当前实例最近一次渲染结果和刷新状态，供 WidgetKit 重绘
+  - 仅允许持久化当前共享组最近一次渲染结果和刷新状态，供 WidgetKit 重绘
 - 单馆 scope 时：
   - 只从当前博物馆和该馆当前生效类别中选择候选
 - `所有博物馆` scope 时：
@@ -688,17 +694,16 @@
     - `Widget archival failed due to image being too large`
     - `imageTooLarge`
   - 成功态背景图必须先按小组件目标比例裁剪，并降采样到受控像素尺寸后再渲染。
-- 当 widget 配置里的隐藏 `instanceToken` 发生变化，但同 `scope`、同 `family` 仍能唯一命中最近一次非 `idle` 状态时：
-  - provider 允许收养这次最近渲染结果，避免同一桌面实例因 token 漂移直接回退到占位态。
-- 用 `scope` 级别调试刷新时，同 scope 的多个实例可能被一起触发：
+- Widget 当前不再按隐藏 `instanceToken` 隔离内容：
+  - provider 必须优先按 `scope` 命中共享状态
+  - 即便配置里的旧 `instanceToken` 发生变化，同组实例也应继续显示同一份内容
+- 用 `scope` 级别调试刷新时，同 scope 的多个桌面实例会被一起触发：
   - 容易污染日志。
-  - 也容易让当前可见桌面实例被后续刷新覆盖。
-  - 需要稳定复现时，优先按 `instanceToken` 定向触发。
-- Widget 配置里的隐藏 `instanceToken` 需要在实例创建时生成唯一值并持久化：
-  - 同 scope、同尺寸的两个桌面实例也必须拿到不同 `instanceToken`
-  - 不再支持旧 widget 缺少持久化 `instanceToken` 的迁移兼容；出现这类实例时按新实例处理
-- Widget 相关 request logs 当前需要显式打印 `instanceToken`：
-  - 排查多实例污染、日志归属和桌面截图对应关系时，不能只看 `scope` 或 `family`。
+  - 也容易让当前可见实例被后续刷新覆盖。
+  - 需要稳定复现时，优先按共享刷新键定向触发。
+- Widget 相关 request logs 当前需要显式打印共享刷新键：
+  - 底层日志字段仍沿用 `instanceToken`
+  - 但当前值语义是 `scope`，例如 `single:met`
 - Widget 的 request logs、实例状态和主 App 日志页依赖主 App 与 Widget Extension 共享同一个 App Group：
   - 当前必须同时保留 `DailyMuseum/DailyMuseum.entitlements` 和 `DailyMuseumWidget/DailyMuseumWidgetAppGroup.entitlements` 中的 `group.tech.zh0ngtian.DailyMuseum`
   - 任一 target 丢失该 App Group 后，主 App 将无法读取 widget 写入的 request logs 与实例状态
@@ -762,7 +767,7 @@
     - `--udid <SIMULATOR_ID>`：指定模拟器
     - `--clear`：清空旧日志
     - `--trigger-refresh`：触发 `dailymuseum://debug/widget-refresh`
-    - `--instance-token <TOKEN>`：按实例定向触发刷新
+    - `--instance-token <TOKEN>`：按共享刷新键定向触发刷新，当前键格式为 `scope`
     - `--scope-raw-value <RAW>`：按 scope 触发刷新，例如 `single:nmc`、`single:shm`
     - `--wait <SECONDS>`：刷新后等待
     - `--tail <N>`：输出最后 N 条日志
@@ -771,14 +776,14 @@
     - `--home-screen`：截图前尝试回到桌面
 - 推荐闭环步骤：
   - 1. `build-for-testing + install + launch`
-  - 2. 用 `scripts/pull_simulator_request_logs.sh --instances` 确认当前 widget 实例和 `instanceToken`
-  - 3. 优先用 `--instance-token` 定向触发当前可见实例刷新，避免同 scope 多实例互相污染
+  - 2. 用 `scripts/pull_simulator_request_logs.sh --instances` 确认当前共享刷新键，当前脚本输出里仍沿用 `instanceToken` 字段名
+  - 3. 优先用 `--instance-token` 定向触发当前可见 `scope` 组刷新，避免同 scope 多实例互相污染
   - 4. 用脚本或 `xcrun simctl io ... screenshot` 抓图
   - 5. 检查 request logs，确认：
     - 候选拉取顺序符合预期
     - 成功后没有继续多拉
     - provider 至少生成过对应 family 的 timeline
-    - 当前关键 widget 日志能看到对应的 `instanceToken`
+    - 当前关键 widget 日志能看到对应的共享刷新键
   - 6. 再查系统日志，确认没有 `imageTooLarge`、归档失败或 Chrono 渲染错误
   - 7. 最后以桌面截图作为最终验收证据
 - 常用日志命令：

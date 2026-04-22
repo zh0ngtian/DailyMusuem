@@ -15,27 +15,27 @@ struct WidgetManualRefreshRunner {
             )
         }
 
-        let normalizedInstanceToken = instanceToken?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedRefreshKey = instanceToken?.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedScopeRawValue = scopeRawValue?.trimmingCharacters(in: .whitespacesAndNewlines)
         let store = WidgetArtworkSnapshotStore.shared
 
-        if let normalizedInstanceToken, !normalizedInstanceToken.isEmpty {
+        if let normalizedRefreshKey, !normalizedRefreshKey.isEmpty {
             let scope = await resolvedScope(
-                instanceToken: normalizedInstanceToken,
+                refreshKey: normalizedRefreshKey,
                 explicitScopeRawValue: normalizedScopeRawValue,
                 store: store
             )
             guard let scope else {
                 await RequestLogger.shared.logEvent(
                     source: logSource,
-                    summary: "未找到对应的小组件范围，忽略本次调试刷新",
-                    instanceToken: normalizedInstanceToken
+                    summary: "未找到对应的共享刷新键，忽略本次调试刷新",
+                    instanceToken: normalizedRefreshKey
                 )
                 return
             }
 
             await WidgetRefreshCoordinator.shared.refresh(
-                instanceToken: normalizedInstanceToken,
+                refreshKey: normalizedRefreshKey,
                 scope: scope,
                 logSource: logSource
             )
@@ -63,7 +63,7 @@ struct WidgetManualRefreshRunner {
 
             for instance in matchedInstances {
                 await WidgetRefreshCoordinator.shared.refresh(
-                    instanceToken: instance.instanceToken,
+                    refreshKey: instance.instanceToken,
                     scope: scope,
                     logSource: logSource
                 )
@@ -75,7 +75,7 @@ struct WidgetManualRefreshRunner {
     }
 
     private func resolvedScope(
-        instanceToken: String,
+        refreshKey: String,
         explicitScopeRawValue: String?,
         store: WidgetArtworkSnapshotStore
     ) async -> WidgetMuseumScope? {
@@ -85,7 +85,17 @@ struct WidgetManualRefreshRunner {
             return explicitScope
         }
 
-        guard let state = await store.state(for: instanceToken) else {
+        if let directScope = WidgetMuseumScope(rawValue: refreshKey) {
+            return directScope
+        }
+
+        if let sharedScopeRawValue = refreshKey.split(separator: "|", maxSplits: 1).last.map(String.init),
+           sharedScopeRawValue != refreshKey,
+           let sharedScope = WidgetMuseumScope(rawValue: sharedScopeRawValue) {
+            return sharedScope
+        }
+
+        guard let state = await store.state(for: refreshKey) else {
             return nil
         }
         return WidgetMuseumScope(rawValue: state.scopeRawValue)

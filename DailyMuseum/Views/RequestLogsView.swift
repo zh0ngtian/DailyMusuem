@@ -165,7 +165,7 @@ struct RequestLogsView: View {
                 .font(.subheadline)
 
             if let instanceToken = entry.instanceToken, !instanceToken.isEmpty {
-                Text("instanceToken: \(instanceToken)")
+                Text("refreshKey: \(instanceToken)")
                     .font(.caption.monospaced())
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)

@@ -71,24 +71,24 @@ actor WidgetRefreshCoordinator {
     }
 
     func refresh(
-        instanceToken: String,
+        refreshKey: String,
         scope: WidgetMuseumScope,
         familyToken: String? = nil,
         logSource: String = "Widget 刷新"
     ) async {
         let state = await store.beginRefresh(
-            instanceToken: instanceToken,
+            instanceToken: refreshKey,
             scopeRawValue: scope.rawValue,
             familyToken: familyToken
         )
         let nonce = state.nonce
 
-        if let activeRefresh = activeRefreshes[instanceToken] {
+        if let activeRefresh = activeRefreshes[refreshKey] {
             activeRefresh.task.cancel()
             await RequestLogger.shared.logEvent(
                 source: logSource,
                 summary: "收到新的刷新请求，nonce=\(nonce) 抢占旧任务 nonce=\(activeRefresh.nonce)",
-                instanceToken: instanceToken
+                instanceToken: refreshKey
             )
         }
 
@@ -98,16 +98,16 @@ actor WidgetRefreshCoordinator {
         let task = Task {
             try await engine.fetchRenderableArtwork(
                 scope: scope,
-                instanceToken: instanceToken,
+                refreshKey: refreshKey,
                 logSource: logSource
             )
         }
-        activeRefreshes[instanceToken] = (nonce, task)
+        activeRefreshes[refreshKey] = (nonce, task)
 
         do {
             let payload = try await task.value
             _ = await store.markSuccess(
-                instanceToken: instanceToken,
+                instanceToken: refreshKey,
                 expectedNonce: nonce,
                 payload: payload.storedPayload(),
                 imageData: payload.imageData,
@@ -116,17 +116,17 @@ actor WidgetRefreshCoordinator {
             await RequestLogger.shared.logEvent(
                 source: logSource,
                 summary: "刷新成功：\(payload.museumName) / \(payload.title)",
-                instanceToken: instanceToken
+                instanceToken: refreshKey
             )
         } catch is CancellationError {
             await RequestLogger.shared.logEvent(
                 source: logSource,
                 summary: "旧刷新任务 nonce=\(nonce) 已取消",
-                instanceToken: instanceToken
+                instanceToken: refreshKey
             )
         } catch let error as WidgetRefreshError {
             _ = await store.markFailure(
-                instanceToken: instanceToken,
+                instanceToken: refreshKey,
                 expectedNonce: nonce,
                 message: error.localizedDescription,
                 familyToken: familyToken
@@ -134,11 +134,11 @@ actor WidgetRefreshCoordinator {
             await RequestLogger.shared.logEvent(
                 source: logSource,
                 summary: "刷新失败：\(error.localizedDescription)",
-                instanceToken: instanceToken
+                instanceToken: refreshKey
             )
         } catch {
             _ = await store.markFailure(
-                instanceToken: instanceToken,
+                instanceToken: refreshKey,
                 expectedNonce: nonce,
                 message: error.localizedDescription,
                 familyToken: familyToken
@@ -146,12 +146,12 @@ actor WidgetRefreshCoordinator {
             await RequestLogger.shared.logEvent(
                 source: logSource,
                 summary: "刷新出错：\(error.localizedDescription)",
-                instanceToken: instanceToken
+                instanceToken: refreshKey
             )
         }
 
-        if activeRefreshes[instanceToken]?.nonce == nonce {
-            activeRefreshes[instanceToken] = nil
+        if activeRefreshes[refreshKey]?.nonce == nonce {
+            activeRefreshes[refreshKey] = nil
         }
         widgetCenter.reloadTimelines(ofKind: SettingsKeys.widgetKind)
     }
@@ -163,7 +163,7 @@ actor WidgetRefreshCoordinator {
                 continue
             }
             await refresh(
-                instanceToken: instance.instanceToken,
+                refreshKey: instance.instanceToken,
                 scope: scope,
                 familyToken: instance.familyToken,
                 logSource: logSource
@@ -218,7 +218,7 @@ struct WidgetRefreshEngine {
 
     func fetchRenderableArtwork(
         scope: WidgetMuseumScope,
-        instanceToken: String,
+        refreshKey: String,
         logSource: String = "Widget 刷新"
     ) async throws -> WidgetRefreshPayload {
         var didResetDisplayedHistory = false
@@ -226,11 +226,11 @@ struct WidgetRefreshEngine {
         while true {
             var loaders = makeLoaders(
                 for: scope,
-                instanceToken: instanceToken,
+                instanceToken: refreshKey,
                 logSource: logSource
             )
             let displayedArtworkKeys = await snapshotStore.displayedArtworkKeys(
-                for: instanceToken,
+                for: refreshKey,
                 scopeRawValue: scope.rawValue
             )
             var candidateAttempt = 0
@@ -255,7 +255,7 @@ struct WidgetRefreshEngine {
                 candidateAttempt += 1
                 await Self.logEvent(
                     logSource: logSource,
-                    instanceToken: instanceToken,
+                    instanceToken: refreshKey,
                     summary: "开始尝试候选 \(candidateAttempt)：\(museum.displayName)，类别=\(categorySummary(for: selectedMuseumID))"
                 )
 
@@ -263,14 +263,14 @@ struct WidgetRefreshEngine {
                     if await loader.isExhausted() {
                         await Self.logEvent(
                             logSource: logSource,
-                            instanceToken: instanceToken,
+                            instanceToken: refreshKey,
                             summary: "候选 \(candidateAttempt) 未产出展品且该博物馆候选已耗尽：\(museum.displayName)"
                         )
                         loaders.removeValue(forKey: selectedMuseumID)
                     } else {
                         await Self.logEvent(
                             logSource: logSource,
-                            instanceToken: instanceToken,
+                            instanceToken: refreshKey,
                             summary: "候选 \(candidateAttempt) 未产出展品，继续尝试下一个候选"
                         )
                     }
@@ -279,7 +279,7 @@ struct WidgetRefreshEngine {
 
                 await Self.logEvent(
                     logSource: logSource,
-                    instanceToken: instanceToken,
+                    instanceToken: refreshKey,
                     summary: "候选 \(candidateAttempt) 详情拉取成功：\(artwork.museumID.displayName) / \(artwork.title)"
                 )
 
@@ -291,8 +291,8 @@ struct WidgetRefreshEngine {
                     skippedDisplayedArtwork = true
                     await Self.logEvent(
                         logSource: logSource,
-                        instanceToken: instanceToken,
-                        summary: "候选 \(candidateAttempt) 已在当前实例展示过，跳过 \(artwork.museumID.displayName) / \(artwork.title)"
+                        instanceToken: refreshKey,
+                        summary: "候选 \(candidateAttempt) 已在当前共享组展示过，跳过 \(artwork.museumID.displayName) / \(artwork.title)"
                     )
                     continue
                 }
@@ -301,12 +301,12 @@ struct WidgetRefreshEngine {
                     for: artwork,
                     artworkKey: artworkKey,
                     logSource: logSource,
-                    instanceToken: instanceToken,
+                    instanceToken: refreshKey,
                     candidateAttempt: candidateAttempt
                 ) {
                     await Self.logEvent(
                         logSource: logSource,
-                        instanceToken: instanceToken,
+                        instanceToken: refreshKey,
                         summary: "候选 \(candidateAttempt) 命中可渲染展品并停止继续拉取：\(payload.museumName) / \(payload.title)"
                     )
                     return payload
@@ -315,21 +315,21 @@ struct WidgetRefreshEngine {
                 rejectedUnseenArtwork = true
                 await Self.logEvent(
                     logSource: logSource,
-                    instanceToken: instanceToken,
+                    instanceToken: refreshKey,
                     summary: "候选 \(candidateAttempt) 未通过渲染校验，继续尝试下一个候选"
                 )
             }
 
             if skippedDisplayedArtwork && !rejectedUnseenArtwork && !didResetDisplayedHistory {
                 _ = await snapshotStore.resetDisplayedArtworkHistory(
-                    for: instanceToken,
+                    for: refreshKey,
                     scopeRawValue: scope.rawValue
                 )
                 didResetDisplayedHistory = true
                 await Self.logEvent(
                     logSource: logSource,
-                    instanceToken: instanceToken,
-                    summary: "当前范围内没有新的未展示展品，清空当前实例历史后重试一次"
+                    instanceToken: refreshKey,
+                    summary: "当前范围内没有新的未展示展品，清空当前共享组历史后重试一次"
                 )
                 continue
             }
