@@ -33,40 +33,35 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(categories.map(\.id), ["american-decorative-arts", "modern-art"])
     }
 
-    func testWidgetInstanceTokenResolverPreservesPersistedToken() {
-        let token = WidgetInstanceTokenResolver.resolve(
-            from: "instance-123",
+    func testWidgetRefreshGroupKeyUsesScopeOnly() {
+        let key = WidgetRefreshGroupKey.make(
             scope: .single(.met),
             family: .systemLarge
         )
 
-        XCTAssertEqual(token, "instance-123")
+        XCTAssertEqual(key, "single:met")
     }
 
-    func testWidgetInstanceTokenResolverGeneratesFreshTokenWhenPersistedTokenMissing() {
-        let first = WidgetInstanceTokenResolver.resolve(
-            from: "   ",
+    func testWidgetRefreshGroupKeyIgnoresFamily() {
+        let smallKey = WidgetRefreshGroupKey.make(
+            scope: .single(.tnm),
+            family: .systemSmall
+        )
+        let mediumKey = WidgetRefreshGroupKey.make(
             scope: .single(.tnm),
             family: .systemMedium
         )
-        let second = WidgetInstanceTokenResolver.resolve(
-            from: nil,
-            scope: .single(.tnm),
-            family: .systemMedium
-        )
 
-        XCTAssertFalse(first.isEmpty)
-        XCTAssertFalse(second.isEmpty)
-        XCTAssertNotEqual(first, second)
+        XCTAssertEqual(smallKey, mediumKey)
     }
 
-    func testWidgetInstanceTokenResolverGeneratesNonEmptyDefaultToken() {
-        let first = WidgetInstanceTokenResolver.makeDefaultToken()
-        let second = WidgetInstanceTokenResolver.makeDefaultToken()
+    func testWidgetRefreshGroupKeyFallsBackToScopeForMissingFamily() {
+        let key = WidgetRefreshGroupKey.make(
+            scope: .all,
+            family: nil
+        )
 
-        XCTAssertFalse(first.isEmpty)
-        XCTAssertFalse(second.isEmpty)
-        XCTAssertNotEqual(first, second)
+        XCTAssertEqual(key, "all")
     }
 
     func testArtworkBatchLoaderLoadsTokyoInTenItemPagesAndAdvancesSearchWindow() async throws {
@@ -329,7 +324,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
 
         let payload = try await engine.fetchRenderableArtwork(
             scope: .single(.met),
-            instanceToken: "widget-met",
+            refreshKey: "widget-met",
             logSource: "WidgetEngineTest"
         )
 
@@ -372,7 +367,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
 
         let payload = try await engine.fetchRenderableArtwork(
             scope: .single(.tnm),
-            instanceToken: "widget-tnm",
+            refreshKey: "widget-tnm",
             logSource: "WidgetEngineSingleSuccess"
         )
 
@@ -430,7 +425,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
 
         let payload = try await engine.fetchRenderableArtwork(
             scope: scope,
-            instanceToken: instanceToken,
+            refreshKey: instanceToken,
             logSource: "WidgetHistorySkip"
         )
 
@@ -482,7 +477,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
 
         let payload = try await engine.fetchRenderableArtwork(
             scope: scope,
-            instanceToken: instanceToken,
+            refreshKey: instanceToken,
             logSource: "WidgetHistoryReset"
         )
 
@@ -531,7 +526,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
 
         let payload = try await engine.fetchRenderableArtwork(
             scope: .all,
-            instanceToken: "widget-all",
+            refreshKey: "widget-all",
             logSource: "WidgetEngineAllMuseums"
         )
 
@@ -550,11 +545,16 @@ final class WidgetStateAndSettingsTests: XCTestCase {
                 factory.makeEngine()
             }
         )
+        let refreshKey = WidgetRefreshGroupKey.make(
+            scope: .single(.met),
+            family: .systemSmall
+        )
 
         let firstTask = Task {
             await coordinator.refresh(
-                instanceToken: "shared-instance",
+                refreshKey: refreshKey,
                 scope: .single(.met),
+                familyToken: WidgetFamily.systemSmall.debugToken,
                 logSource: "CoordinatorPreempt"
             )
         }
@@ -562,8 +562,9 @@ final class WidgetStateAndSettingsTests: XCTestCase {
 
         let secondTask = Task {
             await coordinator.refresh(
-                instanceToken: "shared-instance",
+                refreshKey: refreshKey,
                 scope: .single(.met),
+                familyToken: WidgetFamily.systemSmall.debugToken,
                 logSource: "CoordinatorPreempt"
             )
         }
@@ -571,7 +572,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         await firstTask.value
         await secondTask.value
 
-        let state = await store.state(for: "shared-instance")
+        let state = await store.state(for: refreshKey)
         XCTAssertEqual(state?.phase, .success)
         XCTAssertEqual(state?.artwork?.title, "Second Result")
     }
@@ -603,21 +604,31 @@ final class WidgetStateAndSettingsTests: XCTestCase {
                 )
             }
         )
+        let metKey = WidgetRefreshGroupKey.make(
+            scope: .single(.met),
+            family: .systemSmall
+        )
+        let tnmKey = WidgetRefreshGroupKey.make(
+            scope: .single(.tnm),
+            family: .systemSmall
+        )
 
         async let firstRefresh: Void = coordinator.refresh(
-            instanceToken: "instance-1",
+            refreshKey: metKey,
             scope: .single(.met),
+            familyToken: WidgetFamily.systemSmall.debugToken,
             logSource: "CoordinatorIndependent"
         )
         async let secondRefresh: Void = coordinator.refresh(
-            instanceToken: "instance-2",
+            refreshKey: tnmKey,
             scope: .single(.tnm),
+            familyToken: WidgetFamily.systemSmall.debugToken,
             logSource: "CoordinatorIndependent"
         )
         _ = await (firstRefresh, secondRefresh)
 
-        let firstState = await store.state(for: "instance-1")
-        let secondState = await store.state(for: "instance-2")
+        let firstState = await store.state(for: metKey)
+        let secondState = await store.state(for: tnmKey)
 
         XCTAssertEqual(firstState?.artwork?.museumID, .met)
         XCTAssertEqual(secondState?.artwork?.museumID, .tnm)
@@ -625,7 +636,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(secondState?.phase, .success)
     }
 
-    func testWidgetRefreshCoordinatorKeepsSameScopeInstancesIndependent() async throws {
+    func testWidgetRefreshCoordinatorSharesSameScopeAcrossFamilies() async throws {
         let baseURL = temporaryBaseURL()
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
         let factory = SequentialEngineFactory()
@@ -637,24 +648,37 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             }
         )
 
-        async let firstRefresh: Void = coordinator.refresh(
-            instanceToken: "same-scope-1",
+        let smallKey = WidgetRefreshGroupKey.make(
             scope: .single(.met),
+            family: .systemSmall
+        )
+        let mediumKey = WidgetRefreshGroupKey.make(
+            scope: .single(.met),
+            family: .systemMedium
+        )
+
+        XCTAssertEqual(smallKey, mediumKey)
+
+        async let firstRefresh: Void = coordinator.refresh(
+            refreshKey: smallKey,
+            scope: .single(.met),
+            familyToken: WidgetFamily.systemSmall.debugToken,
             logSource: "CoordinatorSameScope"
         )
         async let secondRefresh: Void = coordinator.refresh(
-            instanceToken: "same-scope-2",
+            refreshKey: mediumKey,
             scope: .single(.met),
+            familyToken: WidgetFamily.systemMedium.debugToken,
             logSource: "CoordinatorSameScope"
         )
         _ = await (firstRefresh, secondRefresh)
 
-        let firstState = await store.state(for: "same-scope-1")
-        let secondState = await store.state(for: "same-scope-2")
+        let firstState = await store.state(for: smallKey)
+        let secondState = await store.state(for: mediumKey)
 
         XCTAssertEqual(firstState?.phase, .success)
         XCTAssertEqual(secondState?.phase, .success)
-        XCTAssertNotEqual(firstState?.artwork?.title, secondState?.artwork?.title)
+        XCTAssertEqual(firstState?.artwork?.title, secondState?.artwork?.title)
         XCTAssertEqual(firstState?.scopeRawValue, WidgetMuseumScope.single(.met).rawValue)
         XCTAssertEqual(secondState?.scopeRawValue, WidgetMuseumScope.single(.met).rawValue)
     }

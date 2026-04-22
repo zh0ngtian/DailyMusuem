@@ -139,50 +139,73 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
         XCTAssertNil(rendered.artwork)
     }
 
-    func testRenderStateRecoversRecentSameFamilyStateWhenTokenDrifts() async throws {
-        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+    func testRenderStateMigratesLegacySameFamilyStateToSharedKey() async throws {
         let scope = WidgetMuseumScope.single(.met).rawValue
         let familyToken = WidgetFamily.systemMedium.debugToken
-
-        _ = await store.beginRefresh(
-            instanceToken: "initial-token",
+        let sharedKey = WidgetRefreshGroupKey.make(
             scopeRawValue: scope,
-            familyToken: familyToken,
-            now: Date(timeIntervalSince1970: 10)
+            familyToken: familyToken
         )
-        _ = await store.markSuccess(
-            instanceToken: "initial-token",
-            expectedNonce: 1,
-            payload: makePayload(
-                museumID: .met,
-                museumName: "大都会艺术博物馆",
-                title: "Recovered"
-            ),
-            imageData: nil,
-            familyToken: familyToken,
-            now: Date(timeIntervalSince1970: 20)
+        let directoryURL = baseURL.appendingPathComponent("WidgetInstances", isDirectory: true)
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        let persistedState = """
+        {
+          "instances" : [
+            {
+              "instanceToken" : "initial-token",
+              "scopeRawValue" : "single:met",
+              "familyToken" : "medium",
+              "nonce" : 1,
+              "phase" : "success",
+              "artwork" : {
+                "museumID" : "met",
+                "artworkKey" : "met|1",
+                "museumName" : "大都会艺术博物馆",
+                "title" : "Recovered",
+                "subtitle" : "2026",
+                "imageFileName" : null,
+                "appURL" : "dailymuseum://artwork/met/1",
+                "updatedAt" : 20
+              },
+              "displayedArtworkKeys" : [
+                "met|1"
+              ],
+              "failureMessage" : null,
+              "lastUpdatedAt" : 20
+            }
+          ]
+        }
+        """
+        try Data(persistedState.utf8).write(
+            to: directoryURL.appendingPathComponent("instances.json"),
+            options: [.atomic]
         )
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
 
         let rendered = await store.renderState(
-            for: "drifted-token",
+            for: sharedKey,
             scopeRawValue: scope,
             familyToken: familyToken,
             now: Date(timeIntervalSince1970: 30)
         )
 
-        XCTAssertEqual(rendered.instanceToken, "drifted-token")
+        XCTAssertEqual(rendered.instanceToken, sharedKey)
         XCTAssertEqual(rendered.familyToken, familyToken)
         XCTAssertEqual(rendered.phase, .success)
         XCTAssertEqual(rendered.artwork?.title, "Recovered")
-        let migratedState = await store.state(for: "drifted-token")
+        let migratedState = await store.state(for: sharedKey)
         let originalState = await store.state(for: "initial-token")
         XCTAssertEqual(migratedState?.phase, .success)
         XCTAssertNil(originalState)
     }
 
-    func testRenderStateDoesNotRecoverRecentStateAcrossDifferentFamily() async throws {
+    func testRenderStateSharesAcrossDifferentFamilies() async throws {
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
         let scope = WidgetMuseumScope.single(.met).rawValue
+        let mediumKey = WidgetRefreshGroupKey.make(
+            scopeRawValue: scope,
+            familyToken: WidgetFamily.systemMedium.debugToken
+        )
 
         _ = await store.beginRefresh(
             instanceToken: "large-token",
@@ -204,16 +227,15 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
         )
 
         let rendered = await store.renderState(
-            for: "medium-token",
+            for: mediumKey,
             scopeRawValue: scope,
             familyToken: WidgetFamily.systemMedium.debugToken,
             now: Date(timeIntervalSince1970: 30)
         )
 
-        XCTAssertEqual(rendered.instanceToken, "medium-token")
-        XCTAssertEqual(rendered.familyToken, WidgetFamily.systemMedium.debugToken)
-        XCTAssertEqual(rendered.phase, .idle)
-        XCTAssertNil(rendered.artwork)
+        XCTAssertEqual(rendered.instanceToken, mediumKey)
+        XCTAssertEqual(rendered.phase, .success)
+        XCTAssertEqual(rendered.artwork?.title, "Large")
     }
 
     func testRenderStateKeepsPreviousArtworkVisibleWhileRefreshIsInFlight() async throws {
@@ -272,43 +294,73 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
         XCTAssertNil(persisted?.artwork)
     }
 
-    func testRenderStateDoesNotRecoverStaleSameFamilyStateAfterRecoveryWindow() async throws {
-        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+    func testRenderStateKeepsLatestMeaningfulLegacyStateWhenIdleWidgetJoinsSameGroup() async throws {
         let scope = WidgetMuseumScope.single(.met).rawValue
         let familyToken = WidgetFamily.systemLarge.debugToken
-
-        _ = await store.beginRefresh(
-            instanceToken: "stale-token",
+        let sharedKey = WidgetRefreshGroupKey.make(
             scopeRawValue: scope,
-            familyToken: familyToken,
-            now: Date(timeIntervalSince1970: 10)
+            familyToken: familyToken
         )
-        _ = await store.markSuccess(
-            instanceToken: "stale-token",
-            expectedNonce: 1,
-            payload: makePayload(
-                museumID: .met,
-                museumName: "大都会艺术博物馆",
-                title: "Stale"
-            ),
-            imageData: nil,
-            familyToken: familyToken,
-            now: Date(timeIntervalSince1970: 20)
+        let directoryURL = baseURL.appendingPathComponent("WidgetInstances", isDirectory: true)
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        let persistedState = """
+        {
+          "instances" : [
+            {
+              "instanceToken" : "existing-token",
+              "scopeRawValue" : "single:met",
+              "familyToken" : "large",
+              "nonce" : 1,
+              "phase" : "success",
+              "artwork" : {
+                "museumID" : "met",
+                "artworkKey" : "met|1",
+                "museumName" : "大都会艺术博物馆",
+                "title" : "Existing",
+                "subtitle" : "2026",
+                "imageFileName" : null,
+                "appURL" : "dailymuseum://artwork/met/1",
+                "updatedAt" : 20
+              },
+              "displayedArtworkKeys" : [
+                "met|1"
+              ],
+              "failureMessage" : null,
+              "lastUpdatedAt" : 20
+            },
+            {
+              "instanceToken" : "new-idle-token",
+              "scopeRawValue" : "single:met",
+              "familyToken" : "large",
+              "nonce" : 0,
+              "phase" : "idle",
+              "artwork" : null,
+              "displayedArtworkKeys" : [],
+              "failureMessage" : null,
+              "lastUpdatedAt" : 30
+            }
+          ]
+        }
+        """
+        try Data(persistedState.utf8).write(
+            to: directoryURL.appendingPathComponent("instances.json"),
+            options: [.atomic]
         )
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
 
         let rendered = await store.renderState(
-            for: "fresh-large-token",
+            for: sharedKey,
             scopeRawValue: scope,
             familyToken: familyToken,
-            now: Date(timeIntervalSince1970: 250)
+            now: Date(timeIntervalSince1970: 40)
         )
+        let knownInstances = await store.knownInstances()
 
-        XCTAssertEqual(rendered.instanceToken, "fresh-large-token")
+        XCTAssertEqual(rendered.instanceToken, sharedKey)
         XCTAssertEqual(rendered.familyToken, familyToken)
-        XCTAssertEqual(rendered.phase, .idle)
-        XCTAssertNil(rendered.artwork)
-        let staleState = await store.state(for: "stale-token")
-        XCTAssertNotNil(staleState)
+        XCTAssertEqual(rendered.phase, .success)
+        XCTAssertEqual(rendered.artwork?.title, "Existing")
+        XCTAssertEqual(knownInstances.count, 1)
     }
 
     func testScopeChangeResetsArtworkFailureAndDisplayedHistory() async throws {

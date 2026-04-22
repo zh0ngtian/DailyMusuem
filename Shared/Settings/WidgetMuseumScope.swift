@@ -29,22 +29,15 @@ extension WidgetMuseumScope {
     }
 }
 
-struct WidgetInstanceTokenResolver {
-    static func makeDefaultToken() -> String {
-        UUID().uuidString
+struct WidgetRefreshGroupKey {
+    static func make(scope: WidgetMuseumScope, family: WidgetFamily?) -> String {
+        _ = family
+        return scope.rawValue
     }
 
-    static func resolve(
-        from rawValue: String?,
-        scope _: WidgetMuseumScope,
-        family _: WidgetFamily?
-    ) -> String {
-        let trimmed = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !trimmed.isEmpty {
-            return trimmed
-        }
-
-        return makeDefaultToken()
+    static func make(scopeRawValue: String, familyToken: String) -> String {
+        _ = familyToken
+        return scopeRawValue
     }
 }
 

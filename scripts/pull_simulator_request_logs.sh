@@ -36,7 +36,7 @@ Usage: scripts/pull_simulator_request_logs.sh [options]
 Options:
   --udid <simulator-udid>   Read logs from the specified simulator.
   --device-home <path>      Read logs from an explicit CoreSimulator device data path.
-  --instance-token <token>  Trigger refresh for a single widget instance.
+  --instance-token <token>  Trigger refresh for a single shared widget group key (scope).
   --scope-raw-value <raw>   Trigger refresh for a specific widget scope, e.g. single:met.
   --tail <count>            Show only the latest N log entries. Default: 80.
   --wait <seconds>          Wait time after --trigger-refresh. Default: 3.
@@ -218,7 +218,7 @@ else:
     for item in sorted(instances, key=lambda current: (current.get("lastUpdatedAt", 0), current["instanceToken"])):
         updated_at = item.get("lastUpdatedAt", 0)
         ts = (datetime(2001, 1, 1, tzinfo=timezone.utc) + timedelta(seconds=updated_at)).astimezone().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"{ts} | {item['instanceToken']} | {item['scopeRawValue']} | {item['phase']}")
+        print(f"{ts} | refreshKey={item['instanceToken']} | {item['scopeRawValue']} | {item['phase']}")
 PY
   else
     echo "(missing $instances_file)"
@@ -256,7 +256,7 @@ for entry in entries:
     duration = entry.get("durationMilliseconds")
     suffix = []
     if instance_token:
-        suffix.append(f"instanceToken={instance_token}")
+        suffix.append(f"refreshKey={instance_token}")
     if method:
         suffix.append(method)
     if status is not None:

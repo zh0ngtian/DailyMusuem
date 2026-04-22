@@ -5,7 +5,7 @@ import WidgetKit
 struct WidgetArtworkEntry: TimelineEntry {
     let date: Date
     let renderID: String
-    let instanceToken: String
+    let refreshKey: String
     let scopeRawValue: String
     let phase: WidgetRefreshPhase
     let museumName: String
@@ -64,7 +64,7 @@ enum WidgetConfiguredMuseumScope: String, AppEnum, CaseIterable {
 
 struct DailyMuseumWidgetConfigurationIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "配置小组件"
-    static var description = IntentDescription("为当前小组件实例单独选择展示范围。")
+    static var description = IntentDescription("为当前小组件选择展示范围；同范围的小组件会共享内容。")
 
     @Parameter(title: "展示范围")
     var museumScope: WidgetConfiguredMuseumScope?
@@ -74,9 +74,9 @@ struct DailyMuseumWidgetConfigurationIntent: WidgetConfigurationIntent {
 
     init() {
         museumScope = .all
-        // App Intents parameter defaults must be compile-time literals, so generate the
-        // hidden per-instance token when WidgetKit creates a fresh configuration intent.
-        instanceToken = WidgetInstanceTokenResolver.makeDefaultToken()
+        // Retain the legacy field so existing widget configurations continue to decode,
+        // but content sharing now keys off scope instead of per-instance tokens.
+        instanceToken = ""
     }
 
     static var parameterSummary: some ParameterSummary {
@@ -108,12 +108,12 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
         WidgetArtworkEntry(
             date: .now,
             renderID: "placeholder",
-            instanceToken: "placeholder",
+            refreshKey: "placeholder",
             scopeRawValue: WidgetMuseumScope.all.rawValue,
             phase: .idle,
             museumName: "DailyMuseum",
             title: "点击刷新获取展品",
-            subtitle: "每个实例独立刷新，同实例避免重复",
+            subtitle: "同范围的小组件会共享内容",
             imageFileName: nil,
             appURL: nil,
             failureMessage: nil
@@ -149,23 +149,19 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
         family: WidgetFamily?
     ) async -> WidgetArtworkEntry {
         let scope = configuration.museumScope?.scope ?? .all
-        let resolvedInstanceToken = WidgetInstanceTokenResolver.resolve(
-            from: configuration.instanceToken,
-            scope: scope,
-            family: family
-        )
+        let refreshKey = WidgetRefreshGroupKey.make(scope: scope, family: family)
         let store = WidgetArtworkSnapshotStore.shared
         let state = await store.renderState(
-            for: resolvedInstanceToken,
+            for: refreshKey,
             scopeRawValue: scope.rawValue,
             familyToken: family?.debugToken,
             now: date
         )
-        let renderID = "\(resolvedInstanceToken)|\(scope.rawValue)|\(state.nonce)|\(state.phase.rawValue)"
+        let renderID = "\(refreshKey)|\(scope.rawValue)|\(state.nonce)|\(state.phase.rawValue)"
         await RequestLogger.shared.logEvent(
             source: "Widget 完成渲染",
             summary: "family=\(family?.debugToken ?? "unknown") scope=\(scope.rawValue) phase=\(state.phase.rawValue)",
-            instanceToken: resolvedInstanceToken
+            instanceToken: refreshKey
         )
 
         switch state.phase {
@@ -174,7 +170,7 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
                 return WidgetArtworkEntry(
                     date: date,
                     renderID: renderID,
-                    instanceToken: resolvedInstanceToken,
+                    refreshKey: refreshKey,
                     scopeRawValue: scope.rawValue,
                     phase: .success,
                     museumName: artwork.museumName,
@@ -189,7 +185,7 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
             return WidgetArtworkEntry(
                 date: date,
                 renderID: renderID,
-                instanceToken: resolvedInstanceToken,
+                refreshKey: refreshKey,
                 scopeRawValue: scope.rawValue,
                 phase: .failure,
                 museumName: scope.displayName,
@@ -206,12 +202,12 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
         return WidgetArtworkEntry(
             date: date,
             renderID: renderID,
-            instanceToken: resolvedInstanceToken,
+            refreshKey: refreshKey,
             scopeRawValue: scope.rawValue,
             phase: .idle,
             museumName: scope.displayName,
             title: "点击刷新获取展品",
-            subtitle: "当前实例独立刷新，同实例避免重复",
+            subtitle: "同范围的小组件会共享内容",
             imageFileName: nil,
             appURL: nil,
             failureMessage: nil

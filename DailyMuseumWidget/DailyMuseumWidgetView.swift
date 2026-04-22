@@ -64,7 +64,7 @@ struct DailyMuseumWidgetView: View {
     private var refreshControl: some View {
         Button(
             intent: RefreshWidgetIntent(
-                instanceToken: entry.instanceToken,
+                refreshKey: entry.refreshKey,
                 museumScope: configuredScope,
                 widgetFamilyToken: family.debugToken
             )
@@ -131,7 +131,7 @@ struct DailyMuseumWidgetView: View {
     private var displaySubtitle: String? {
         switch entry.phase {
         case .idle, .refreshing:
-            return "长按小组件并选择「编辑小组件-展示范围」以激活小组件"
+            return "同范围的小组件会共享内容和手动刷新"
         case .success:
             return entry.subtitle
         case .failure:
