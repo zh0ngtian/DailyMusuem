@@ -3,7 +3,7 @@ import UIKit
 
 struct RootView: View {
     @ObservedObject var router: AppRouter
-    @ObservedObject private var shortcutInstallPromptController = ShortcutInstallPromptController.shared
+    @ObservedObject private var installPromptController = InstallPromptController.shared
     @State private var isShowingRequestLogs = false
 
     var body: some View {
@@ -27,7 +27,7 @@ struct RootView: View {
             }
             .presentationDetents([.medium, .large])
         }
-        .alert(item: $shortcutInstallPromptController.prompt) { prompt in
+        .alert(item: $installPromptController.prompt) { prompt in
             Alert(
                 title: Text(prompt.title),
                 message: Text(prompt.message),
