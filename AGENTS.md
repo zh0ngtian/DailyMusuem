@@ -137,7 +137,8 @@
   - 当前不再附带 `isOnView` 过滤条件，不能把搜索结果限制为“正在展出”
 - 大都会详情页中的“展品介绍/官网概述”不完全依赖公开 API：
   - 当公开 API 未返回可用介绍字段时，需要继续访问官网页面：
-    - `https://www.metmuseum.org/art/collection/search/{objectID}`
+    - 先尝试中文页面：`https://www.metmuseum.org/zh/art/collection/search/{objectID}`
+    - 中文页面没有可用概述时，再回退英文页面：`https://www.metmuseum.org/art/collection/search/{objectID}`
   - 当前会从官网页面的 object overview 区块中提取描述内容，作为详情页补充信息来源。
 - 后续如果修改大都会详情逻辑：
   - 不能假设公开 API 已包含完整介绍文案。
@@ -511,6 +512,7 @@
   - 预览页默认固定半屏高度，不提供拉高或改尺寸交互
   - 预览页中的截图需要完整按比例展示，不使用滚动查看
   - 系统分享页面继续以该图片作为分享对象
+  - `DailyMuseum/Info.plist` 需要继续声明 `LSApplicationQueriesSchemes=weixin`，用于分享链路中的微信可用性诊断
 - 支持翻译的详情页右上角需要继续提供翻译按钮：
   - 点击后使用 `TranslationSession` 批量翻译当前详情页已展示的标题、介绍和字段
   - 翻译结果直接替换当前详情页正文，不弹出独立翻译页

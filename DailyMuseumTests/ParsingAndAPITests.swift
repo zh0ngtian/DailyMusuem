@@ -28,6 +28,94 @@ final class ParsingAndAPITests: XCTestCase {
         )
     }
 
+    func testMetMuseumFetchObjectWebDescriptionPrefersChinesePageWhenAvailable() async {
+        let objectID = 39668
+        let englishURL = URL(string: "https://www.metmuseum.org/art/collection/search/39668")!
+        let chineseURL = URL(string: "https://www.metmuseum.org/zh/art/collection/search/39668")!
+        let recorder = RequestRecorder()
+        let session = makeStubSession(testID: UUID().uuidString) { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+            recorder.record(url)
+
+            if url == chineseURL {
+                let html = """
+                <html><body><main>
+                <div class="object-overview-module-scss-module__bIfq1G__label">
+                  <p>中文概述</p>
+                </div>
+                </main></body></html>
+                """
+                return StubbedResponse(
+                    response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data: Data(html.utf8)
+                )
+            }
+
+            XCTFail("Unexpected fallback request: \(url.absoluteString)")
+            return StubbedResponse(
+                response: HTTPURLResponse(url: url, statusCode: 404, httpVersion: nil, headerFields: nil)!,
+                data: Data()
+            )
+        }
+        let api = MetMuseumAPI(session: session)
+
+        let description = await api.fetchObjectWebDescription(
+            objectID: objectID,
+            objectURL: englishURL
+        )
+
+        XCTAssertEqual(description, "中文概述")
+        XCTAssertEqual(recorder.urls, [chineseURL])
+    }
+
+    func testMetMuseumFetchObjectWebDescriptionFallsBackToEnglishWhenChinesePageHasNoOverview() async {
+        let objectID = 39669
+        let englishURL = URL(string: "https://www.metmuseum.org/art/collection/search/39669")!
+        let chineseURL = URL(string: "https://www.metmuseum.org/zh/art/collection/search/39669")!
+        let recorder = RequestRecorder()
+        let session = makeStubSession(testID: UUID().uuidString) { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+            recorder.record(url)
+
+            if url == chineseURL {
+                let html = "<html><body><main><h1>无中文概述</h1></main></body></html>"
+                return StubbedResponse(
+                    response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data: Data(html.utf8)
+                )
+            }
+
+            if url == englishURL {
+                let html = """
+                <html><body><main>
+                <div class="object-overview-module-scss-module__bIfq1G__label">
+                  <p>English fallback overview</p>
+                </div>
+                </main></body></html>
+                """
+                return StubbedResponse(
+                    response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data: Data(html.utf8)
+                )
+            }
+
+            throw URLError(.badURL)
+        }
+        let api = MetMuseumAPI(session: session)
+
+        let description = await api.fetchObjectWebDescription(
+            objectID: objectID,
+            objectURL: englishURL
+        )
+
+        XCTAssertEqual(description, "English fallback overview")
+        XCTAssertEqual(recorder.urls, [chineseURL, englishURL])
+    }
+
     func testNationalMuseumChinaExhibitPageParserParsesFixtureAndMapsArtwork() throws {
         let html = try loadFixture(named: "nmc-detail.html")
         let shareURL = try XCTUnwrap(URL(string: "https://appapi.chnmuseum.cn/api/exhibit/share_link?p=i&exhibit_id=1"))

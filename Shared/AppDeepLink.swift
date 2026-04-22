@@ -1,5 +1,33 @@
 import Foundation
 
+enum WeChatShareDiagnostics {
+    static func isSchemeDeclared(in plist: [String: Any]?) -> Bool {
+        guard let rawSchemes = plist?["LSApplicationQueriesSchemes"] as? [Any] else {
+            return false
+        }
+
+        return rawSchemes
+            .compactMap { $0 as? String }
+            .contains { $0.caseInsensitiveCompare("weixin") == .orderedSame }
+    }
+
+    static func canOpenFailureSummary(isSchemeDeclared: Bool) -> String {
+        if isSchemeDeclared {
+            return "分享失败：canOpenURL(weixin://) 返回 false，可能未安装微信，或系统当前无法拉起微信。"
+        }
+
+        return "分享失败：canOpenURL(weixin://) 返回 false，且 Info.plist 未声明 LSApplicationQueriesSchemes=weixin，当前无法准确判断是否已安装微信。"
+    }
+
+    static func openFailureSummary(isSchemeDeclared: Bool) -> String {
+        if isSchemeDeclared {
+            return "分享失败：UIApplication.open(weixin://) 回调返回 false。Info.plist 已声明 LSApplicationQueriesSchemes=weixin。"
+        }
+
+        return "分享失败：UIApplication.open(weixin://) 回调返回 false。Info.plist 未声明 LSApplicationQueriesSchemes=weixin。"
+    }
+}
+
 struct ArtworkReference: Hashable, Codable {
     let museumID: MuseumID
     let objectID: String
