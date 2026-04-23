@@ -74,7 +74,8 @@ actor WidgetRefreshCoordinator {
         refreshKey: String,
         scope: WidgetMuseumScope,
         familyToken: String? = nil,
-        logSource: String = "Widget 刷新"
+        logSource: String = "Widget 刷新",
+        reloadTimelines: Bool = true
     ) async {
         let state = await store.beginRefresh(
             instanceToken: refreshKey,
@@ -92,7 +93,9 @@ actor WidgetRefreshCoordinator {
             )
         }
 
-        widgetCenter.reloadTimelines(ofKind: SettingsKeys.widgetKind)
+        if reloadTimelines {
+            widgetCenter.reloadTimelines(ofKind: SettingsKeys.widgetKind)
+        }
 
         let engine = makeEngine()
         let task = Task {
@@ -153,7 +156,9 @@ actor WidgetRefreshCoordinator {
         if activeRefreshes[refreshKey]?.nonce == nonce {
             activeRefreshes[refreshKey] = nil
         }
-        widgetCenter.reloadTimelines(ofKind: SettingsKeys.widgetKind)
+        if reloadTimelines {
+            widgetCenter.reloadTimelines(ofKind: SettingsKeys.widgetKind)
+        }
     }
 
     func refreshAllKnownInstances(logSource: String = "App 快捷操作") async {

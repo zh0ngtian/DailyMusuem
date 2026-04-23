@@ -10,6 +10,56 @@ struct WidgetSettingsReader {
     func categories(for museumID: MuseumID) -> [MuseumCategory] {
         museumID.feedCategories(withStoredValue: defaults.string(forKey: SettingsKeys.feedCategoryPrefix + museumID.rawValue))
     }
+
+    func widgetRefreshInterval() -> WidgetRefreshInterval {
+        WidgetRefreshInterval.storedValue(in: defaults)
+    }
+}
+
+enum WidgetScheduledRefreshPolicy {
+    private static let minimumTimelineDelay: TimeInterval = 60
+
+    static func shouldRefresh(
+        state: WidgetArtworkSnapshotStore.InstanceState?,
+        scopeRawValue: String,
+        interval: WidgetRefreshInterval,
+        now: Date
+    ) -> Bool {
+        guard interval.isEnabled else {
+            return false
+        }
+
+        guard let state, state.scopeRawValue == scopeRawValue else {
+            return true
+        }
+
+        if state.artwork == nil && state.phase != .failure && state.phase != .refreshing {
+            return true
+        }
+
+        return now.timeIntervalSince1970 - state.lastUpdatedAt >= interval.timeInterval
+    }
+
+    static func nextTimelineDate(
+        state: WidgetArtworkSnapshotStore.InstanceState?,
+        scopeRawValue: String,
+        interval: WidgetRefreshInterval,
+        now: Date
+    ) -> Date? {
+        guard interval.isEnabled else {
+            return nil
+        }
+
+        guard let state, state.scopeRawValue == scopeRawValue else {
+            return now.addingTimeInterval(interval.timeInterval)
+        }
+
+        let nextDate = Date(timeIntervalSince1970: state.lastUpdatedAt + interval.timeInterval)
+        if nextDate <= now {
+            return now.addingTimeInterval(minimumTimelineDelay)
+        }
+        return nextDate
+    }
 }
 
 actor ArtworkBatchLoader {

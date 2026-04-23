@@ -1,20 +1,28 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @StateObject private var settings = SettingsStore.shared
+
     var body: some View {
         Form {
             Section {
-                LabeledContent("翻译方式", value: "iOS 18 系统翻译")
-
-                Text("展品详情页右上角的翻译按钮会使用 iOS 18 TranslationSession 批量翻译标题、介绍和字段，并直接在当前页替换原文；若系统语言包未准备好，只给提示，不弹出系统下载页。")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                Picker("定时刷新", selection: widgetRefreshIntervalBinding) {
+                    ForEach(WidgetRefreshInterval.allCases) { interval in
+                        Text(interval.displayName).tag(interval)
+                    }
+                }
             } header: {
-                Text("翻译")
-            } footer: {
-                Text("应用当前最低系统版本为 iOS 18。")
+                Text("小组件")
             }
         }
         .navigationTitle("设置")
+    }
+
+    private var widgetRefreshIntervalBinding: Binding<WidgetRefreshInterval> {
+        Binding {
+            settings.widgetRefreshInterval
+        } set: { interval in
+            settings.saveWidgetRefreshInterval(interval)
+        }
     }
 }
