@@ -33,6 +33,98 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(categories.map(\.id), ["american-decorative-arts", "modern-art"])
     }
 
+    func testWidgetSettingsReaderUsesStoredRefreshInterval() {
+        defaults.set(3, forKey: SettingsKeys.widgetRefreshIntervalHours)
+
+        let reader = WidgetSettingsReader(defaults: defaults)
+
+        XCTAssertEqual(reader.widgetRefreshInterval(), .threeHours)
+    }
+
+    func testWidgetSettingsReaderDefaultsRefreshIntervalToOff() {
+        let reader = WidgetSettingsReader(defaults: defaults)
+
+        XCTAssertEqual(reader.widgetRefreshInterval(), .off)
+    }
+
+    func testWidgetScheduledRefreshPolicyDoesNotRefreshWhenOff() {
+        let now = Date(timeIntervalSince1970: 30_000)
+        let state = makeWidgetState(
+            scopeRawValue: WidgetMuseumScope.single(.met).rawValue,
+            phase: .success,
+            lastUpdatedAt: now.addingTimeInterval(-WidgetRefreshInterval.twentyFourHours.timeInterval).timeIntervalSince1970
+        )
+
+        XCTAssertFalse(
+            WidgetScheduledRefreshPolicy.shouldRefresh(
+                state: nil,
+                scopeRawValue: WidgetMuseumScope.single(.met).rawValue,
+                interval: .off,
+                now: now
+            )
+        )
+        XCTAssertFalse(
+            WidgetScheduledRefreshPolicy.shouldRefresh(
+                state: state,
+                scopeRawValue: WidgetMuseumScope.single(.met).rawValue,
+                interval: .off,
+                now: now
+            )
+        )
+        XCTAssertNil(
+            WidgetScheduledRefreshPolicy.nextTimelineDate(
+                state: state,
+                scopeRawValue: WidgetMuseumScope.single(.met).rawValue,
+                interval: .off,
+                now: now
+            )
+        )
+    }
+
+    func testWidgetScheduledRefreshPolicyRefreshesMissingAndDueState() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        let dueState = makeWidgetState(
+            scopeRawValue: WidgetMuseumScope.single(.met).rawValue,
+            phase: .success,
+            lastUpdatedAt: now.addingTimeInterval(-(WidgetRefreshInterval.threeHours.timeInterval + 1)).timeIntervalSince1970
+        )
+
+        XCTAssertTrue(
+            WidgetScheduledRefreshPolicy.shouldRefresh(
+                state: nil,
+                scopeRawValue: WidgetMuseumScope.single(.met).rawValue,
+                interval: .threeHours,
+                now: now
+            )
+        )
+        XCTAssertTrue(
+            WidgetScheduledRefreshPolicy.shouldRefresh(
+                state: dueState,
+                scopeRawValue: WidgetMuseumScope.single(.met).rawValue,
+                interval: .threeHours,
+                now: now
+            )
+        )
+    }
+
+    func testWidgetScheduledRefreshPolicyDoesNotRefreshBeforeInterval() {
+        let now = Date(timeIntervalSince1970: 20_000)
+        let state = makeWidgetState(
+            scopeRawValue: WidgetMuseumScope.single(.tnm).rawValue,
+            phase: .success,
+            lastUpdatedAt: now.addingTimeInterval(-(WidgetRefreshInterval.sixHours.timeInterval - 60)).timeIntervalSince1970
+        )
+
+        XCTAssertFalse(
+            WidgetScheduledRefreshPolicy.shouldRefresh(
+                state: state,
+                scopeRawValue: WidgetMuseumScope.single(.tnm).rawValue,
+                interval: .sixHours,
+                now: now
+            )
+        )
+    }
+
     func testWidgetRefreshGroupKeyUsesScopeOnly() {
         let key = WidgetRefreshGroupKey.make(
             scope: .single(.met),
@@ -380,11 +472,11 @@ final class WidgetStateAndSettingsTests: XCTestCase {
     func testWidgetRefreshEngineSkipsPreviouslyDisplayedArtworkForSameInstance() async throws {
         let baseURL = temporaryBaseURL()
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
-        let instanceToken = "widget-history"
         let scope = WidgetMuseumScope.single(.met)
-        _ = await store.beginRefresh(instanceToken: instanceToken, scopeRawValue: scope.rawValue)
+        let refreshKey = WidgetRefreshGroupKey.make(scope: scope, family: nil)
+        _ = await store.beginRefresh(instanceToken: refreshKey, scopeRawValue: scope.rawValue)
         _ = await store.markSuccess(
-            instanceToken: instanceToken,
+            instanceToken: refreshKey,
             expectedNonce: 1,
             payload: WidgetRefreshPayload(
                 museumID: .met,
@@ -425,7 +517,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
 
         let payload = try await engine.fetchRenderableArtwork(
             scope: scope,
-            refreshKey: instanceToken,
+            refreshKey: refreshKey,
             logSource: "WidgetHistorySkip"
         )
 
@@ -438,11 +530,11 @@ final class WidgetStateAndSettingsTests: XCTestCase {
     func testWidgetRefreshEngineClearsDisplayedHistoryOnceWhenOnlySeenCandidatesRemain() async throws {
         let baseURL = temporaryBaseURL()
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
-        let instanceToken = "widget-history-reset"
         let scope = WidgetMuseumScope.single(.met)
-        _ = await store.beginRefresh(instanceToken: instanceToken, scopeRawValue: scope.rawValue)
+        let refreshKey = WidgetRefreshGroupKey.make(scope: scope, family: nil)
+        _ = await store.beginRefresh(instanceToken: refreshKey, scopeRawValue: scope.rawValue)
         _ = await store.markSuccess(
-            instanceToken: instanceToken,
+            instanceToken: refreshKey,
             expectedNonce: 1,
             payload: WidgetRefreshPayload(
                 museumID: .met,
@@ -477,14 +569,14 @@ final class WidgetStateAndSettingsTests: XCTestCase {
 
         let payload = try await engine.fetchRenderableArtwork(
             scope: scope,
-            refreshKey: instanceToken,
+            refreshKey: refreshKey,
             logSource: "WidgetHistoryReset"
         )
 
         XCTAssertEqual(payload.title, "Repeat")
         XCTAssertEqual(loaderFactoryCount.value, 2)
         let displayedKeys = await store.displayedArtworkKeys(
-            for: instanceToken,
+            for: refreshKey,
             scopeRawValue: scope.rawValue
         )
         XCTAssertEqual(displayedKeys, [])
@@ -748,6 +840,33 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("WidgetStateAndSettingsTests", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    }
+
+    private func makeWidgetState(
+        scopeRawValue: String,
+        phase: WidgetRefreshPhase,
+        lastUpdatedAt: TimeInterval
+    ) -> WidgetArtworkSnapshotStore.InstanceState {
+        WidgetArtworkSnapshotStore.InstanceState(
+            instanceToken: scopeRawValue,
+            scopeRawValue: scopeRawValue,
+            familyToken: nil,
+            nonce: 1,
+            phase: phase,
+            artwork: WidgetArtworkSnapshotStore.ArtworkPayload(
+                museumID: .met,
+                artworkKey: WidgetDisplayedArtworkKey.make(museumID: .met, objectID: "1"),
+                museumName: MuseumID.met.displayName,
+                title: "Test Artwork",
+                subtitle: "2026",
+                imageFileName: nil,
+                appURL: nil,
+                updatedAt: lastUpdatedAt
+            ),
+            displayedArtworkKeys: [],
+            failureMessage: nil,
+            lastUpdatedAt: lastUpdatedAt
+        )
     }
 }
 

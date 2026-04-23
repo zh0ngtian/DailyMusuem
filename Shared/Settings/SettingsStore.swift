@@ -7,9 +7,12 @@ final class SettingsStore: ObservableObject {
     static let shared = SettingsStore()
 
     private let defaults: UserDefaults
+    @Published private(set) var widgetRefreshInterval: WidgetRefreshInterval
 
     private init() {
-        defaults = UserDefaults(suiteName: SettingsKeys.appGroupID) ?? .standard
+        let resolvedDefaults = UserDefaults(suiteName: SettingsKeys.appGroupID) ?? .standard
+        defaults = resolvedDefaults
+        widgetRefreshInterval = WidgetRefreshInterval.storedValue(in: resolvedDefaults)
     }
 
     func requestWidgetReload(invalidateContent: Bool = false) {
@@ -25,6 +28,12 @@ final class SettingsStore: ObservableObject {
             )
             await WidgetRefreshCoordinator.shared.refreshAllKnownInstances(logSource: logSource)
         }
+    }
+
+    func saveWidgetRefreshInterval(_ interval: WidgetRefreshInterval) {
+        widgetRefreshInterval = interval
+        defaults.set(interval.rawValue, forKey: SettingsKeys.widgetRefreshIntervalHours)
+        requestWidgetReload()
     }
 
     func feedCategories(for museumID: MuseumID) -> [MuseumCategory] {

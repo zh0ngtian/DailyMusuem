@@ -97,13 +97,15 @@ struct DailyMuseumWidget: Widget {
             DailyMuseumWidgetView(entry: entry)
         }
         .configurationDisplayName("DailyMuseum")
-        .description("手动刷新展示一件展品")
+        .description("定时或手动刷新展示一件展品")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
         .contentMarginsDisabled()
     }
 }
 
 struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
+    private let settingsReader = WidgetSettingsReader()
+
     func placeholder(in context: Context) -> WidgetArtworkEntry {
         WidgetArtworkEntry(
             date: .now,
@@ -135,11 +137,41 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
         for configuration: DailyMuseumWidgetConfigurationIntent,
         in context: Context
     ) async -> Timeline<WidgetArtworkEntry> {
+        let scope = scope(for: configuration)
+        let refreshKey = WidgetRefreshGroupKey.make(scope: scope, family: context.family)
+        let interval = settingsReader.widgetRefreshInterval()
+        let store = WidgetArtworkSnapshotStore.shared
+        let now = Date()
+
+        if WidgetScheduledRefreshPolicy.shouldRefresh(
+            state: await store.state(for: refreshKey),
+            scopeRawValue: scope.rawValue,
+            interval: interval,
+            now: now
+        ) {
+            await WidgetRefreshCoordinator.shared.refresh(
+                refreshKey: refreshKey,
+                scope: scope,
+                familyToken: context.family.debugToken,
+                logSource: "Widget 定时刷新",
+                reloadTimelines: false
+            )
+        }
+
+        let entryDate = Date()
         let entry = await entry(
             for: configuration,
-            date: .now,
+            date: entryDate,
             family: context.family
         )
+        if let nextRefreshDate = WidgetScheduledRefreshPolicy.nextTimelineDate(
+            state: await store.state(for: refreshKey),
+            scopeRawValue: scope.rawValue,
+            interval: interval,
+            now: entryDate
+        ) {
+            return Timeline(entries: [entry], policy: .after(nextRefreshDate))
+        }
         return Timeline(entries: [entry], policy: .never)
     }
 
@@ -148,7 +180,7 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
         date: Date,
         family: WidgetFamily?
     ) async -> WidgetArtworkEntry {
-        let scope = configuration.museumScope?.scope ?? .all
+        let scope = scope(for: configuration)
         let refreshKey = WidgetRefreshGroupKey.make(scope: scope, family: family)
         let store = WidgetArtworkSnapshotStore.shared
         let state = await store.renderState(
@@ -212,6 +244,10 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
             appURL: nil,
             failureMessage: nil
         )
+    }
+
+    private func scope(for configuration: DailyMuseumWidgetConfigurationIntent) -> WidgetMuseumScope {
+        configuration.museumScope?.scope ?? .all
     }
 
 }

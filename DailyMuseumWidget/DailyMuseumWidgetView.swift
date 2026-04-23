@@ -131,7 +131,7 @@ struct DailyMuseumWidgetView: View {
     private var displaySubtitle: String? {
         switch entry.phase {
         case .idle, .refreshing:
-            return "同范围的小组件会共享内容和手动刷新"
+            return "同范围的小组件会共享内容"
         case .success:
             return entry.subtitle
         case .failure:
