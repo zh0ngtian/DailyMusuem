@@ -14,51 +14,84 @@ struct WidgetSettingsReader {
     func widgetRefreshInterval() -> WidgetRefreshInterval {
         WidgetRefreshInterval.storedValue(in: defaults)
     }
+
+    func widgetAutoRefreshWindow() -> WidgetAutoRefreshWindow {
+        WidgetAutoRefreshWindow.storedValue(in: defaults)
+    }
+
+    func widgetAutoRefreshStartMinutes() -> Int {
+        widgetAutoRefreshWindow().startMinutes
+    }
+
+    func widgetAutoRefreshEndMinutes() -> Int {
+        widgetAutoRefreshWindow().endMinutes
+    }
+
+    func widgetAutoRefreshSchedule(
+        calendar: Calendar = .autoupdatingCurrent,
+        timeZone: TimeZone = .autoupdatingCurrent
+    ) -> WidgetAutoRefreshSchedule? {
+        let window = widgetAutoRefreshWindow()
+        return WidgetAutoRefreshSchedule(
+            interval: widgetRefreshInterval(),
+            startMinutes: window.startMinutes,
+            endMinutes: window.endMinutes,
+            calendar: calendar,
+            timeZone: timeZone
+        )
+    }
 }
 
 enum WidgetScheduledRefreshPolicy {
-    private static let minimumTimelineDelay: TimeInterval = 60
-
-    static func shouldRefresh(
-        state: WidgetArtworkSnapshotStore.InstanceState?,
-        scopeRawValue: String,
-        interval: WidgetRefreshInterval,
-        now: Date
-    ) -> Bool {
-        guard interval.isEnabled else {
-            return false
-        }
-
-        guard let state, state.scopeRawValue == scopeRawValue else {
-            return true
-        }
-
-        if state.artwork == nil && state.phase != .failure && state.phase != .refreshing {
-            return true
-        }
-
-        return now.timeIntervalSince1970 - state.lastUpdatedAt >= interval.timeInterval
+    struct Resolution: Equatable {
+        let shouldRefresh: Bool
+        let scheduledAt: Date?
+        let nextAutomaticRefreshAt: Date?
+        let scheduleSignature: String?
     }
 
-    static func nextTimelineDate(
+    static func resolve(
         state: WidgetArtworkSnapshotStore.InstanceState?,
         scopeRawValue: String,
-        interval: WidgetRefreshInterval,
+        schedule: WidgetAutoRefreshSchedule?,
         now: Date
-    ) -> Date? {
-        guard interval.isEnabled else {
-            return nil
+    ) -> Resolution {
+        guard let schedule else {
+            return Resolution(
+                shouldRefresh: false,
+                scheduledAt: nil,
+                nextAutomaticRefreshAt: nil,
+                scheduleSignature: nil
+            )
         }
 
-        guard let state, state.scopeRawValue == scopeRawValue else {
-            return now.addingTimeInterval(interval.timeInterval)
+        guard let state,
+              state.scopeRawValue == scopeRawValue,
+              state.automaticRefreshScheduleSignature == schedule.signature,
+              let nextAutomaticRefreshAt = state.nextAutomaticRefreshAt.map(Date.init(timeIntervalSince1970:)) else {
+            return Resolution(
+                shouldRefresh: false,
+                scheduledAt: nil,
+                nextAutomaticRefreshAt: schedule.nextRefreshDate(after: now),
+                scheduleSignature: schedule.signature
+            )
         }
 
-        let nextDate = Date(timeIntervalSince1970: state.lastUpdatedAt + interval.timeInterval)
-        if nextDate <= now {
-            return now.addingTimeInterval(minimumTimelineDelay)
+        if nextAutomaticRefreshAt <= now {
+            return Resolution(
+                shouldRefresh: true,
+                scheduledAt: nextAutomaticRefreshAt,
+                nextAutomaticRefreshAt: schedule.nextRefreshDate(after: nextAutomaticRefreshAt),
+                scheduleSignature: schedule.signature
+            )
         }
-        return nextDate
+
+        return Resolution(
+            shouldRefresh: false,
+            scheduledAt: nil,
+            nextAutomaticRefreshAt: nextAutomaticRefreshAt,
+            scheduleSignature: schedule.signature
+        )
     }
 }
 

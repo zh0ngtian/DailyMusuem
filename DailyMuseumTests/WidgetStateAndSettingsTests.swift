@@ -47,82 +47,231 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(reader.widgetRefreshInterval(), .off)
     }
 
-    func testWidgetScheduledRefreshPolicyDoesNotRefreshWhenOff() {
+    func testWidgetSettingsReaderUsesStoredAutoRefreshWindow() {
+        defaults.set(9 * 60, forKey: SettingsKeys.widgetAutoRefreshStartMinutes)
+        defaults.set(18 * 60, forKey: SettingsKeys.widgetAutoRefreshEndMinutes)
+
+        let reader = WidgetSettingsReader(defaults: defaults)
+
+        XCTAssertEqual(reader.widgetAutoRefreshStartMinutes(), 9 * 60)
+        XCTAssertEqual(reader.widgetAutoRefreshEndMinutes(), 18 * 60)
+    }
+
+    func testWidgetSettingsReaderDefaultsAutoRefreshWindowToFullDay() {
+        let reader = WidgetSettingsReader(defaults: defaults)
+
+        XCTAssertEqual(reader.widgetAutoRefreshStartMinutes(), 0)
+        XCTAssertEqual(reader.widgetAutoRefreshEndMinutes(), 23 * 60)
+    }
+
+    func testWidgetAutoRefreshWindowNormalizesEndNotEarlierThanStart() {
+        let window = WidgetAutoRefreshWindow(startMinutes: 18 * 60, endMinutes: 9 * 60)
+
+        XCTAssertEqual(window.startMinutes, 18 * 60)
+        XCTAssertEqual(window.endMinutes, 18 * 60)
+    }
+
+    func testWidgetAutoRefreshWindowRoundsStoredMinutesDownToWholeHour() {
+        defaults.set(9 * 60 + 45, forKey: SettingsKeys.widgetAutoRefreshStartMinutes)
+        defaults.set(18 * 60 + 59, forKey: SettingsKeys.widgetAutoRefreshEndMinutes)
+
+        let reader = WidgetSettingsReader(defaults: defaults)
+
+        XCTAssertEqual(reader.widgetAutoRefreshStartMinutes(), 9 * 60)
+        XCTAssertEqual(reader.widgetAutoRefreshEndMinutes(), 18 * 60)
+    }
+
+    func testWidgetAutoRefreshScheduleGeneratesExpectedDailyDates() throws {
+        let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let calendar = makeCalendar(timeZone: timeZone)
+        let schedule = try XCTUnwrap(
+            WidgetAutoRefreshSchedule(
+                interval: .threeHours,
+                startMinutes: 9 * 60,
+                endMinutes: 18 * 60,
+                calendar: calendar,
+                timeZone: timeZone
+            )
+        )
+
+        let refreshDates = schedule.refreshDates(forDayContaining: date(hour: 8, minute: 0, calendar: calendar))
+
+        XCTAssertEqual(
+            refreshDates.map { timeText(for: $0, calendar: calendar) },
+            ["09:00", "12:00", "15:00", "18:00"]
+        )
+    }
+
+    func testWidgetAutoRefreshScheduleKeepsOnlyStartWhenWindowIsShorterThanInterval() throws {
+        let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let calendar = makeCalendar(timeZone: timeZone)
+        let schedule = try XCTUnwrap(
+            WidgetAutoRefreshSchedule(
+                interval: .threeHours,
+                startMinutes: 10 * 60,
+                endMinutes: 11 * 60,
+                calendar: calendar,
+                timeZone: timeZone
+            )
+        )
+
+        let refreshDates = schedule.refreshDates(forDayContaining: date(hour: 9, minute: 0, calendar: calendar))
+
+        XCTAssertEqual(
+            refreshDates.map { timeText(for: $0, calendar: calendar) },
+            ["10:00"]
+        )
+    }
+
+    func testWidgetAutoRefreshScheduleReturnsNextDayStartAfterWindowEnds() throws {
+        let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let calendar = makeCalendar(timeZone: timeZone)
+        let schedule = try XCTUnwrap(
+            WidgetAutoRefreshSchedule(
+                interval: .threeHours,
+                startMinutes: 9 * 60,
+                endMinutes: 18 * 60,
+                calendar: calendar,
+                timeZone: timeZone
+            )
+        )
+
+        let nextRefreshDate = schedule.nextRefreshDate(after: date(hour: 19, minute: 0, calendar: calendar))
+
+        XCTAssertEqual(
+            timeText(for: try XCTUnwrap(nextRefreshDate), calendar: calendar),
+            "09:00"
+        )
+        XCTAssertFalse(
+            calendar.isDate(
+                date(hour: 19, minute: 0, calendar: calendar),
+                inSameDayAs: try XCTUnwrap(nextRefreshDate)
+            )
+        )
+    }
+
+    func testWidgetScheduledRefreshPolicyDoesNotRefreshWhenAutomaticRefreshIsOff() {
         let now = Date(timeIntervalSince1970: 30_000)
+        let resolution = WidgetScheduledRefreshPolicy.resolve(
+            state: nil,
+            scopeRawValue: WidgetMuseumScope.single(.met).rawValue,
+            schedule: nil,
+            now: now
+        )
+
+        XCTAssertFalse(resolution.shouldRefresh)
+        XCTAssertNil(resolution.scheduledAt)
+        XCTAssertNil(resolution.nextAutomaticRefreshAt)
+        XCTAssertNil(resolution.scheduleSignature)
+    }
+
+    func testWidgetScheduledRefreshPolicyRecomputesFutureSlotWhenScheduleChanges() throws {
+        let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let calendar = makeCalendar(timeZone: timeZone)
+        let now = date(hour: 10, minute: 30, calendar: calendar)
+        let oldSchedule = try XCTUnwrap(
+            WidgetAutoRefreshSchedule(
+                interval: .oneHour,
+                startMinutes: 9 * 60,
+                endMinutes: 18 * 60,
+                calendar: calendar,
+                timeZone: timeZone
+            )
+        )
+        let newSchedule = try XCTUnwrap(
+            WidgetAutoRefreshSchedule(
+                interval: .threeHours,
+                startMinutes: 9 * 60,
+                endMinutes: 18 * 60,
+                calendar: calendar,
+                timeZone: timeZone
+            )
+        )
         let state = makeWidgetState(
             scopeRawValue: WidgetMuseumScope.single(.met).rawValue,
             phase: .success,
-            lastUpdatedAt: now.addingTimeInterval(-WidgetRefreshInterval.twentyFourHours.timeInterval).timeIntervalSince1970
+            lastUpdatedAt: now.timeIntervalSince1970,
+            nextAutomaticRefreshAt: date(hour: 11, minute: 0, calendar: calendar).timeIntervalSince1970,
+            automaticRefreshScheduleSignature: oldSchedule.signature
         )
 
-        XCTAssertFalse(
-            WidgetScheduledRefreshPolicy.shouldRefresh(
-                state: nil,
-                scopeRawValue: WidgetMuseumScope.single(.met).rawValue,
-                interval: .off,
-                now: now
-            )
+        let resolution = WidgetScheduledRefreshPolicy.resolve(
+            state: state,
+            scopeRawValue: WidgetMuseumScope.single(.met).rawValue,
+            schedule: newSchedule,
+            now: now
         )
-        XCTAssertFalse(
-            WidgetScheduledRefreshPolicy.shouldRefresh(
-                state: state,
-                scopeRawValue: WidgetMuseumScope.single(.met).rawValue,
-                interval: .off,
-                now: now
-            )
-        )
-        XCTAssertNil(
-            WidgetScheduledRefreshPolicy.nextTimelineDate(
-                state: state,
-                scopeRawValue: WidgetMuseumScope.single(.met).rawValue,
-                interval: .off,
-                now: now
-            )
-        )
+
+        XCTAssertFalse(resolution.shouldRefresh)
+        XCTAssertNil(resolution.scheduledAt)
+        XCTAssertEqual(resolution.nextAutomaticRefreshAt, date(hour: 12, minute: 0, calendar: calendar))
+        XCTAssertEqual(resolution.scheduleSignature, newSchedule.signature)
     }
 
-    func testWidgetScheduledRefreshPolicyRefreshesMissingAndDueState() {
-        let now = Date(timeIntervalSince1970: 10_000)
-        let dueState = makeWidgetState(
+    func testWidgetScheduledRefreshPolicyRefreshesWhenDue() throws {
+        let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let calendar = makeCalendar(timeZone: timeZone)
+        let schedule = try XCTUnwrap(
+            WidgetAutoRefreshSchedule(
+                interval: .threeHours,
+                startMinutes: 9 * 60,
+                endMinutes: 18 * 60,
+                calendar: calendar,
+                timeZone: timeZone
+            )
+        )
+        let scheduledAt = date(hour: 12, minute: 0, calendar: calendar)
+        let state = makeWidgetState(
             scopeRawValue: WidgetMuseumScope.single(.met).rawValue,
             phase: .success,
-            lastUpdatedAt: now.addingTimeInterval(-(WidgetRefreshInterval.threeHours.timeInterval + 1)).timeIntervalSince1970
+            lastUpdatedAt: scheduledAt.timeIntervalSince1970,
+            nextAutomaticRefreshAt: scheduledAt.timeIntervalSince1970,
+            automaticRefreshScheduleSignature: schedule.signature
         )
 
-        XCTAssertTrue(
-            WidgetScheduledRefreshPolicy.shouldRefresh(
-                state: nil,
-                scopeRawValue: WidgetMuseumScope.single(.met).rawValue,
-                interval: .threeHours,
-                now: now
-            )
+        let resolution = WidgetScheduledRefreshPolicy.resolve(
+            state: state,
+            scopeRawValue: WidgetMuseumScope.single(.met).rawValue,
+            schedule: schedule,
+            now: scheduledAt
         )
-        XCTAssertTrue(
-            WidgetScheduledRefreshPolicy.shouldRefresh(
-                state: dueState,
-                scopeRawValue: WidgetMuseumScope.single(.met).rawValue,
-                interval: .threeHours,
-                now: now
-            )
-        )
+
+        XCTAssertTrue(resolution.shouldRefresh)
+        XCTAssertEqual(resolution.scheduledAt, scheduledAt)
+        XCTAssertEqual(resolution.nextAutomaticRefreshAt, date(hour: 15, minute: 0, calendar: calendar))
     }
 
-    func testWidgetScheduledRefreshPolicyDoesNotRefreshBeforeInterval() {
-        let now = Date(timeIntervalSince1970: 20_000)
+    func testWidgetScheduledRefreshPolicyKeepsFutureSlotBeforeItIsDue() throws {
+        let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let calendar = makeCalendar(timeZone: timeZone)
+        let schedule = try XCTUnwrap(
+            WidgetAutoRefreshSchedule(
+                interval: .sixHours,
+                startMinutes: 8 * 60,
+                endMinutes: 20 * 60,
+                calendar: calendar,
+                timeZone: timeZone
+            )
+        )
+        let nextAutomaticRefreshAt = date(hour: 14, minute: 0, calendar: calendar)
         let state = makeWidgetState(
             scopeRawValue: WidgetMuseumScope.single(.tnm).rawValue,
             phase: .success,
-            lastUpdatedAt: now.addingTimeInterval(-(WidgetRefreshInterval.sixHours.timeInterval - 60)).timeIntervalSince1970
+            lastUpdatedAt: date(hour: 8, minute: 0, calendar: calendar).timeIntervalSince1970,
+            nextAutomaticRefreshAt: nextAutomaticRefreshAt.timeIntervalSince1970,
+            automaticRefreshScheduleSignature: schedule.signature
         )
 
-        XCTAssertFalse(
-            WidgetScheduledRefreshPolicy.shouldRefresh(
-                state: state,
-                scopeRawValue: WidgetMuseumScope.single(.tnm).rawValue,
-                interval: .sixHours,
-                now: now
-            )
+        let resolution = WidgetScheduledRefreshPolicy.resolve(
+            state: state,
+            scopeRawValue: WidgetMuseumScope.single(.tnm).rawValue,
+            schedule: schedule,
+            now: date(hour: 13, minute: 59, calendar: calendar)
         )
+
+        XCTAssertFalse(resolution.shouldRefresh)
+        XCTAssertNil(resolution.scheduledAt)
+        XCTAssertEqual(resolution.nextAutomaticRefreshAt, nextAutomaticRefreshAt)
     }
 
     func testWidgetRefreshGroupKeyUsesScopeOnly() {
@@ -845,7 +994,9 @@ final class WidgetStateAndSettingsTests: XCTestCase {
     private func makeWidgetState(
         scopeRawValue: String,
         phase: WidgetRefreshPhase,
-        lastUpdatedAt: TimeInterval
+        lastUpdatedAt: TimeInterval,
+        nextAutomaticRefreshAt: TimeInterval? = nil,
+        automaticRefreshScheduleSignature: String? = nil
     ) -> WidgetArtworkSnapshotStore.InstanceState {
         WidgetArtworkSnapshotStore.InstanceState(
             instanceToken: scopeRawValue,
@@ -865,8 +1016,34 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             ),
             displayedArtworkKeys: [],
             failureMessage: nil,
-            lastUpdatedAt: lastUpdatedAt
+            lastUpdatedAt: lastUpdatedAt,
+            nextAutomaticRefreshAt: nextAutomaticRefreshAt,
+            automaticRefreshScheduleSignature: automaticRefreshScheduleSignature
         )
+    }
+
+    private func makeCalendar(timeZone: TimeZone) -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        return calendar
+    }
+
+    private func date(hour: Int, minute: Int, calendar: Calendar) -> Date {
+        let components = DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 4,
+            day: 24,
+            hour: hour,
+            minute: minute
+        )
+        return calendar.date(from: components) ?? .distantPast
+    }
+
+    private func timeText(for date: Date, calendar: Calendar) -> String {
+        let components = calendar.dateComponents([.hour, .minute], from: date)
+        return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
     }
 }
 

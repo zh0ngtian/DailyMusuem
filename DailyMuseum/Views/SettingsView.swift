@@ -2,20 +2,68 @@ import SwiftUI
 
 struct SettingsView: View {
     @StateObject private var settings = SettingsStore.shared
+    @State private var presentedTimeField: SettingsTimeField?
 
     var body: some View {
         Form {
             Section {
-                Picker("定时刷新", selection: widgetRefreshIntervalBinding) {
+                Picker("自动刷新", selection: widgetRefreshIntervalBinding) {
                     ForEach(WidgetRefreshInterval.allCases) { interval in
                         Text(interval.displayName).tag(interval)
                     }
                 }
+
+                TimeSelectionRow(
+                    "开始时间",
+                    value: WidgetAutoRefreshWindow.displayText(for: settings.widgetAutoRefreshStartMinutes)
+                ) {
+                    presentedTimeField = .start
+                }
+
+                TimeSelectionRow(
+                    "结束时间",
+                    value: WidgetAutoRefreshWindow.displayText(for: settings.widgetAutoRefreshEndMinutes)
+                ) {
+                    presentedTimeField = .end
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    if settings.widgetRefreshInterval.isEnabled {
+                        Text("今日自动刷新时间")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                        if todayAutomaticRefreshTimes.isEmpty {
+                            Text("今日无自动刷新时间")
+                                .font(.subheadline)
+                        } else {
+                            LazyVGrid(columns: refreshTimeGridColumns, alignment: .leading, spacing: 10) {
+                                ForEach(todayAutomaticRefreshTimes, id: \.self) { refreshTime in
+                                    Text(refreshTime)
+                                        .font(scheduleTimeFont)
+                                        .foregroundStyle(.primary)
+                                        .frame(maxWidth: .infinity, alignment: .center)
+                                }
+                            }
+                        }
+                    } else {
+                        Text("当前已关闭自动刷新")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 4)
             } header: {
                 Text("小组件")
             }
         }
         .navigationTitle("设置")
+        .sheet(item: $presentedTimeField) { field in
+            TimeSelectionSheet(
+                title: field.title,
+                selection: timeBinding(for: field)
+            )
+        }
     }
 
     private var widgetRefreshIntervalBinding: Binding<WidgetRefreshInterval> {
@@ -25,4 +73,145 @@ struct SettingsView: View {
             settings.saveWidgetRefreshInterval(interval)
         }
     }
+
+    private var widgetAutoRefreshStartMinutesBinding: Binding<Int> {
+        Binding {
+            settings.widgetAutoRefreshStartMinutes
+        } set: { minutes in
+            settings.saveWidgetAutoRefreshStartMinutes(minutes)
+        }
+    }
+
+    private var widgetAutoRefreshEndMinutesBinding: Binding<Int> {
+        Binding {
+            settings.widgetAutoRefreshEndMinutes
+        } set: { minutes in
+            settings.saveWidgetAutoRefreshEndMinutes(minutes)
+        }
+    }
+
+    private func timeBinding(for field: SettingsTimeField) -> Binding<Int> {
+        switch field {
+        case .start:
+            return widgetAutoRefreshStartMinutesBinding
+        case .end:
+            return widgetAutoRefreshEndMinutesBinding
+        }
+    }
+
+    private var todayAutomaticRefreshTimes: [String] {
+        guard let schedule = WidgetAutoRefreshSchedule(
+            interval: settings.widgetRefreshInterval,
+            startMinutes: settings.widgetAutoRefreshStartMinutes,
+            endMinutes: settings.widgetAutoRefreshEndMinutes
+        ) else {
+            return []
+        }
+
+        return schedule.refreshDates(forDayContaining: .now).map(displayTime)
+    }
+
+    private var refreshTimeGridColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(minimum: 0), spacing: 10), count: 4)
+    }
+
+    private var scheduleTimeFont: Font {
+        .system(size: 15, weight: .regular, design: .monospaced)
+    }
+}
+
+private enum SettingsTimeField: String, Identifiable {
+    case start
+    case end
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .start:
+            return "开始时间"
+        case .end:
+            return "结束时间"
+        }
+    }
+}
+
+private struct TimeSelectionRow: View {
+    let title: String
+    let value: String
+    let action: () -> Void
+
+    init(_ title: String, value: String, action: @escaping () -> Void) {
+        self.title = title
+        self.value = value
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Text(title)
+                    .foregroundStyle(.primary)
+
+                Spacer(minLength: 12)
+
+                Text(value)
+                    .foregroundStyle(.secondary)
+
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct TimeSelectionSheet: View {
+    let title: String
+    @Binding var selection: Int
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                Picker(
+                    title,
+                    selection: $selection
+                ) {
+                    ForEach(WidgetAutoRefreshWindow.selectableMinutes, id: \.self) { minutes in
+                        Text(WidgetAutoRefreshWindow.displayText(for: minutes))
+                            .tag(minutes)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+                .frame(height: 216)
+                .padding(.top, 8)
+                .padding(.horizontal, 12)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(Color(uiColor: .systemBackground))
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("完成") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .presentationDetents([.height(320)])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(Color(uiColor: .systemBackground))
+    }
+}
+
+private func displayTime(_ date: Date) -> String {
+    let components = Calendar.autoupdatingCurrent.dateComponents([.hour, .minute], from: date)
+    return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
 }

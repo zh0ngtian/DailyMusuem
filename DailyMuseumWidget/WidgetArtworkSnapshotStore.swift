@@ -62,6 +62,8 @@ actor WidgetArtworkSnapshotStore {
         var displayedArtworkKeys: [String]
         var failureMessage: String?
         var lastUpdatedAt: TimeInterval
+        var nextAutomaticRefreshAt: TimeInterval?
+        var automaticRefreshScheduleSignature: String?
 
         private enum CodingKeys: String, CodingKey {
             case instanceToken
@@ -73,6 +75,8 @@ actor WidgetArtworkSnapshotStore {
             case displayedArtworkKeys
             case failureMessage
             case lastUpdatedAt
+            case nextAutomaticRefreshAt
+            case automaticRefreshScheduleSignature
         }
 
         init(
@@ -84,7 +88,9 @@ actor WidgetArtworkSnapshotStore {
             artwork: ArtworkPayload?,
             displayedArtworkKeys: [String],
             failureMessage: String?,
-            lastUpdatedAt: TimeInterval
+            lastUpdatedAt: TimeInterval,
+            nextAutomaticRefreshAt: TimeInterval? = nil,
+            automaticRefreshScheduleSignature: String? = nil
         ) {
             self.instanceToken = instanceToken
             self.scopeRawValue = scopeRawValue
@@ -95,6 +101,8 @@ actor WidgetArtworkSnapshotStore {
             self.displayedArtworkKeys = displayedArtworkKeys
             self.failureMessage = failureMessage
             self.lastUpdatedAt = lastUpdatedAt
+            self.nextAutomaticRefreshAt = nextAutomaticRefreshAt
+            self.automaticRefreshScheduleSignature = automaticRefreshScheduleSignature
         }
 
         init(from decoder: Decoder) throws {
@@ -108,6 +116,11 @@ actor WidgetArtworkSnapshotStore {
             displayedArtworkKeys = try container.decodeIfPresent([String].self, forKey: .displayedArtworkKeys) ?? []
             failureMessage = try container.decodeIfPresent(String.self, forKey: .failureMessage)
             lastUpdatedAt = try container.decode(TimeInterval.self, forKey: .lastUpdatedAt)
+            nextAutomaticRefreshAt = try container.decodeIfPresent(TimeInterval.self, forKey: .nextAutomaticRefreshAt)
+            automaticRefreshScheduleSignature = try container.decodeIfPresent(
+                String.self,
+                forKey: .automaticRefreshScheduleSignature
+            )
         }
     }
 
@@ -171,6 +184,65 @@ actor WidgetArtworkSnapshotStore {
 
     func state(for instanceToken: String) -> InstanceState? {
         return loadInstances()[instanceToken]
+    }
+
+    func resolveAutomaticRefresh(
+        for instanceToken: String,
+        scopeRawValue: String,
+        familyToken: String? = nil,
+        schedule: WidgetAutoRefreshSchedule?,
+        now: Date = .now
+    ) -> WidgetScheduledRefreshPolicy.Resolution {
+        var instances = loadInstances()
+        let previousImageFileName = instances[instanceToken]?.artwork?.imageFileName
+        var didChangeState = false
+        var state = instances[instanceToken] ?? makeInitialState(
+            instanceToken: instanceToken,
+            scopeRawValue: scopeRawValue,
+            familyToken: familyToken,
+            now: now
+        )
+
+        if instances[instanceToken] == nil {
+            didChangeState = true
+        } else if state.scopeRawValue != scopeRawValue {
+            state = resetStateForScopeChange(
+                state,
+                scopeRawValue: scopeRawValue,
+                familyToken: familyToken,
+                now: now
+            )
+            didChangeState = true
+        } else if let familyToken,
+                  state.familyToken != familyToken {
+            state.familyToken = familyToken
+            state.lastUpdatedAt = now.timeIntervalSince1970
+            didChangeState = true
+        }
+
+        let resolution = WidgetScheduledRefreshPolicy.resolve(
+            state: state,
+            scopeRawValue: scopeRawValue,
+            schedule: schedule,
+            now: now
+        )
+        let nextAutomaticRefreshTimestamp = resolution.nextAutomaticRefreshAt?.timeIntervalSince1970
+        if state.nextAutomaticRefreshAt != nextAutomaticRefreshTimestamp ||
+            state.automaticRefreshScheduleSignature != resolution.scheduleSignature {
+            state.nextAutomaticRefreshAt = nextAutomaticRefreshTimestamp
+            state.automaticRefreshScheduleSignature = resolution.scheduleSignature
+            didChangeState = true
+        }
+
+        if didChangeState {
+            instances[instanceToken] = state
+            persist(instances)
+            if previousImageFileName != state.artwork?.imageFileName {
+                deleteImageFile(named: previousImageFileName)
+            }
+        }
+
+        return resolution
     }
 
     func renderState(
@@ -400,7 +472,9 @@ actor WidgetArtworkSnapshotStore {
             artwork: nil,
             displayedArtworkKeys: [],
             failureMessage: nil,
-            lastUpdatedAt: now.timeIntervalSince1970
+            lastUpdatedAt: now.timeIntervalSince1970,
+            nextAutomaticRefreshAt: nil,
+            automaticRefreshScheduleSignature: nil
         )
     }
 
@@ -419,7 +493,9 @@ actor WidgetArtworkSnapshotStore {
             artwork: nil,
             displayedArtworkKeys: [],
             failureMessage: nil,
-            lastUpdatedAt: now.timeIntervalSince1970
+            lastUpdatedAt: now.timeIntervalSince1970,
+            nextAutomaticRefreshAt: nil,
+            automaticRefreshScheduleSignature: nil
         )
     }
 
@@ -464,6 +540,11 @@ actor WidgetArtworkSnapshotStore {
         merged.displayedArtworkKeys = mergedDisplayedArtworkKeys(from: orderedStates)
         merged.failureMessage = primary.failureMessage ?? fallback.failureMessage
         merged.lastUpdatedAt = max(lhs.lastUpdatedAt, rhs.lastUpdatedAt)
+        let latestScheduleState = [lhs, rhs]
+            .sorted { $0.lastUpdatedAt > $1.lastUpdatedAt }
+            .first { $0.nextAutomaticRefreshAt != nil || $0.automaticRefreshScheduleSignature != nil }
+        merged.nextAutomaticRefreshAt = latestScheduleState?.nextAutomaticRefreshAt
+        merged.automaticRefreshScheduleSignature = latestScheduleState?.automaticRefreshScheduleSignature
         return merged
     }
 

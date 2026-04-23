@@ -97,7 +97,7 @@ struct DailyMuseumWidget: Widget {
             DailyMuseumWidgetView(entry: entry)
         }
         .configurationDisplayName("DailyMuseum")
-        .description("定时或手动刷新展示一件展品")
+        .description("自动或手动刷新展示一件展品")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
         .contentMarginsDisabled()
     }
@@ -139,21 +139,25 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
     ) async -> Timeline<WidgetArtworkEntry> {
         let scope = scope(for: configuration)
         let refreshKey = WidgetRefreshGroupKey.make(scope: scope, family: context.family)
-        let interval = settingsReader.widgetRefreshInterval()
         let store = WidgetArtworkSnapshotStore.shared
         let now = Date()
-
-        if WidgetScheduledRefreshPolicy.shouldRefresh(
-            state: await store.state(for: refreshKey),
+        let schedule = settingsReader.widgetAutoRefreshSchedule()
+        let automaticRefreshResolution = await store.resolveAutomaticRefresh(
+            for: refreshKey,
             scopeRawValue: scope.rawValue,
-            interval: interval,
+            familyToken: context.family.debugToken,
+            schedule: schedule,
             now: now
-        ) {
+        )
+
+        if automaticRefreshResolution.shouldRefresh,
+           let scheduledAt = automaticRefreshResolution.scheduledAt {
             await WidgetRefreshCoordinator.shared.refresh(
                 refreshKey: refreshKey,
                 scope: scope,
                 familyToken: context.family.debugToken,
-                logSource: "Widget 定时刷新",
+                trigger: .automatic(scheduledAt: scheduledAt),
+                logSource: "Widget 自动刷新",
                 reloadTimelines: false
             )
         }
@@ -164,12 +168,7 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
             date: entryDate,
             family: context.family
         )
-        if let nextRefreshDate = WidgetScheduledRefreshPolicy.nextTimelineDate(
-            state: await store.state(for: refreshKey),
-            scopeRawValue: scope.rawValue,
-            interval: interval,
-            now: entryDate
-        ) {
+        if let nextRefreshDate = automaticRefreshResolution.nextAutomaticRefreshAt {
             return Timeline(entries: [entry], policy: .after(nextRefreshDate))
         }
         return Timeline(entries: [entry], policy: .never)
