@@ -52,6 +52,21 @@ enum WidgetDisplayedArtworkKey {
     }
 }
 
+enum WidgetRefreshTrigger: Equatable, Sendable {
+    case manual
+    case automatic(scheduledAt: Date)
+
+    var logSummary: String {
+        switch self {
+        case .manual:
+            return "开始手动刷新"
+        case .automatic(let scheduledAt):
+            let minutes = WidgetAutoRefreshWindow.minutesSinceStartOfDay(for: scheduledAt)
+            return "开始自动刷新，计划时间 \(WidgetAutoRefreshWindow.displayText(for: minutes))"
+        }
+    }
+}
+
 actor WidgetRefreshCoordinator {
     static let shared = WidgetRefreshCoordinator()
 
@@ -74,6 +89,7 @@ actor WidgetRefreshCoordinator {
         refreshKey: String,
         scope: WidgetMuseumScope,
         familyToken: String? = nil,
+        trigger: WidgetRefreshTrigger = .manual,
         logSource: String = "Widget 刷新",
         reloadTimelines: Bool = true
     ) async {
@@ -83,6 +99,12 @@ actor WidgetRefreshCoordinator {
             familyToken: familyToken
         )
         let nonce = state.nonce
+
+        await RequestLogger.shared.logEvent(
+            source: logSource,
+            summary: trigger.logSummary,
+            instanceToken: refreshKey
+        )
 
         if let activeRefresh = activeRefreshes[refreshKey] {
             activeRefresh.task.cancel()

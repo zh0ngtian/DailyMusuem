@@ -8,11 +8,16 @@ final class SettingsStore: ObservableObject {
 
     private let defaults: UserDefaults
     @Published private(set) var widgetRefreshInterval: WidgetRefreshInterval
+    @Published private(set) var widgetAutoRefreshStartMinutes: Int
+    @Published private(set) var widgetAutoRefreshEndMinutes: Int
 
     private init() {
         let resolvedDefaults = UserDefaults(suiteName: SettingsKeys.appGroupID) ?? .standard
         defaults = resolvedDefaults
         widgetRefreshInterval = WidgetRefreshInterval.storedValue(in: resolvedDefaults)
+        let autoRefreshWindow = WidgetAutoRefreshWindow.storedValue(in: resolvedDefaults)
+        widgetAutoRefreshStartMinutes = autoRefreshWindow.startMinutes
+        widgetAutoRefreshEndMinutes = autoRefreshWindow.endMinutes
     }
 
     func requestWidgetReload(invalidateContent: Bool = false) {
@@ -33,6 +38,32 @@ final class SettingsStore: ObservableObject {
     func saveWidgetRefreshInterval(_ interval: WidgetRefreshInterval) {
         widgetRefreshInterval = interval
         defaults.set(interval.rawValue, forKey: SettingsKeys.widgetRefreshIntervalHours)
+        requestWidgetReload()
+    }
+
+    func saveWidgetAutoRefreshStartMinutes(_ minutes: Int) {
+        saveWidgetAutoRefreshWindow(
+            startMinutes: minutes,
+            endMinutes: widgetAutoRefreshEndMinutes
+        )
+    }
+
+    func saveWidgetAutoRefreshEndMinutes(_ minutes: Int) {
+        saveWidgetAutoRefreshWindow(
+            startMinutes: widgetAutoRefreshStartMinutes,
+            endMinutes: minutes
+        )
+    }
+
+    private func saveWidgetAutoRefreshWindow(startMinutes: Int, endMinutes: Int) {
+        let normalizedWindow = WidgetAutoRefreshWindow(
+            startMinutes: startMinutes,
+            endMinutes: endMinutes
+        )
+        widgetAutoRefreshStartMinutes = normalizedWindow.startMinutes
+        widgetAutoRefreshEndMinutes = normalizedWindow.endMinutes
+        defaults.set(normalizedWindow.startMinutes, forKey: SettingsKeys.widgetAutoRefreshStartMinutes)
+        defaults.set(normalizedWindow.endMinutes, forKey: SettingsKeys.widgetAutoRefreshEndMinutes)
         requestWidgetReload()
     }
 
