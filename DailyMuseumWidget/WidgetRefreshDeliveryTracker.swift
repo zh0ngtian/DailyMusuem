@@ -401,7 +401,14 @@ struct WidgetRefreshEngine {
         self.settingsReader = settingsReader
         self.snapshotStore = snapshotStore
         self.loaderFactory = loaderFactory ?? { museumID, categories, onLog in
-            ArtworkBatchLoader(
+            if museumID == .nmc {
+                return NationalMuseumChinaWidgetCandidateLoader(
+                    categories: categories,
+                    randomIndex: randomIndex,
+                    onLog: onLog
+                )
+            }
+            return ArtworkBatchLoader(
                 museumID: museumID,
                 categories: categories,
                 randomOrder: true,

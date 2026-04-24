@@ -21,6 +21,28 @@ final class NationalMuseumChinaAPI {
         self.session = session
     }
 
+    func exhibitIDPage(
+        categoryID: Int? = nil,
+        categoryDisplayName: String = "全部",
+        page: Int,
+        limit: Int
+    ) async throws -> NationalMuseumChinaExhibitIDPage {
+        let effectiveCategoryID = categoryID ?? 0
+        let response = try await fetchExhibitListPage(
+            categoryID: effectiveCategoryID,
+            page: max(1, page),
+            limit: max(1, limit)
+        )
+        let pageIDs = response.data.list.map(\.exhibitID)
+        return NationalMuseumChinaExhibitIDPage(
+            categoryID: effectiveCategoryID,
+            categoryDisplayName: categoryDisplayName,
+            page: response.data.page,
+            pageCount: max(1, response.data.pageCount),
+            ids: Self.stableUniqueInts(pageIDs)
+        )
+    }
+
     func allExhibitIDs(
         categoryID: Int? = nil,
         categoryDisplayName: String = "全部",
@@ -402,6 +424,14 @@ enum NationalMuseumChinaExhibitPageParser {
             return String(text[captureRange])
         }
     }
+}
+
+struct NationalMuseumChinaExhibitIDPage: Equatable, Sendable {
+    let categoryID: Int
+    let categoryDisplayName: String
+    let page: Int
+    let pageCount: Int
+    let ids: [Int]
 }
 
 private struct NationalMuseumChinaExhibitListResponse: Decodable {

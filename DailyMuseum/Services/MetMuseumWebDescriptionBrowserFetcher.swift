@@ -55,8 +55,6 @@ private final class MetMuseumBrowserPageFetch: NSObject, WKNavigationDelegate {
 
     deinit {
         pollTask?.cancel()
-        webView.navigationDelegate = nil
-        webView.stopLoading()
     }
 
     func start() async -> String? {
@@ -113,8 +111,14 @@ private final class MetMuseumBrowserPageFetch: NSObject, WKNavigationDelegate {
         }
 
         self.continuation = nil
+        stopPageLoading()
         pollTask?.cancel()
         pollTask = nil
         continuation.resume(returning: description)
+    }
+
+    private func stopPageLoading() {
+        webView.navigationDelegate = nil
+        webView.stopLoading()
     }
 }
