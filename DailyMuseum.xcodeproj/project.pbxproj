@@ -18,6 +18,7 @@
 		0C29EBB7118BA7DA8620B6F1 /* ArtworkCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3069A0CBA34322E131468A6 /* ArtworkCardView.swift */; };
 		10425B44D3DC479F9D20FE9C /* MetMuseumModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63E587269ECC706F1F22C266 /* MetMuseumModels.swift */; };
 		10BFA44C9A4240C5EBF57018 /* SettingsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD5690663479FBDA165A96B /* SettingsKeys.swift */; };
+		143394D49730B9AAE5B9C68B /* MetMuseumWebDescriptionBrowserFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75205576B729AEB95D7A1CC9 /* MetMuseumWebDescriptionBrowserFetcher.swift */; };
 		14B082D6FFDB65D6DA0F9EB7 /* WidgetStateAndSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E85039D52D33451509A0868 /* WidgetStateAndSettingsTests.swift */; };
 		164B18A892946803105F93B3 /* nmc-detail.html in Resources */ = {isa = PBXBuildFile; fileRef = BD550F604C3CC2B156729689 /* nmc-detail.html */; };
 		19972E0AC511408E6B230C44 /* ArtworkFeedCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EC70DA2766D6FFD98283BC4 /* ArtworkFeedCache.swift */; };
@@ -186,6 +187,7 @@
 		677E368A7DD1F542B480E2C3 /* DailyMuseumWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DailyMuseumWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		6B261DB738D9FD5711A2D6ED /* MuseumRequestCachePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuseumRequestCachePolicy.swift; sourceTree = "<group>"; };
 		71CBDD45FB2452D4E907C758 /* ArtworkFeedItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkFeedItem.swift; sourceTree = "<group>"; };
+		75205576B729AEB95D7A1CC9 /* MetMuseumWebDescriptionBrowserFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetMuseumWebDescriptionBrowserFetcher.swift; sourceTree = "<group>"; };
 		785DF258A9365EE2171A1EDA /* WidgetMuseumScope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetMuseumScope.swift; sourceTree = "<group>"; };
 		7BFE471F94A682558E6A71A9 /* AppShortcutHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShortcutHandler.swift; sourceTree = "<group>"; };
 		7C479641DC62C47615D086EE /* WidgetArtworkSnapshotStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetArtworkSnapshotStore.swift; sourceTree = "<group>"; };
@@ -225,6 +227,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
+		04D1FBA108E4C0291F4C9AC4 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				75205576B729AEB95D7A1CC9 /* MetMuseumWebDescriptionBrowserFetcher.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
 		0F8ACE05F507B92A0E80653D /* JapanSearch */ = {
 			isa = PBXGroup;
 			children = (
@@ -294,6 +304,7 @@
 				FABED403F7CD2A9A4E6D1FEB /* LaunchScreen.storyboard */,
 				8EEE448C8964D21F694014F7 /* RootView.swift */,
 				966F79E2EE781E007C0663DE /* WidgetManualRefreshSupport.swift */,
+				04D1FBA108E4C0291F4C9AC4 /* Services */,
 				96410B48990ECD7B7D8727C1 /* Views */,
 			);
 			path = DailyMuseum;
@@ -653,6 +664,7 @@
 				F5399D305E02913A1EC5AB10 /* MetMuseumAPI.swift in Sources */,
 				10425B44D3DC479F9D20FE9C /* MetMuseumModels.swift in Sources */,
 				359187C2F581E0B49E2DFE3F /* MetMuseumPersistentCache.swift in Sources */,
+				143394D49730B9AAE5B9C68B /* MetMuseumWebDescriptionBrowserFetcher.swift in Sources */,
 				752579CACD31E606674EED80 /* Museum.swift in Sources */,
 				048A14DA9BBF5DC796231307 /* MuseumListView.swift in Sources */,
 				3CEB39B09A6657F163706A4B /* MuseumRequestCachePolicy.swift in Sources */,

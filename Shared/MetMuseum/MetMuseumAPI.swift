@@ -204,7 +204,7 @@ final class MetMuseumAPI {
         }
     }
 
-    private static func webDescriptionCandidateURLs(from objectURL: URL) -> [URL] {
+    static func webDescriptionCandidateURLs(from objectURL: URL) -> [URL] {
         guard var components = URLComponents(url: objectURL, resolvingAgainstBaseURL: false) else {
             return [objectURL]
         }
@@ -237,12 +237,13 @@ final class MetMuseumAPI {
 
     static func extractWebDescription(from html: String) -> String? {
         let renderedHTML = renderedObjectHTML(from: html)
-        if let labelHTML = extractElementHTML(
-            from: renderedHTML,
-            marker: "class=\"object-overview-module-scss-module__bIfq1G__label\""
-        ) {
+        if let labelHTML = extractObjectOverviewHTML(from: renderedHTML) {
             let cleaned = sanitizeHTMLFragment(labelHTML)
             return cleaned.isEmpty ? nil : cleaned
+        }
+
+        if let leadDescription = extractObjectLeadDescription(from: renderedHTML) {
+            return leadDescription
         }
 
         let patterns = [
@@ -269,6 +270,47 @@ final class MetMuseumAPI {
 
         return nil
     }
+
+    private static func extractObjectLeadDescription(from html: String) -> String? {
+        let afterTitle = html.range(of: "</h1>", options: [.caseInsensitive])?.upperBound ?? html.startIndex
+        let content = html[afterTitle...]
+
+        let endMarkers = [
+            "Artwork Details",
+            "<h2"
+        ]
+        let endIndex = endMarkers
+            .compactMap { content.range(of: $0, options: [.caseInsensitive])?.lowerBound }
+            .min() ?? content.endIndex
+
+        let leadHTML = String(content[..<endIndex])
+        let lines = sanitizeHTMLFragment(leadHTML)
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        return lines.first { line in
+            line.count >= 80
+                && line.range(of: #"[.!?。！？]"#, options: .regularExpression) != nil
+                && !line.localizedCaseInsensitiveContains("Image:")
+        }
+    }
+
+    private static func extractObjectOverviewHTML(from html: String) -> String? {
+        let openingTagPatterns = [
+            #"<div\b[^>]*class\s*=\s*["'][^"']*object-overview-module-scss-module__[^"']*__label[^"']*["'][^>]*>"#,
+            #"<div\b[^>]*class\s*=\s*["'][^"']*object-overview[^"']*label[^"']*["'][^>]*>"#
+        ]
+
+        for pattern in openingTagPatterns {
+            if let html = extractElementHTML(from: html, openingTagPattern: pattern) {
+                return html
+            }
+        }
+
+        return nil
+    }
+
     private static func renderedObjectHTML(from html: String) -> String {
         let bodyStart = html.range(of: "<body", options: [.caseInsensitive])?.lowerBound ?? html.startIndex
         let beforeFlightScripts = html.range(of: "(self.__next_f=self.__next_f||[]).push([0])")?.lowerBound
@@ -294,6 +336,16 @@ final class MetMuseumAPI {
             .replacingOccurrences(
                 of: "(?i)</p\\s*>",
                 with: "\n\n",
+                options: .regularExpression
+            )
+            .replacingOccurrences(
+                of: "(?i)</h[1-6]\\s*>",
+                with: "\n",
+                options: .regularExpression
+            )
+            .replacingOccurrences(
+                of: "(?i)</li\\s*>",
+                with: "\n",
                 options: .regularExpression
             )
             .replacingOccurrences(
@@ -329,6 +381,24 @@ final class MetMuseumAPI {
             return nil
         }
 
+        return extractElementHTML(from: html, start: start)
+    }
+
+    private static func extractElementHTML(from html: String, openingTagPattern: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: openingTagPattern, options: [.caseInsensitive]) else {
+            return nil
+        }
+
+        let range = NSRange(html.startIndex..<html.endIndex, in: html)
+        guard let match = regex.firstMatch(in: html, options: [], range: range),
+              let tagRange = Range(match.range, in: html) else {
+            return nil
+        }
+
+        return extractElementHTML(from: html, start: tagRange.lowerBound)
+    }
+
+    private static func extractElementHTML(from html: String, start: String.Index) -> String? {
         let source = html[start...]
         guard source.lowercased().hasPrefix("<div") else {
             return nil

@@ -28,6 +28,68 @@ final class ParsingAndAPITests: XCTestCase {
         )
     }
 
+    func testMetMuseumExtractWebDescriptionHandles318330OverviewWithChangedClassHash() throws {
+        let html = """
+        <html>
+        <body>
+        <main>
+          <h1>Crucifix with Saint Anthony of Padua</h1>
+          <div class="object-overview-module-scss-module__x8Q2kL__label">
+            <p>This cross has been assembled from distinct components. The cross itself is composed of two pieces of wood with the horizontal element fitted into a notch in the vertical one so that both sections lie flush. In addition, niches have been carved into the surface of the wood for the inclusion of metalwork embellishments. The cross culminates in a rounded knob and a small band of cross-hatch patterning is carved at the center of the horizontal beam.</p>
+            <p>The figure of a standing male, positioned in the niche at center, was originally a pendant that features a metal loop incorporated on the figure’s back. The loop has been employed to attach the figure to the wooden frame (see 1999.295.1 for a detached pendant). The figure wears the tonsure and triple-knotted belt of the Franciscan order and in his proper right hand he holds a cross. At his proper left side he supports a standing figure of Christ balanced on an open book and holding a bird.</p>
+            <p>These distinctive attributes are based on a European prototype for depictions of Saint Anthony of Padua, a patron saint of Italy and Portugal. From the late fifteenth century, when the Kongo leadership adopted Christianity, they employed such devotional objects to demonstrate their political and religious authority. Saint Anthony became popular in Kongo after Italian Capuchin missionaries spread his cult in the mid-seventeenth century.</p>
+          </div>
+          <section>
+            <h2>Provenance</h2>
+            <p>This section should not be used as the overview fallback.</p>
+          </section>
+        </main>
+        </body>
+        </html>
+        """
+
+        XCTAssertEqual(
+            MetMuseumAPI.extractWebDescription(from: html),
+            """
+            This cross has been assembled from distinct components. The cross itself is composed of two pieces of wood with the horizontal element fitted into a notch in the vertical one so that both sections lie flush. In addition, niches have been carved into the surface of the wood for the inclusion of metalwork embellishments. The cross culminates in a rounded knob and a small band of cross-hatch patterning is carved at the center of the horizontal beam.
+            The figure of a standing male, positioned in the niche at center, was originally a pendant that features a metal loop incorporated on the figure’s back. The loop has been employed to attach the figure to the wooden frame (see 1999.295.1 for a detached pendant). The figure wears the tonsure and triple-knotted belt of the Franciscan order and in his proper right hand he holds a cross. At his proper left side he supports a standing figure of Christ balanced on an open book and holding a bird.
+            These distinctive attributes are based on a European prototype for depictions of Saint Anthony of Padua, a patron saint of Italy and Portugal. From the late fifteenth century, when the Kongo leadership adopted Christianity, they employed such devotional objects to demonstrate their political and religious authority. Saint Anthony became popular in Kongo after Italian Capuchin missionaries spread his cult in the mid-seventeenth century.
+            """
+        )
+    }
+
+    func testMetMuseumExtractWebDescriptionHandles454054LeadBeforeArtworkDetails() throws {
+        let expectedDescription = "Scenes of courtly pleasure, garden settings, and longlegged female figures dressed in high-waisted, flowing angarkhas (tunics) typify paintings attributed to the northern Indian court of Farrukhabad, a cultural satellite of Lucknow. The present work depicts twelve courtly ladies and a child gathered around a fountain, set in a lush landscape with fantastic loop-necked swans and the pairs of animals found in many Indian paintings."
+        let html = """
+        <html>
+        <body>
+        <main>
+          <section class="collection-object-hero">
+            <h1>Princesses Gather at a Fountain</h1>
+            <div>ca. 1770</div>
+            <div>Not on view</div>
+            <section class="collection-object-lead">
+              <p>\(expectedDescription)</p>
+            </section>
+            <a href="/art/collection/search/454054">Image: Princesses Gather at a Fountain, Opaque watercolor and gold on paper</a>
+            <div>Public Domain</div>
+          </section>
+          <section>
+            <h2>Artwork Details</h2>
+            <p>Object Information</p>
+          </section>
+        </main>
+        </body>
+        </html>
+        """
+
+        let description = MetMuseumAPI.extractWebDescription(from: html)
+
+        XCTAssertEqual(description, expectedDescription)
+        XCTAssertFalse(description?.contains("Artwork Details") ?? true)
+        XCTAssertFalse(description?.contains("Image:") ?? true)
+    }
+
     func testMetMuseumFetchObjectWebDescriptionPrefersChinesePageWhenAvailable() async {
         let objectID = 39668
         let englishURL = URL(string: "https://www.metmuseum.org/art/collection/search/39668")!
@@ -113,6 +175,57 @@ final class ParsingAndAPITests: XCTestCase {
         )
 
         XCTAssertEqual(description, "English fallback overview")
+        XCTAssertEqual(recorder.urls, [chineseURL, englishURL])
+    }
+
+    func testMetMuseumFetchObjectWebDescriptionFallsBackToEnglishLeadWhenChinesePageHasNoDescription() async {
+        let objectID = 454054
+        let expectedDescription = "Scenes of courtly pleasure, garden settings, and longlegged female figures dressed in high-waisted, flowing angarkhas (tunics) typify paintings attributed to the northern Indian court of Farrukhabad, a cultural satellite of Lucknow. The present work depicts twelve courtly ladies and a child gathered around a fountain, set in a lush landscape with fantastic loop-necked swans and the pairs of animals found in many Indian paintings."
+        let englishURL = URL(string: "https://www.metmuseum.org/art/collection/search/454054")!
+        let chineseURL = URL(string: "https://www.metmuseum.org/zh/art/collection/search/454054")!
+        let recorder = RequestRecorder()
+        let session = makeStubSession(testID: UUID().uuidString) { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+            recorder.record(url)
+
+            if url == chineseURL {
+                let html = "<html><body><main><h1>无中文概述</h1></main></body></html>"
+                return StubbedResponse(
+                    response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data: Data(html.utf8)
+                )
+            }
+
+            if url == englishURL {
+                let html = """
+                <html><body><main>
+                <h1>Princesses Gather at a Fountain</h1>
+                <div>ca. 1770</div>
+                <div>Not on view</div>
+                <section>
+                  <p>\(expectedDescription)</p>
+                </section>
+                <h2>Artwork Details</h2>
+                </main></body></html>
+                """
+                return StubbedResponse(
+                    response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data: Data(html.utf8)
+                )
+            }
+
+            throw URLError(.badURL)
+        }
+        let api = MetMuseumAPI(session: session)
+
+        let description = await api.fetchObjectWebDescription(
+            objectID: objectID,
+            objectURL: englishURL
+        )
+
+        XCTAssertEqual(description, expectedDescription)
         XCTAssertEqual(recorder.urls, [chineseURL, englishURL])
     }
 
