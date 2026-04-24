@@ -66,14 +66,13 @@ struct DailyMuseumWidgetConfigurationIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "配置小组件"
     static var description = IntentDescription("为当前小组件选择展示范围；同范围的小组件会共享内容。")
 
-    @Parameter(title: "展示范围")
-    var museumScope: WidgetConfiguredMuseumScope?
+    @Parameter(title: "展示范围", default: .all)
+    var museumScope: WidgetConfiguredMuseumScope
 
     @Parameter(title: "实例标识")
     var instanceToken: String?
 
     init() {
-        museumScope = .all
         // Retain the legacy field so existing widget configurations continue to decode,
         // but content sharing now keys off scope instead of per-instance tokens.
         instanceToken = ""
@@ -246,7 +245,7 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
     }
 
     private func scope(for configuration: DailyMuseumWidgetConfigurationIntent) -> WidgetMuseumScope {
-        configuration.museumScope?.scope ?? .all
+        configuration.museumScope.scope
     }
 
 }
