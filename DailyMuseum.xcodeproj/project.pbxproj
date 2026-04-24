@@ -47,6 +47,7 @@
 		48ADEC2F139C0580ECCD8474 /* WidgetRefreshDeliveryTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30FEFFA3E3CD614C956FEA98 /* WidgetRefreshDeliveryTracker.swift */; };
 		4A52AADAA05E981E758DC0CB /* FavoritesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59C380E89F1FC0CACD45A21B /* FavoritesStore.swift */; };
 		4B2F819053D552D94899A3A0 /* FavoritesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59C380E89F1FC0CACD45A21B /* FavoritesStore.swift */; };
+		4CCF626A0EC4DE04A6970486 /* WidgetConfigurationIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ABE6EEDAB63E735DD709799 /* WidgetConfigurationIntent.swift */; };
 		4CDB8F310780177AFF08146B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D2E9FEFE6D6787330AAA0104 /* Assets.xcassets */; };
 		5601240D9836EF70D90487A0 /* ArtworkFeedViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27983725A26AC36A5EA28756 /* ArtworkFeedViewModel.swift */; };
 		5610487BA191F1B6C6E8AE02 /* WidgetSettingsReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFEC49CE4C55DCDEA5364224 /* WidgetSettingsReader.swift */; };
@@ -56,6 +57,7 @@
 		604D80758FBC9229EF6232A3 /* NationalMuseumChinaAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 197FEFC5FEC3B51DB5E4F537 /* NationalMuseumChinaAPI.swift */; };
 		613EB3DC359C2C75B6798013 /* JapanSearchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9000674963F093B5BC9FE7 /* JapanSearchModels.swift */; };
 		626A4F3FABA4F40BF4F5B669 /* RequestLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0773F3ED0D9C2C7D00381424 /* RequestLogger.swift */; };
+		68F05418F5EFFF72F3EB40A7 /* WidgetConfigurationIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ABE6EEDAB63E735DD709799 /* WidgetConfigurationIntent.swift */; };
 		6C7D299EDB5EEBF0D7E2492A /* NationalMuseumChinaAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 197FEFC5FEC3B51DB5E4F537 /* NationalMuseumChinaAPI.swift */; };
 		6DAE6E8652B53C8FAB50973F /* WidgetMuseumScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 785DF258A9365EE2171A1EDA /* WidgetMuseumScope.swift */; };
 		6E98875786462837438D5333 /* ImageMemoryCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFBFD7C33C4CE48C10423B05 /* ImageMemoryCache.swift */; };
@@ -77,6 +79,7 @@
 		9DA9630412EDAEFDE3EAC41E /* AppRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D49DEAE0ACDF038EE933986B /* AppRouter.swift */; };
 		A160B9CD7430EE891181FA94 /* met-overview.html in Resources */ = {isa = PBXBuildFile; fileRef = 15CC322130D2C36A4D586EC3 /* met-overview.html */; };
 		A38484C2185A31CF1C746E1F /* FavoritesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59C380E89F1FC0CACD45A21B /* FavoritesStore.swift */; };
+		A5994779E3359E86DD37A8BD /* WidgetConfigurationIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ABE6EEDAB63E735DD709799 /* WidgetConfigurationIntent.swift */; };
 		A9A3F24657BDD51957EA848B /* DailyMuseumWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41E30B7CB5F9A6C88D27C0C2 /* DailyMuseumWidgetView.swift */; };
 		A9EFC7883E19EBC1EF52F69D /* ArtworkDetailLoaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B2A7EA64F8C40563153939F /* ArtworkDetailLoaderView.swift */; };
 		AA13EE5D38DF6679999B07EF /* ArtworkFeedItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71CBDD45FB2452D4E907C758 /* ArtworkFeedItem.swift */; };
@@ -185,6 +188,7 @@
 		64A154303832F3F9AF23F141 /* WaterfallGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaterfallGrid.swift; sourceTree = "<group>"; };
 		66FE9D0B5E8CBC6277FA891B /* DailyMuseumApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyMuseumApp.swift; sourceTree = "<group>"; };
 		677E368A7DD1F542B480E2C3 /* DailyMuseumWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DailyMuseumWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		6ABE6EEDAB63E735DD709799 /* WidgetConfigurationIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetConfigurationIntent.swift; sourceTree = "<group>"; };
 		6B261DB738D9FD5711A2D6ED /* MuseumRequestCachePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuseumRequestCachePolicy.swift; sourceTree = "<group>"; };
 		71CBDD45FB2452D4E907C758 /* ArtworkFeedItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkFeedItem.swift; sourceTree = "<group>"; };
 		75205576B729AEB95D7A1CC9 /* MetMuseumWebDescriptionBrowserFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetMuseumWebDescriptionBrowserFetcher.swift; sourceTree = "<group>"; };
@@ -389,6 +393,7 @@
 				59C380E89F1FC0CACD45A21B /* FavoritesStore.swift */,
 				5BD5690663479FBDA165A96B /* SettingsKeys.swift */,
 				D567DE125D65B4BF7B005CEA /* SettingsStore.swift */,
+				6ABE6EEDAB63E735DD709799 /* WidgetConfigurationIntent.swift */,
 				785DF258A9365EE2171A1EDA /* WidgetMuseumScope.swift */,
 			);
 			path = Settings;
@@ -588,6 +593,7 @@
 				D222D68A2DF97D3D2721196A /* ShanghaiMuseumAPI.swift in Sources */,
 				AC9A30889523ECD67B0C6F2E /* WidgetArtworkSnapshotStore.swift in Sources */,
 				871AEAA835A3CAEF21587F92 /* WidgetArtworkSnapshotStoreTests.swift in Sources */,
+				4CCF626A0EC4DE04A6970486 /* WidgetConfigurationIntent.swift in Sources */,
 				6DAE6E8652B53C8FAB50973F /* WidgetMuseumScope.swift in Sources */,
 				48ADEC2F139C0580ECCD8474 /* WidgetRefreshDeliveryTracker.swift in Sources */,
 				85717FAD517234673788BBE6 /* WidgetSettingsReader.swift in Sources */,
@@ -628,6 +634,7 @@
 				B7533C6D8A41BD65DC1B91C7 /* ShanghaiMuseumAPI.swift in Sources */,
 				EDB9E6F8888D36C995A222B3 /* WidgetArtworkService.swift in Sources */,
 				E6F45083BBEDF96C8635C070 /* WidgetArtworkSnapshotStore.swift in Sources */,
+				A5994779E3359E86DD37A8BD /* WidgetConfigurationIntent.swift in Sources */,
 				3C76032D89CE9DB40E9A91B5 /* WidgetManualRefreshRunner.swift in Sources */,
 				BE339BFB1CB1E63EA1C63F84 /* WidgetMuseumScope.swift in Sources */,
 				C807F84E57178E093DE6064D /* WidgetRefreshDeliveryTracker.swift in Sources */,
@@ -678,6 +685,7 @@
 				207957B9F0BC89033407E721 /* ShanghaiMuseumAPI.swift in Sources */,
 				F0AE0A1C3CC1749CBE7B804F /* WaterfallGrid.swift in Sources */,
 				4763B0241317625657255B1E /* WidgetArtworkSnapshotStore.swift in Sources */,
+				68F05418F5EFFF72F3EB40A7 /* WidgetConfigurationIntent.swift in Sources */,
 				014375A5D184F881FD7070C1 /* WidgetManualRefreshRunner.swift in Sources */,
 				D8DA575A29B99005AD6A590F /* WidgetManualRefreshSupport.swift in Sources */,
 				D7688FF2CCD4DDF0F7F6544D /* WidgetMuseumScope.swift in Sources */,

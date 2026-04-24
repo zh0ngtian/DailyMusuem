@@ -11,7 +11,7 @@ struct WidgetManualRefreshRunner {
         if !familyKey.isEmpty {
             await RequestLogger.shared.logEvent(
                 source: logSource,
-                summary: "旧的按尺寸调试入口已废弃，忽略 familyKey=\(familyKey)，改为刷新全部已登记的小组件实例"
+                summary: "旧的按尺寸调试入口已废弃，忽略 familyKey=\(familyKey)，改为刷新当前 WidgetKit 配置中的小组件"
             )
         }
 
@@ -34,9 +34,8 @@ struct WidgetManualRefreshRunner {
                 return
             }
 
-            await WidgetRefreshCoordinator.shared.refresh(
-                refreshKey: normalizedRefreshKey,
-                scope: scope,
+            await WidgetRefreshCoordinator.shared.refreshCurrentConfigurations(
+                matching: scope,
                 logSource: logSource
             )
             return
@@ -51,23 +50,10 @@ struct WidgetManualRefreshRunner {
                 return
             }
 
-            let knownInstances = await store.knownInstances()
-            let matchedInstances = knownInstances.filter { $0.scopeRawValue == scope.rawValue }
-            guard !matchedInstances.isEmpty else {
-                await RequestLogger.shared.logEvent(
-                    source: logSource,
-                    summary: "当前没有登记 scope=\(scope.rawValue) 的小组件实例"
-                )
-                return
-            }
-
-            for instance in matchedInstances {
-                await WidgetRefreshCoordinator.shared.refresh(
-                    refreshKey: instance.instanceToken,
-                    scope: scope,
-                    logSource: logSource
-                )
-            }
+            await WidgetRefreshCoordinator.shared.refreshCurrentConfigurations(
+                matching: scope,
+                logSource: logSource
+            )
             return
         }
 

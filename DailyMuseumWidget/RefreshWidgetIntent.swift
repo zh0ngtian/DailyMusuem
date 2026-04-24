@@ -27,7 +27,7 @@ struct RefreshWidgetIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult {
-        await WidgetRefreshCoordinator.shared.refresh(
+        await WidgetRefreshCoordinator.shared.refreshCurrentConfiguration(
             refreshKey: refreshKey,
             scope: museumScope.scope,
             familyToken: widgetFamilyToken.nilIfBlank,

@@ -29,7 +29,7 @@ final class SettingsStore: ObservableObject {
         Task {
             await RequestLogger.shared.logEvent(
                 source: logSource,
-                summary: "触发刷新全部已登记的小组件实例"
+                summary: "触发刷新当前 WidgetKit 配置中的小组件"
             )
             await WidgetRefreshCoordinator.shared.refreshAllKnownInstances(logSource: logSource)
         }

@@ -1,5 +1,5 @@
 import Foundation
-import WidgetKit
+@preconcurrency import WidgetKit
 
 protocol WidgetArtworkCandidateLoading: Sendable {
     func nextCandidateArtwork() async throws -> Artwork?
@@ -46,6 +46,49 @@ struct WidgetRefreshPayload: Equatable {
     }
 }
 
+struct WidgetRefreshTarget: Equatable, Sendable {
+    let refreshKey: String
+    let scope: WidgetMuseumScope
+    let familyToken: String?
+}
+
+protocol WidgetCurrentConfigurationResolving: Sendable {
+    func refreshTargets() async throws -> [WidgetRefreshTarget]
+}
+
+struct WidgetCenterCurrentConfigurationResolver: WidgetCurrentConfigurationResolving {
+    let widgetCenter: WidgetCenter
+
+    init(widgetCenter: WidgetCenter = .shared) {
+        self.widgetCenter = widgetCenter
+    }
+
+    func refreshTargets() async throws -> [WidgetRefreshTarget] {
+        let configurations = try await widgetCenter.currentConfigurations()
+        var targets: [WidgetRefreshTarget] = []
+
+        for configuration in configurations where configuration.kind == SettingsKeys.widgetKind {
+            guard let intent = configuration.widgetConfigurationIntent(
+                of: DailyMuseumWidgetConfigurationIntent.self
+            ) else {
+                continue
+            }
+            let scope = intent.museumScope.scope
+            let refreshKey = WidgetRefreshGroupKey.make(scope: scope, family: configuration.family)
+
+            targets.append(
+                WidgetRefreshTarget(
+                    refreshKey: refreshKey,
+                    scope: scope,
+                    familyToken: configuration.family.debugToken
+                )
+            )
+        }
+
+        return targets.sorted { $0.refreshKey < $1.refreshKey }
+    }
+}
+
 enum WidgetDisplayedArtworkKey {
     static func make(museumID: MuseumID, objectID: String) -> String {
         "\(museumID.rawValue)|\(objectID)"
@@ -72,16 +115,20 @@ actor WidgetRefreshCoordinator {
 
     private let store: WidgetArtworkSnapshotStore
     private let widgetCenter: WidgetCenter
+    private let currentConfigurationResolver: any WidgetCurrentConfigurationResolving
     private let makeEngine: @Sendable () -> WidgetRefreshEngine
     private var activeRefreshes: [String: (nonce: Int, task: Task<WidgetRefreshPayload, Error>)] = [:]
 
     init(
         store: WidgetArtworkSnapshotStore = .shared,
         widgetCenter: WidgetCenter = .shared,
+        currentConfigurationResolver: (any WidgetCurrentConfigurationResolving)? = nil,
         makeEngine: @escaping @Sendable () -> WidgetRefreshEngine = { WidgetRefreshEngine() }
     ) {
         self.store = store
         self.widgetCenter = widgetCenter
+        self.currentConfigurationResolver = currentConfigurationResolver
+            ?? WidgetCenterCurrentConfigurationResolver(widgetCenter: widgetCenter)
         self.makeEngine = makeEngine
     }
 
@@ -184,17 +231,141 @@ actor WidgetRefreshCoordinator {
     }
 
     func refreshAllKnownInstances(logSource: String = "App 快捷操作") async {
-        let instances = await store.knownInstances()
-        for instance in instances {
-            guard let scope = WidgetMuseumScope(rawValue: instance.scopeRawValue) else {
-                continue
+        await refreshCurrentConfigurations(logSource: logSource)
+    }
+
+    func refreshCurrentConfiguration(
+        refreshKey: String,
+        scope: WidgetMuseumScope,
+        familyToken: String? = nil,
+        trigger: WidgetRefreshTrigger = .manual,
+        logSource: String = "Widget 刷新"
+    ) async {
+        let resolvedTargets: [WidgetRefreshTarget]
+        do {
+            resolvedTargets = try await currentConfigurationResolver.refreshTargets()
+        } catch {
+            await RequestLogger.shared.logEvent(
+                source: logSource,
+                summary: "无法获取当前桌面小组件配置，取消本次刷新：\(error.localizedDescription)",
+                instanceToken: refreshKey
+            )
+            return
+        }
+
+        await logCurrentConfigurations(resolvedTargets, logSource: logSource, instanceToken: refreshKey)
+        await removeStaleInstances(keeping: resolvedTargets)
+
+        let normalizedFamilyToken = familyToken?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasMatchingCurrentConfiguration = resolvedTargets.contains { target in
+            guard target.refreshKey == refreshKey, target.scope == scope else {
+                return false
             }
+            guard let normalizedFamilyToken, !normalizedFamilyToken.isEmpty else {
+                return true
+            }
+            return target.familyToken == normalizedFamilyToken
+        }
+
+        guard hasMatchingCurrentConfiguration else {
+            let familyText = normalizedFamilyToken.flatMap { $0.isEmpty ? nil : $0 }
+                .map { " family=\($0)" } ?? ""
+            await RequestLogger.shared.logEvent(
+                source: logSource,
+                summary: "当前桌面没有 scope=\(scope.rawValue)\(familyText) 的小组件实例，取消本次刷新",
+                instanceToken: refreshKey
+            )
+            return
+        }
+
+        await refresh(
+            refreshKey: refreshKey,
+            scope: scope,
+            familyToken: normalizedFamilyToken,
+            trigger: trigger,
+            logSource: logSource
+        )
+    }
+
+    func refreshCurrentConfigurations(
+        matching scopeFilter: WidgetMuseumScope? = nil,
+        logSource: String = "App 快捷操作"
+    ) async {
+        let targets: [WidgetRefreshTarget]
+        do {
+            let resolvedTargets = try await currentConfigurationResolver.refreshTargets()
+            await logCurrentConfigurations(resolvedTargets, logSource: logSource)
+            if let scopeFilter {
+                targets = resolvedTargets.filter { $0.scope == scopeFilter }
+            } else {
+                targets = resolvedTargets
+            }
+            await removeStaleInstances(keeping: resolvedTargets)
+        } catch {
+            await RequestLogger.shared.logEvent(
+                source: logSource,
+                summary: "无法获取当前桌面小组件配置，取消本次刷新：\(error.localizedDescription)"
+            )
+            return
+        }
+
+        guard !targets.isEmpty else {
+            let summary: String
+            if let scopeFilter {
+                summary = "当前桌面没有 scope=\(scopeFilter.rawValue) 的小组件实例"
+            } else {
+                summary = "当前桌面没有可刷新的小组件实例"
+            }
+            await RequestLogger.shared.logEvent(
+                source: logSource,
+                summary: summary
+            )
+            return
+        }
+
+        for target in deduplicatedRefreshTargets(targets) {
             await refresh(
-                refreshKey: instance.instanceToken,
-                scope: scope,
-                familyToken: instance.familyToken,
+                refreshKey: target.refreshKey,
+                scope: target.scope,
+                familyToken: target.familyToken,
                 logSource: logSource
             )
+        }
+    }
+
+    private func logCurrentConfigurations(
+        _ targets: [WidgetRefreshTarget],
+        logSource: String,
+        instanceToken: String? = nil
+    ) async {
+        let summary: String
+        if targets.isEmpty {
+            summary = "当前 WidgetKit 配置：空"
+        } else {
+            let targetSummary = targets
+                .map { target in
+                    "scope=\(target.scope.rawValue) family=\(target.familyToken ?? "unknown")"
+                }
+                .joined(separator: "；")
+            summary = "当前 WidgetKit 配置：\(targetSummary)"
+        }
+        await RequestLogger.shared.logEvent(
+            source: logSource,
+            summary: summary,
+            instanceToken: instanceToken
+        )
+    }
+
+    private func removeStaleInstances(keeping targets: [WidgetRefreshTarget]) async {
+        await store.removeInstances(
+            excludingRefreshKeys: Set(targets.map(\.refreshKey))
+        )
+    }
+
+    private func deduplicatedRefreshTargets(_ targets: [WidgetRefreshTarget]) -> [WidgetRefreshTarget] {
+        var seenRefreshKeys: Set<String> = []
+        return targets.filter { target in
+            seenRefreshKeys.insert(target.refreshKey).inserted
         }
     }
 }
