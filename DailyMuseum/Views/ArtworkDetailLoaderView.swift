@@ -71,10 +71,17 @@ struct ArtworkDetailLoaderView: View {
                 let object = try await metAPI.fetchObject(objectID: objectID)
                 var loadedArtwork = object.toArtwork()
                 if loadedArtwork.artworkDescription == nil {
-                    let webDescription = await metAPI.fetchObjectWebDescription(
+                    var webDescription = await metAPI.fetchObjectWebDescription(
                         objectID: objectID,
                         objectURL: loadedArtwork.objectURL
                     )
+                    if webDescription == nil, let objectURL = loadedArtwork.objectURL {
+                        await RequestLogger.shared.logEvent(
+                            source: "Met 官网",
+                            summary: "URLSession 未拿到官网概述，尝试浏览器渲染兜底，objectID=\(objectID)"
+                        )
+                        webDescription = await MetMuseumWebDescriptionBrowserFetcher.shared.fetchDescription(from: objectURL)
+                    }
                     loadedArtwork = loadedArtwork.withArtworkDescription(webDescription)
                 }
                 artwork = loadedArtwork

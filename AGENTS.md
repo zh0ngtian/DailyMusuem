@@ -140,6 +140,9 @@
     - 先尝试中文页面：`https://www.metmuseum.org/zh/art/collection/search/{objectID}`
     - 中文页面没有可用概述时，再回退英文页面：`https://www.metmuseum.org/art/collection/search/{objectID}`
   - 当前会从官网页面的 object overview 区块中提取描述内容，作为详情页补充信息来源。
+  - object overview 的 CSS module hash 可能变化，解析规则需要匹配稳定的 overview / label 语义片段，不能依赖某一个完整 class 名。
+  - 部分官网页面会把介绍放在标题区的顶部简介段落中，位置在标题、年代、展出状态之后，`Artwork Details` 之前；当 object overview 不存在时，需要把该顶部简介作为兜底来源。
+  - Met 官网页面可能返回 Vercel Security Checkpoint，主 App 中 `URLSession` 抓取不到概述时，需要使用 App 侧浏览器渲染兜底再复用同一套解析规则；该 WebKit 兜底不能放入 Shared，避免污染 Widget extension。
 - 后续如果修改大都会详情逻辑：
   - 不能假设公开 API 已包含完整介绍文案。
   - 不能删除官网页面抓取这条兜底链路，除非确认官方 API 已能稳定返回同等信息。
