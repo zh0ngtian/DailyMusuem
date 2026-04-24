@@ -16,73 +16,6 @@ struct WidgetArtworkEntry: TimelineEntry {
     let failureMessage: String?
 }
 
-enum WidgetConfiguredMuseumScope: String, AppEnum, CaseIterable {
-    case all
-    case nmc
-    case shm
-    case met
-    case tnm
-
-    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "展示范围")
-
-    static var caseDisplayRepresentations: [WidgetConfiguredMuseumScope: DisplayRepresentation] = [
-        .all: DisplayRepresentation(title: "所有博物馆"),
-        .nmc: DisplayRepresentation(title: "中国国家博物馆"),
-        .shm: DisplayRepresentation(title: "上海博物馆"),
-        .met: DisplayRepresentation(title: "大都会艺术博物馆"),
-        .tnm: DisplayRepresentation(title: "东京国立博物馆"),
-    ]
-
-    var scope: WidgetMuseumScope {
-        switch self {
-        case .all:
-            return .all
-        case .met:
-            return .single(.met)
-        case .tnm:
-            return .single(.tnm)
-        case .nmc:
-            return .single(.nmc)
-        case .shm:
-            return .single(.shm)
-        }
-    }
-
-    init?(museumID: MuseumID) {
-        switch museumID {
-        case .met:
-            self = .met
-        case .tnm:
-            self = .tnm
-        case .nmc:
-            self = .nmc
-        case .shm:
-            self = .shm
-        }
-    }
-}
-
-struct DailyMuseumWidgetConfigurationIntent: WidgetConfigurationIntent {
-    static var title: LocalizedStringResource = "配置小组件"
-    static var description = IntentDescription("为当前小组件选择展示范围；同范围的小组件会共享内容。")
-
-    @Parameter(title: "展示范围", default: .all)
-    var museumScope: WidgetConfiguredMuseumScope
-
-    @Parameter(title: "实例标识")
-    var instanceToken: String?
-
-    init() {
-        // Retain the legacy field so existing widget configurations continue to decode,
-        // but content sharing now keys off scope instead of per-instance tokens.
-        instanceToken = ""
-    }
-
-    static var parameterSummary: some ParameterSummary {
-        Summary("展示 \(\.$museumScope)")
-    }
-}
-
 struct DailyMuseumWidget: Widget {
     static let kind = SettingsKeys.widgetKind
     let kind: String = DailyMuseumWidget.kind
@@ -128,7 +61,9 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
         await entry(
             for: configuration,
             date: .now,
-            family: context.family
+            family: context.family,
+            persistRenderState: false,
+            logRender: false
         )
     }
 
@@ -140,6 +75,23 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
         let refreshKey = WidgetRefreshGroupKey.make(scope: scope, family: context.family)
         let store = WidgetArtworkSnapshotStore.shared
         let now = Date()
+        let canPersistTimeline = await shouldPersistTimeline(
+            scope: scope,
+            family: context.family,
+            isPreview: context.isPreview
+        )
+
+        guard canPersistTimeline else {
+            let entry = await entry(
+                for: configuration,
+                date: now,
+                family: context.family,
+                persistRenderState: false,
+                logRender: false
+            )
+            return Timeline(entries: [entry], policy: .never)
+        }
+
         let schedule = settingsReader.widgetAutoRefreshSchedule()
         let automaticRefreshResolution = await store.resolveAutomaticRefresh(
             for: refreshKey,
@@ -165,7 +117,9 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
         let entry = await entry(
             for: configuration,
             date: entryDate,
-            family: context.family
+            family: context.family,
+            persistRenderState: true,
+            logRender: true
         )
         if let nextRefreshDate = automaticRefreshResolution.nextAutomaticRefreshAt {
             return Timeline(entries: [entry], policy: .after(nextRefreshDate))
@@ -176,27 +130,40 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
     private func entry(
         for configuration: DailyMuseumWidgetConfigurationIntent,
         date: Date,
-        family: WidgetFamily?
+        family: WidgetFamily?,
+        persistRenderState: Bool,
+        logRender: Bool
     ) async -> WidgetArtworkEntry {
         let scope = scope(for: configuration)
         let refreshKey = WidgetRefreshGroupKey.make(scope: scope, family: family)
         let store = WidgetArtworkSnapshotStore.shared
-        let state = await store.renderState(
-            for: refreshKey,
-            scopeRawValue: scope.rawValue,
-            familyToken: family?.debugToken,
-            now: date
-        )
-        let renderID = "\(refreshKey)|\(scope.rawValue)|\(state.nonce)|\(state.phase.rawValue)"
-        await RequestLogger.shared.logEvent(
-            source: "Widget 完成渲染",
-            summary: "family=\(family?.debugToken ?? "unknown") scope=\(scope.rawValue) phase=\(state.phase.rawValue)",
-            instanceToken: refreshKey
-        )
+        let state: WidgetArtworkSnapshotStore.InstanceState?
+        if persistRenderState {
+            state = await store.renderState(
+                for: refreshKey,
+                scopeRawValue: scope.rawValue,
+                familyToken: family?.debugToken,
+                now: date
+            )
+        } else {
+            state = await store.presentationState(
+                for: refreshKey,
+                scopeRawValue: scope.rawValue
+            )
+        }
+        let phase = state?.phase ?? .idle
+        let renderID = "\(refreshKey)|\(scope.rawValue)|\(state?.nonce ?? 0)|\(phase.rawValue)"
+        if logRender {
+            await RequestLogger.shared.logEvent(
+                source: "Widget 完成渲染",
+                summary: "family=\(family?.debugToken ?? "unknown") scope=\(scope.rawValue) phase=\(phase.rawValue)",
+                instanceToken: refreshKey
+            )
+        }
 
-        switch state.phase {
+        switch phase {
         case .success:
-            if let artwork = state.artwork {
+            if let artwork = state?.artwork {
                 return WidgetArtworkEntry(
                     date: date,
                     renderID: renderID,
@@ -220,10 +187,10 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
                 phase: .failure,
                 museumName: scope.displayName,
                 title: "刷新失败",
-                subtitle: state.failureMessage,
+                subtitle: state?.failureMessage,
                 imageFileName: nil,
                 appURL: nil,
-                failureMessage: state.failureMessage
+                failureMessage: state?.failureMessage
             )
         case .idle, .refreshing:
             break
@@ -246,6 +213,28 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
 
     private func scope(for configuration: DailyMuseumWidgetConfigurationIntent) -> WidgetMuseumScope {
         configuration.museumScope.scope
+    }
+
+    private func shouldPersistTimeline(
+        scope: WidgetMuseumScope,
+        family: WidgetFamily,
+        isPreview: Bool
+    ) async -> Bool {
+        guard !isPreview else {
+            return false
+        }
+
+        do {
+            let targets = try await WidgetCenterCurrentConfigurationResolver().refreshTargets()
+            await WidgetArtworkSnapshotStore.shared.removeInstances(
+                excludingRefreshKeys: Set(targets.map(\.refreshKey))
+            )
+            return targets.contains { target in
+                target.scope == scope && target.familyToken == family.debugToken
+            }
+        } catch {
+            return true
+        }
     }
 
 }

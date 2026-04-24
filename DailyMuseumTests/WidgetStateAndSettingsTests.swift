@@ -924,6 +924,139 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(secondState?.scopeRawValue, WidgetMuseumScope.single(.met).rawValue)
     }
 
+    func testWidgetRefreshCoordinatorRefreshesOnlyCurrentWidgetConfigurations() async throws {
+        let baseURL = temporaryBaseURL()
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let staleAllKey = WidgetMuseumScope.all.rawValue
+        let metKey = WidgetMuseumScope.single(.met).rawValue
+        _ = await store.renderState(
+            for: staleAllKey,
+            scopeRawValue: staleAllKey,
+            familyToken: WidgetFamily.systemLarge.debugToken
+        )
+        _ = await store.renderState(
+            for: metKey,
+            scopeRawValue: metKey,
+            familyToken: WidgetFamily.systemSmall.debugToken
+        )
+
+        let engineCreations = IntRecorder()
+        let coordinator = WidgetRefreshCoordinator(
+            store: store,
+            widgetCenter: .shared,
+            currentConfigurationResolver: StubCurrentConfigurationResolver(targets: [
+                WidgetRefreshTarget(
+                    refreshKey: metKey,
+                    scope: .single(.met),
+                    familyToken: WidgetFamily.systemSmall.debugToken
+                ),
+                WidgetRefreshTarget(
+                    refreshKey: metKey,
+                    scope: .single(.met),
+                    familyToken: WidgetFamily.systemMedium.debugToken
+                )
+            ]),
+            makeEngine: { [self] in
+                engineCreations.increment()
+                return WidgetRefreshEngine(
+                    snapshotStore: store,
+                    loaderFactory: { [self] museumID, _, _ in
+                        StubBatchLoader(batches: [[
+                            self.makeArtwork(
+                                museumID: museumID,
+                                objectID: "current",
+                                title: "Current Widget",
+                                imageURL: URL(string: "https://example.com/current.png")
+                            )
+                        ]])
+                    },
+                    randomIndex: { _ in 0 },
+                    imageDataFetcher: { _, _ in widgetValidPNGData }
+                )
+            }
+        )
+
+        await coordinator.refreshAllKnownInstances(logSource: "CoordinatorCurrentConfigurations")
+
+        let staleAllState = await store.state(for: staleAllKey)
+        let metState = await store.state(for: metKey)
+
+        XCTAssertEqual(engineCreations.value, 1)
+        XCTAssertNil(staleAllState)
+        XCTAssertEqual(metState?.phase, .success)
+        XCTAssertEqual(metState?.artwork?.title, "Current Widget")
+    }
+
+    func testWidgetRefreshCoordinatorDoesNotFallBackToStaleInstancesWhenCurrentConfigurationsAreEmpty() async throws {
+        let baseURL = temporaryBaseURL()
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let staleAllKey = WidgetMuseumScope.all.rawValue
+        _ = await store.renderState(
+            for: staleAllKey,
+            scopeRawValue: staleAllKey,
+            familyToken: WidgetFamily.systemLarge.debugToken
+        )
+
+        let engineCreations = IntRecorder()
+        let coordinator = WidgetRefreshCoordinator(
+            store: store,
+            widgetCenter: .shared,
+            currentConfigurationResolver: StubCurrentConfigurationResolver(targets: []),
+            makeEngine: {
+                engineCreations.increment()
+                return WidgetRefreshEngine(snapshotStore: store)
+            }
+        )
+
+        await coordinator.refreshAllKnownInstances(logSource: "CoordinatorCurrentConfigurationsEmpty")
+
+        let staleAllState = await store.state(for: staleAllKey)
+
+        XCTAssertEqual(engineCreations.value, 0)
+        XCTAssertNil(staleAllState)
+    }
+
+    func testWidgetRefreshCoordinatorSkipsWidgetButtonRefreshForMissingCurrentConfiguration() async throws {
+        let baseURL = temporaryBaseURL()
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let staleAllKey = WidgetMuseumScope.all.rawValue
+        let metKey = WidgetMuseumScope.single(.met).rawValue
+        _ = await store.renderState(
+            for: staleAllKey,
+            scopeRawValue: staleAllKey,
+            familyToken: WidgetFamily.systemLarge.debugToken
+        )
+
+        let engineCreations = IntRecorder()
+        let coordinator = WidgetRefreshCoordinator(
+            store: store,
+            widgetCenter: .shared,
+            currentConfigurationResolver: StubCurrentConfigurationResolver(targets: [
+                WidgetRefreshTarget(
+                    refreshKey: metKey,
+                    scope: .single(.met),
+                    familyToken: WidgetFamily.systemSmall.debugToken
+                )
+            ]),
+            makeEngine: {
+                engineCreations.increment()
+                return WidgetRefreshEngine(snapshotStore: store)
+            }
+        )
+
+        await coordinator.refreshCurrentConfiguration(
+            refreshKey: staleAllKey,
+            scope: .all,
+            familyToken: WidgetFamily.systemLarge.debugToken,
+            logSource: "CoordinatorMissingCurrentConfiguration"
+        )
+
+        let staleAllState = await store.state(for: staleAllKey)
+
+        XCTAssertEqual(engineCreations.value, 0)
+        XCTAssertNil(staleAllState)
+    }
+
     private func makeStubSession(
         testID: String,
         handler: @escaping @Sendable (URLRequest) throws -> WidgetStubbedResponse
@@ -1189,6 +1322,14 @@ private final class IntRecorder {
         lock.lock()
         defer { lock.unlock() }
         return storage
+    }
+}
+
+private struct StubCurrentConfigurationResolver: WidgetCurrentConfigurationResolving {
+    let targets: [WidgetRefreshTarget]
+
+    func refreshTargets() async throws -> [WidgetRefreshTarget] {
+        targets
     }
 }
 

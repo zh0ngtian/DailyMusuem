@@ -300,6 +300,58 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
         XCTAssertNil(persisted?.artwork)
     }
 
+    func testPresentationStateDoesNotPersistMissingPreviewInstance() async throws {
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let scope = WidgetMuseumScope.all.rawValue
+
+        let previewState = await store.presentationState(
+            for: scope,
+            scopeRawValue: scope
+        )
+        let knownInstances = await store.knownInstances()
+
+        XCTAssertNil(previewState)
+        XCTAssertTrue(knownInstances.isEmpty)
+    }
+
+    func testRemoveInstancesExcludingRefreshKeysPrunesStaleStateAndImage() async throws {
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let staleKey = WidgetMuseumScope.all.rawValue
+        let currentKey = WidgetMuseumScope.single(.met).rawValue
+
+        _ = await store.beginRefresh(instanceToken: staleKey, scopeRawValue: staleKey)
+        let staleState = await store.markSuccess(
+            instanceToken: staleKey,
+            expectedNonce: 1,
+            payload: makePayload(
+                museumID: .met,
+                museumName: "大都会艺术博物馆",
+                title: "Stale"
+            ),
+            imageData: Data("stale-image".utf8)
+        )
+        _ = await store.renderState(
+            for: currentKey,
+            scopeRawValue: currentKey
+        )
+
+        let imageFileName = try XCTUnwrap(staleState?.artwork?.imageFileName)
+        let imageURL = baseURL
+            .appendingPathComponent("WidgetInstances", isDirectory: true)
+            .appendingPathComponent("images", isDirectory: true)
+            .appendingPathComponent(imageFileName)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: imageURL.path))
+
+        await store.removeInstances(excludingRefreshKeys: [currentKey])
+
+        let removedState = await store.state(for: staleKey)
+        let retainedState = await store.state(for: currentKey)
+
+        XCTAssertNil(removedState)
+        XCTAssertNotNil(retainedState)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: imageURL.path))
+    }
+
     func testRenderStateKeepsLatestMeaningfulLegacyStateWhenIdleWidgetJoinsSameGroup() async throws {
         let scope = WidgetMuseumScope.single(.met).rawValue
         let familyToken = WidgetFamily.systemLarge.debugToken

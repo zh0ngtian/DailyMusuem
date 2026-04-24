@@ -111,6 +111,7 @@ targets:
       - path: Shared/Settings/FavoritesStore.swift
       - path: Shared/Settings/SettingsKeys.swift
       - path: Shared/Settings/SettingsStore.swift
+      - path: Shared/Settings/WidgetConfigurationIntent.swift
       - path: Shared/Settings/WidgetMuseumScope.swift
       - path: DailyMuseumWidget/WidgetArtworkSnapshotStore.swift
       - path: DailyMuseumWidget/WidgetRefreshDeliveryTracker.swift

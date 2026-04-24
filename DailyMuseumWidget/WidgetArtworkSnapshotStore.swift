@@ -291,6 +291,33 @@ actor WidgetArtworkSnapshotStore {
         return presentationState(for: state)
     }
 
+    func presentationState(
+        for instanceToken: String,
+        scopeRawValue: String
+    ) -> InstanceState? {
+        guard let state = loadInstances()[instanceToken],
+              state.scopeRawValue == scopeRawValue else {
+            return nil
+        }
+        return presentationState(for: state)
+    }
+
+    func removeInstances(excludingRefreshKeys allowedRefreshKeys: Set<String>) {
+        var instances = loadInstances()
+        let removedStates = instances.values.filter { !allowedRefreshKeys.contains($0.instanceToken) }
+        guard !removedStates.isEmpty else {
+            return
+        }
+
+        for state in removedStates {
+            instances.removeValue(forKey: state.instanceToken)
+        }
+        persist(instances)
+        for state in removedStates {
+            deleteImageFile(named: state.artwork?.imageFileName)
+        }
+    }
+
     func displayedArtworkKeys(
         for instanceToken: String,
         scopeRawValue: String? = nil
