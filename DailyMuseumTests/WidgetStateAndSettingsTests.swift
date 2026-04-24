@@ -480,6 +480,68 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         }
     }
 
+    func testNationalMuseumChinaWidgetCandidateLoaderDoesNotFetchEveryListPage() async throws {
+        let recorder = WidgetRequestRecorder()
+        let session = makeStubSession(testID: UUID().uuidString) { [self] request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+            recorder.record(url)
+
+            if url.path.contains("/api/exhibit_list") {
+                let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+                let queryItems = Dictionary(
+                    uniqueKeysWithValues: (components?.queryItems ?? []).map { ($0.name, $0.value ?? "") }
+                )
+                let page = Int(queryItems["page"] ?? "") ?? 1
+                let ids = page == 8 ? [801, 802] : Array(1...10)
+                return makeJSONResponse(
+                    url: url,
+                    jsonObject: [
+                        "status": 1,
+                        "msg": "ok",
+                        "data": [
+                            "count": 150,
+                            "list": ids.map { ["exhibit_id": $0] },
+                            "page": page,
+                            "per_page": 10,
+                            "page_count": 15,
+                        ],
+                    ]
+                )
+            }
+
+            if url.path.contains("/api/exhibit/share_link") {
+                return WidgetStubbedResponse(
+                    response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data: Data(Self.nationalMuseumChinaDetailHTML.utf8)
+                )
+            }
+
+            throw URLError(.badURL)
+        }
+        let loader = NationalMuseumChinaWidgetCandidateLoader(
+            categories: MuseumID.nmc.defaultFeedCategories,
+            randomIndex: { range in
+                range.count == 15 ? 7 : 0
+            },
+            nationalMuseumChinaAPI: NationalMuseumChinaAPI(session: session)
+        )
+
+        let artwork = try await loader.nextCandidateArtwork()
+
+        XCTAssertEqual(artwork?.museumID, .nmc)
+        XCTAssertEqual(artwork?.objectID, "801")
+        let listPages = recorder.urls
+            .filter { $0.path.contains("/api/exhibit_list") }
+            .compactMap { url -> Int? in
+                let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+                return components?.queryItems?.first(where: { $0.name == "page" })?.value.flatMap(Int.init)
+            }
+        XCTAssertEqual(listPages, [1, 8])
+        XCTAssertFalse(listPages.contains(15))
+    }
+
     func testWidgetPreferredImageURLDecisionUsesThumbnailForTokyoWidget() {
         let smallURL = URL(string: "https://example.com/small.jpg")
         let largeURL = URL(string: "https://example.com/large.jpg")
@@ -1074,6 +1136,25 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             data: try! JSONSerialization.data(withJSONObject: jsonObject)
         )
     }
+
+    private static let nationalMuseumChinaDetailHTML = """
+    <!DOCTYPE html>
+    <html>
+    <body>
+      <div class="content brief">
+        <h1>后母戊鼎</h1>
+        <p>商后期</p>
+        <p>青铜器</p>
+        <p>高133厘米</p>
+      </div>
+      <div class="content detail">
+        <h1>后母戊鼎</h1>
+        <p>这是展品介绍。</p>
+      </div>
+      <img src="/images/ding.jpg" />
+    </body>
+    </html>
+    """
 
     private func makeJapanSearchItemDictionary(id: String, sortValue: String) -> [String: Any] {
         [

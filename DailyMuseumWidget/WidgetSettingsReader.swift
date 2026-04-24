@@ -579,3 +579,211 @@ actor ArtworkBatchLoader {
         }
     }
 }
+
+actor NationalMuseumChinaWidgetCandidateLoader: WidgetArtworkCandidateLoading {
+    private struct CategoryChoice: Sendable {
+        let categoryID: Int?
+        let displayName: String
+
+        var key: Int {
+            categoryID ?? 0
+        }
+    }
+
+    private struct PageKey: Hashable, Sendable {
+        let categoryID: Int
+        let page: Int
+    }
+
+    private enum Constants {
+        static let pageSize = 10
+        static let maxListPageRequests = 4
+    }
+
+    private let categories: [MuseumCategory]
+    private let randomIndex: @Sendable (Range<Int>) -> Int
+    private let onLog: (@Sendable (String) async -> Void)?
+    private let nationalMuseumChinaAPI: NationalMuseumChinaAPI
+
+    private var queuedIDs: [Int] = []
+    private var loadedIDs: Set<Int> = []
+    private var requestedListPages: Set<PageKey> = []
+    private var consumedCandidatePages: Set<PageKey> = []
+    private var storedPageIDs: [PageKey: [Int]] = [:]
+    private var pageCountsByCategory: [Int: Int] = [:]
+    private var exhaustedCategoryKeys: Set<Int> = []
+    private var exhausted = false
+
+    init(
+        categories: [MuseumCategory],
+        randomIndex: @escaping @Sendable (Range<Int>) -> Int,
+        onLog: (@Sendable (String) async -> Void)? = nil,
+        nationalMuseumChinaAPI: NationalMuseumChinaAPI = NationalMuseumChinaAPI()
+    ) {
+        self.categories = MuseumID.nmc.normalizedFeedCategories(categories)
+        self.randomIndex = randomIndex
+        self.onLog = onLog
+        self.nationalMuseumChinaAPI = nationalMuseumChinaAPI
+    }
+
+    func nextCandidateArtwork() async throws -> Artwork? {
+        while true {
+            if let exhibitID = nextQueuedID() {
+                do {
+                    let artwork = try await nationalMuseumChinaAPI.fetchExhibit(
+                        exhibitID: exhibitID,
+                        cachePolicy: .networkOnly
+                    )
+                    guard artwork.primaryImageSmallURL != nil || artwork.primaryImageURL != nil else {
+                        await log("中国国家博物馆 Widget 候选缺少可用图片，跳过 exhibitID=\(exhibitID)。")
+                        continue
+                    }
+                    return artwork
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch {
+                    await log("中国国家博物馆 Widget 候选详情失败，exhibitID=\(exhibitID)：\(error.localizedDescription)")
+                    continue
+                }
+            }
+
+            if exhausted {
+                return nil
+            }
+
+            try await refillQueuedIDs()
+        }
+    }
+
+    func isExhausted() async -> Bool {
+        let hasQueuedCandidates = queuedIDs.contains { !loadedIDs.contains($0) }
+        return exhausted && !hasQueuedCandidates
+    }
+
+    private func refillQueuedIDs() async throws {
+        while requestedListPages.count < Constants.maxListPageRequests {
+            guard let choice = nextCategoryChoice() else {
+                exhausted = true
+                return
+            }
+
+            if pageCountsByCategory[choice.key] == nil {
+                let firstPage = try await fetchIDPage(choice: choice, page: 1)
+                let key = PageKey(categoryID: choice.key, page: 1)
+                pageCountsByCategory[choice.key] = firstPage.pageCount
+                storedPageIDs[key] = firstPage.ids
+            }
+
+            let pageCount = pageCountsByCategory[choice.key] ?? 1
+            let availablePages = (1...pageCount).filter {
+                !consumedCandidatePages.contains(PageKey(categoryID: choice.key, page: $0))
+            }
+
+            guard !availablePages.isEmpty else {
+                exhaustedCategoryKeys.insert(choice.key)
+                continue
+            }
+
+            let selectedPage = availablePages[randomIndex(0..<availablePages.count)]
+            let pageKey = PageKey(categoryID: choice.key, page: selectedPage)
+            let ids: [Int]
+            if let storedIDs = storedPageIDs.removeValue(forKey: pageKey) {
+                ids = storedIDs
+            } else {
+                guard requestedListPages.count < Constants.maxListPageRequests else {
+                    exhausted = true
+                    return
+                }
+                let page = try await fetchIDPage(choice: choice, page: selectedPage)
+                pageCountsByCategory[choice.key] = page.pageCount
+                ids = page.ids
+            }
+
+            consumedCandidatePages.insert(pageKey)
+            let newIDs = randomized(ids).filter { id in
+                !loadedIDs.contains(id) && !queuedIDs.contains(id)
+            }
+            queuedIDs.append(contentsOf: newIDs)
+            await log("中国国家博物馆 Widget 已准备候选页 \(selectedPage)/\(pageCount)，类别 \(choice.displayName)，新增 \(newIDs.count) 个候选。")
+
+            if !queuedIDs.isEmpty {
+                return
+            }
+        }
+
+        exhausted = true
+    }
+
+    private func fetchIDPage(choice: CategoryChoice, page: Int) async throws -> NationalMuseumChinaExhibitIDPage {
+        let result = try await nationalMuseumChinaAPI.exhibitIDPage(
+            categoryID: choice.categoryID,
+            categoryDisplayName: choice.displayName,
+            page: page,
+            limit: Constants.pageSize
+        )
+        requestedListPages.insert(PageKey(categoryID: choice.key, page: result.page))
+        await log("中国国家博物馆 Widget 列表接口已拉取第 \(result.page)/\(result.pageCount) 页，类别 \(choice.displayName)，本页 \(result.ids.count) 条。")
+        return result
+    }
+
+    private func nextQueuedID() -> Int? {
+        queuedIDs.removeAll { loadedIDs.contains($0) }
+        guard !queuedIDs.isEmpty else {
+            return nil
+        }
+        let index = queuedIDs.count == 1 ? 0 : randomIndex(0..<queuedIDs.count)
+        let id = queuedIDs.remove(at: index)
+        loadedIDs.insert(id)
+        return id
+    }
+
+    private func nextCategoryChoice() -> CategoryChoice? {
+        let availableChoices = categoryChoices.filter { !exhaustedCategoryKeys.contains($0.key) }
+        guard !availableChoices.isEmpty else {
+            return nil
+        }
+        let index = availableChoices.count == 1 ? 0 : randomIndex(0..<availableChoices.count)
+        return availableChoices[index]
+    }
+
+    private var categoryChoices: [CategoryChoice] {
+        guard !MuseumID.nmc.areAllFeedCategoriesSelected(categories) else {
+            return [CategoryChoice(categoryID: nil, displayName: "全部")]
+        }
+
+        let choices = categories.compactMap { category -> CategoryChoice? in
+            guard let categoryID = category.nationalMuseumChinaCategoryID else {
+                return nil
+            }
+            return CategoryChoice(categoryID: categoryID, displayName: category.displayName)
+        }
+        return choices.isEmpty ? [CategoryChoice(categoryID: nil, displayName: "全部")] : choices
+    }
+
+    private func randomized(_ ids: [Int]) -> [Int] {
+        var remaining = Self.stableUniqueInts(ids)
+        var output: [Int] = []
+        output.reserveCapacity(remaining.count)
+
+        while !remaining.isEmpty {
+            let index = remaining.count == 1 ? 0 : randomIndex(0..<remaining.count)
+            output.append(remaining.remove(at: index))
+        }
+        return output
+    }
+
+    private func log(_ message: String) async {
+        await onLog?(message)
+    }
+
+    private static func stableUniqueInts(_ values: [Int]) -> [Int] {
+        var seen: Set<Int> = []
+        var result: [Int] = []
+        result.reserveCapacity(values.count)
+
+        for value in values where seen.insert(value).inserted {
+            result.append(value)
+        }
+        return result
+    }
+}
