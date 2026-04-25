@@ -19,7 +19,7 @@ final class SettingsStore: ObservableObject {
         let autoRefreshWindow = WidgetAutoRefreshWindow.storedValue(in: resolvedDefaults)
         widgetAutoRefreshStartMinutes = autoRefreshWindow.startMinutes
         widgetAutoRefreshEndMinutes = autoRefreshWindow.endMinutes
-        isMuseumLatencyTestEnabled = resolvedDefaults.bool(forKey: SettingsKeys.museumLatencyTestEnabled)
+        isMuseumLatencyTestEnabled = Self.storedMuseumLatencyTestEnabled(in: resolvedDefaults)
         naraMuseumDataSource = NaraMuseumDataSource.storedValue(in: resolvedDefaults)
     }
 
@@ -52,6 +52,13 @@ final class SettingsStore: ObservableObject {
         isMuseumLatencyTestEnabled = isEnabled
         defaults.set(isEnabled, forKey: SettingsKeys.museumLatencyTestEnabled)
         defaults.synchronize()
+    }
+
+    private static func storedMuseumLatencyTestEnabled(in defaults: UserDefaults) -> Bool {
+        guard defaults.object(forKey: SettingsKeys.museumLatencyTestEnabled) != nil else {
+            return true
+        }
+        return defaults.bool(forKey: SettingsKeys.museumLatencyTestEnabled)
     }
 
     func saveNaraMuseumDataSource(_ dataSource: NaraMuseumDataSource) {

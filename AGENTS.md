@@ -468,7 +468,7 @@
   - logo 放在统一的浅色圆角容器中
   - 名称和副标题继续保持当前中文文案，不因 logo 接入而改变
   - 首页已按国家分组时，卡片副标题只显示城市，不重复显示国家
-- 首页延迟测试由全局设置中的 `首页延迟测试` 开关控制，默认关闭。
+- 首页延迟测试由全局设置中的 `首页延迟测试` 开关控制，默认打开。
 - `首页延迟测试` 关闭时，首页卡片 UI 必须和加入延迟测试前保持一致，不显示延迟行，不提供延迟测试下拉刷新入口，也不发起测速请求。
 - `首页延迟测试` 开启时，每次进入首页都需要对所有已支持博物馆发起延迟测试，并支持通过首页下拉刷新重新触发。
 - 开启后，每个博物馆卡片的文本区使用三行布局，从上到下分别是延迟测试结果、博物馆名、城市名：
@@ -480,7 +480,7 @@
   - 设置图标入口
 - 首页不再提供博物馆拖拽排序或排序模式；右上角固定显示收藏夹和设置入口。
 - 首页设置页用于全局设置：
-  - `首页延迟测试` 开关默认值为 `关闭`
+  - `首页延迟测试` 开关默认值为 `打开`
   - 小组件自动刷新间隔可选：`关闭`、`1小时`、`3小时`、`6小时`、`12小时`、`24小时`
   - 小组件自动刷新间隔默认值为 `关闭`
   - 小组件自动刷新还需要提供 `开始时间` 和 `结束时间`，默认分别为 `00:00` 和 `23:00`
@@ -869,7 +869,7 @@
   - 底层日志字段仍沿用 `instanceToken`
   - 但当前值语义是 `scope`，例如 `single:met`
 - Widget 的 request logs、实例状态和主 App 日志页依赖主 App 与 Widget Extension 共享同一个 App Group：
-  - 当前必须同时保留 `DailyMuseum/DailyMuseum.entitlements` 和 `DailyMuseumWidget/DailyMuseumWidgetAppGroup.entitlements` 中的 `group.tech.zh0ngtian.DailyMuseum`
+  - 当前必须同时保留 `DailyMuseum/DailyMuseum.entitlements` 和 `DailyMuseumWidget/DailyMuseumWidgetAppGroup.entitlements` 中的 `group.tech.zh0ngtian.MuseumMuse`
   - 任一 target 丢失该 App Group 后，主 App 将无法读取 widget 写入的 request logs 与实例状态
 - SpringBoard 和 WidgetKit 都存在快照缓存：
   - 代码修好后，桌面仍可能短时间继续显示旧占位态或旧快照。

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 BUNDLE_ID="tech.zh0ngtian.DailyMuseum"
-APP_GROUP_ID="group.tech.zh0ngtian.DailyMuseum"
+APP_GROUP_ID="group.tech.zh0ngtian.MuseumMuse"
 DEBUG_URL_BASE="dailymuseum://debug/widget-refresh"
 CORESIM_ROOT="$HOME/Library/Developer/CoreSimulator/Devices"
 
