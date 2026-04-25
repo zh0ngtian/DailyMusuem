@@ -64,6 +64,28 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(reader.widgetAutoRefreshEndMinutes(), 23 * 60)
     }
 
+    @MainActor
+    func testSettingsStoreDefaultsMuseumLatencyTestToOff() {
+        let store = SettingsStore(defaults: defaults)
+
+        XCTAssertFalse(store.isMuseumLatencyTestEnabled)
+    }
+
+    @MainActor
+    func testSettingsStorePersistsMuseumLatencyTestToggle() {
+        let store = SettingsStore(defaults: defaults)
+
+        store.saveMuseumLatencyTestEnabled(true)
+
+        XCTAssertTrue(defaults.bool(forKey: SettingsKeys.museumLatencyTestEnabled))
+        XCTAssertTrue(SettingsStore(defaults: defaults).isMuseumLatencyTestEnabled)
+
+        store.saveMuseumLatencyTestEnabled(false)
+
+        XCTAssertFalse(defaults.bool(forKey: SettingsKeys.museumLatencyTestEnabled))
+        XCTAssertFalse(SettingsStore(defaults: defaults).isMuseumLatencyTestEnabled)
+    }
+
     func testWidgetAutoRefreshWindowNormalizesEndNotEarlierThanStart() {
         let window = WidgetAutoRefreshWindow(startMinutes: 18 * 60, endMinutes: 9 * 60)
 

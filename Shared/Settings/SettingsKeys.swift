@@ -8,6 +8,7 @@ enum SettingsKeys {
     static let widgetRefreshIntervalHours = "widget.refreshIntervalHours"
     static let widgetAutoRefreshStartMinutes = "widget.autoRefreshStartMinutes"
     static let widgetAutoRefreshEndMinutes = "widget.autoRefreshEndMinutes"
+    static let museumLatencyTestEnabled = "museum.latencyTestEnabled"
     static let museumDisplayOrder = "museum.displayOrder"
     static let favoritesArtworks = "favorites.artworks"
 }
