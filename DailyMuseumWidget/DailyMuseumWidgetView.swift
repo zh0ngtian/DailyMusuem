@@ -131,11 +131,11 @@ struct DailyMuseumWidgetView: View {
     private var displaySubtitle: String? {
         switch entry.phase {
         case .idle, .refreshing:
-            return "同范围的小组件会共享内容"
+            return "长按小组件，选择「编辑小组件」以改变展品展示范围"
         case .success:
             return entry.subtitle
         case .failure:
-            return entry.failureMessage ?? "请重试"
+            return entry.failureMessage?.removingTrailingSentencePeriods ?? "请重试"
         }
     }
 
@@ -146,7 +146,7 @@ struct DailyMuseumWidgetView: View {
         case .success:
             return [Color(red: 0.20, green: 0.20, blue: 0.20), Color.black]
         case .failure:
-            return [Color(red: 0.42, green: 0.16, blue: 0.16), Color(red: 0.14, green: 0.05, blue: 0.05)]
+            return [Color(red: 0.15, green: 0.22, blue: 0.34), Color(red: 0.07, green: 0.09, blue: 0.12)]
         }
     }
 
@@ -199,6 +199,13 @@ struct DailyMuseumWidgetView: View {
     }
 
     private var maxSubtitleLines: Int {
+        switch entry.phase {
+        case .idle, .refreshing:
+            return family == .systemSmall ? 3 : 2
+        case .success, .failure:
+            break
+        }
+
         switch family {
         case .systemLarge:
             return 2
@@ -270,5 +277,15 @@ struct DailyMuseumWidgetView: View {
         default:
             return 24
         }
+    }
+}
+
+private extension String {
+    var removingTrailingSentencePeriods: String {
+        var result = self
+        while result.last == "." || result.last == "。" {
+            result.removeLast()
+        }
+        return result
     }
 }

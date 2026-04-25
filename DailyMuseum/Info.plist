@@ -33,17 +33,6 @@
 	<string>1</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>允许保存展品图片到系统相册</string>
-	<key>UIApplicationShortcutItems</key>
-	<array>
-		<dict>
-			<key>UIApplicationShortcutItemIconType</key>
-			<string>UIApplicationShortcutIconTypeUpdate</string>
-			<key>UIApplicationShortcutItemTitle</key>
-			<string>强制刷新所有小组件</string>
-			<key>UIApplicationShortcutItemType</key>
-			<string>tech.zh0ngtian.DailyMuseum.shortcuts.forceRefreshAllWidgets</string>
-		</dict>
-	</array>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>weixin</string>

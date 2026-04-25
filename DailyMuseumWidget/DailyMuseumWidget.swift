@@ -47,7 +47,7 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
             phase: .idle,
             museumName: "DailyMuseum",
             title: "点击刷新获取展品",
-            subtitle: "同范围的小组件会共享内容",
+            subtitle: "长按小组件，选择「编辑小组件」以改变展品展示范围",
             imageFileName: nil,
             appURL: nil,
             failureMessage: nil
@@ -204,7 +204,7 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
             phase: .idle,
             museumName: scope.displayName,
             title: "点击刷新获取展品",
-            subtitle: "同范围的小组件会共享内容",
+            subtitle: "长按小组件，选择「编辑小组件」以改变展品展示范围",
             imageFileName: nil,
             appURL: nil,
             failureMessage: nil
