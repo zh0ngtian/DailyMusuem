@@ -10,14 +10,15 @@ final class SettingsStore: ObservableObject {
     @Published private(set) var widgetRefreshInterval: WidgetRefreshInterval
     @Published private(set) var widgetAutoRefreshStartMinutes: Int
     @Published private(set) var widgetAutoRefreshEndMinutes: Int
+    @Published private(set) var isMuseumLatencyTestEnabled: Bool
 
-    private init() {
-        let resolvedDefaults = UserDefaults(suiteName: SettingsKeys.appGroupID) ?? .standard
+    init(defaults resolvedDefaults: UserDefaults = UserDefaults(suiteName: SettingsKeys.appGroupID) ?? .standard) {
         defaults = resolvedDefaults
         widgetRefreshInterval = WidgetRefreshInterval.storedValue(in: resolvedDefaults)
         let autoRefreshWindow = WidgetAutoRefreshWindow.storedValue(in: resolvedDefaults)
         widgetAutoRefreshStartMinutes = autoRefreshWindow.startMinutes
         widgetAutoRefreshEndMinutes = autoRefreshWindow.endMinutes
+        isMuseumLatencyTestEnabled = resolvedDefaults.bool(forKey: SettingsKeys.museumLatencyTestEnabled)
     }
 
     func requestWidgetReload(invalidateContent: Bool = false) {
@@ -43,6 +44,12 @@ final class SettingsStore: ObservableObject {
             startMinutes: widgetAutoRefreshStartMinutes,
             endMinutes: minutes
         )
+    }
+
+    func saveMuseumLatencyTestEnabled(_ isEnabled: Bool) {
+        isMuseumLatencyTestEnabled = isEnabled
+        defaults.set(isEnabled, forKey: SettingsKeys.museumLatencyTestEnabled)
+        defaults.synchronize()
     }
 
     private func saveWidgetAutoRefreshWindow(startMinutes: Int, endMinutes: Int) {

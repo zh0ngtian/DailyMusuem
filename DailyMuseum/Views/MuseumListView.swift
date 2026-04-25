@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct MuseumListView: View {
+    @StateObject private var settings = SettingsStore.shared
     @State private var selectedMuseum: Museum?
     @State private var latencyMeasurements: [MuseumID: MuseumLatencyMeasurement] = [:]
     @State private var isLatencyTesting = false
@@ -14,6 +15,50 @@ struct MuseumListView: View {
     }
 
     var body: some View {
+        Group {
+            if settings.isMuseumLatencyTestEnabled {
+                museumList
+                    .refreshable {
+                        await refreshLatencyMeasurements(cancelInFlight: true)
+                    }
+            } else {
+                museumList
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            if settings.isMuseumLatencyTestEnabled {
+                startLatencyMeasurements()
+            } else {
+                resetLatencyMeasurements()
+            }
+        }
+        .onChange(of: settings.isMuseumLatencyTestEnabled) { _, isEnabled in
+            if isEnabled {
+                startLatencyMeasurements()
+            } else {
+                resetLatencyMeasurements()
+            }
+        }
+        .navigationDestination(item: $selectedMuseum) { museum in
+            ArtworkFeedView(museum: museum)
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                NavigationLink(value: Route.favorites) {
+                    Image(systemName: "star")
+                }
+                .accessibilityLabel("收藏夹")
+
+                NavigationLink(value: Route.settings) {
+                    Image(systemName: "gear")
+                }
+                .accessibilityLabel("设置")
+            }
+        }
+    }
+
+    private var museumList: some View {
         List {
             ForEach(countrySections) { section in
                 Section {
@@ -40,29 +85,6 @@ struct MuseumListView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Color(.systemGroupedBackground))
-        .navigationBarTitleDisplayMode(.inline)
-        .refreshable {
-            await refreshLatencyMeasurements(cancelInFlight: true)
-        }
-        .onAppear {
-            startLatencyMeasurements()
-        }
-        .navigationDestination(item: $selectedMuseum) { museum in
-            ArtworkFeedView(museum: museum)
-        }
-        .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                NavigationLink(value: Route.favorites) {
-                    Image(systemName: "star")
-                }
-                .accessibilityLabel("收藏夹")
-
-                NavigationLink(value: Route.settings) {
-                    Image(systemName: "gear")
-                }
-                .accessibilityLabel("设置")
-            }
-        }
     }
 
     @ViewBuilder
@@ -70,8 +92,10 @@ struct MuseumListView: View {
         HStack(alignment: .center, spacing: 16) {
             museumLogoBadge(for: museum)
 
-            VStack(alignment: .leading, spacing: 4) {
-                latencyBadge(for: museum)
+            VStack(alignment: .leading, spacing: settings.isMuseumLatencyTestEnabled ? 4 : 6) {
+                if settings.isMuseumLatencyTestEnabled {
+                    latencyBadge(for: museum)
+                }
 
                 Text(museum.displayName)
                     .font(.headline)
@@ -149,14 +173,29 @@ struct MuseumListView: View {
     }
 
     private func startLatencyMeasurements() {
+        guard settings.isMuseumLatencyTestEnabled else {
+            resetLatencyMeasurements()
+            return
+        }
         latencyTask?.cancel()
         latencyTask = Task {
             await refreshLatencyMeasurements(cancelInFlight: false)
         }
     }
 
+    private func resetLatencyMeasurements() {
+        latencyTask?.cancel()
+        latencyTask = nil
+        latencyMeasurements = [:]
+        isLatencyTesting = false
+    }
+
     @MainActor
     private func refreshLatencyMeasurements(cancelInFlight: Bool) async {
+        guard settings.isMuseumLatencyTestEnabled else {
+            resetLatencyMeasurements()
+            return
+        }
         if cancelInFlight {
             latencyTask?.cancel()
             latencyTask = nil
