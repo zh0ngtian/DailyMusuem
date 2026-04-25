@@ -28,7 +28,7 @@ struct DailyMuseumWidget: Widget {
         ) { entry in
             DailyMuseumWidgetView(entry: entry)
         }
-        .configurationDisplayName("DailyMuseum")
+        .configurationDisplayName("MuseumMuse")
         .description("自动或手动刷新展示一件展品")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
         .contentMarginsDisabled()
@@ -45,7 +45,7 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
             refreshKey: "placeholder",
             scopeRawValue: WidgetMuseumScope.all.rawValue,
             phase: .idle,
-            museumName: "DailyMuseum",
+            museumName: "MuseumMuse",
             title: "点击刷新获取展品",
             subtitle: "长按小组件，选择「编辑小组件」以改变展品展示范围",
             imageFileName: nil,

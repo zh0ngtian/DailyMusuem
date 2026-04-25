@@ -802,7 +802,7 @@ private struct ArtworkImagePreviewView: View {
         guard authorizationStatus == .authorized || authorizationStatus == .limited else {
             alertState = PreviewAlertState(
                 title: "无法保存",
-                message: "请在系统设置中允许“每日博物馆”保存图片到系统相册。"
+                message: "请在系统设置中允许“博物女神”保存图片到系统相册。"
             )
             return
         }

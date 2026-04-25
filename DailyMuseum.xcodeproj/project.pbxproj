@@ -13,6 +13,7 @@
 		048A14DA9BBF5DC796231307 /* MuseumListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB101B5E24D3739851DC6A22 /* MuseumListView.swift */; };
 		076F9714F7BD5FF4BB3C9548 /* DailyMuseumWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 677E368A7DD1F542B480E2C3 /* DailyMuseumWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		07D7736A77F39CB6028E891B /* ArtworkFeedItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71CBDD45FB2452D4E907C758 /* ArtworkFeedItem.swift */; };
+		0B5F10A5A1B44D74885A5E01 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 0B5F10A5A1B44D74885A5E04 /* InfoPlist.strings */; };
 		090F68A2DF9313C3F0E986FC /* RequestLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0773F3ED0D9C2C7D00381424 /* RequestLogger.swift */; };
 		09B43AA4EB71B869B66F2569 /* MetMuseumPersistentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B767DED860727F7B1D106D3E /* MetMuseumPersistentCache.swift */; };
 		0A1100030000000000000003 /* NaraMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1100010000000000000001 /* NaraMuseumAPI.swift */; };
@@ -217,6 +218,8 @@
 		BD550F604C3CC2B156729689 /* nmc-detail.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "nmc-detail.html"; sourceTree = "<group>"; };
 		BDB91ABFDF5059FE1FCE0687 /* WidgetArtworkService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetArtworkService.swift; sourceTree = "<group>"; };
 		BE28917A141154DC14C0AD37 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		0B5F10A5A1B44D74885A5E02 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		0B5F10A5A1B44D74885A5E03 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		BE9F9F5A9C19616F19DCE43E /* DailyMuseumWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyMuseumWidget.swift; sourceTree = "<group>"; };
 		C48CE0EBDA0C27F939506A95 /* met-meta-fallback.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "met-meta-fallback.html"; sourceTree = "<group>"; };
 		C5BCD57FB86FC7D9454A8587 /* WidgetManualRefreshRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetManualRefreshRunner.swift; sourceTree = "<group>"; };
@@ -317,6 +320,7 @@
 				A49931525A891BFC0604633C /* DailyMuseum.entitlements */,
 				66FE9D0B5E8CBC6277FA891B /* DailyMuseumApp.swift */,
 				BE28917A141154DC14C0AD37 /* Info.plist */,
+				0B5F10A5A1B44D74885A5E04 /* InfoPlist.strings */,
 				FABED403F7CD2A9A4E6D1FEB /* LaunchScreen.storyboard */,
 				8EEE448C8964D21F694014F7 /* RootView.swift */,
 				966F79E2EE781E007C0663DE /* WidgetManualRefreshSupport.swift */,
@@ -450,6 +454,18 @@
 		};
 /* End PBXGroup section */
 
+/* Begin PBXVariantGroup section */
+		0B5F10A5A1B44D74885A5E04 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				0B5F10A5A1B44D74885A5E02 /* InfoPlist.strings */,
+				0B5F10A5A1B44D74885A5E03 /* InfoPlist.strings */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
 /* Begin PBXNativeTarget section */
 		3C0138DA5FFF9A45268F5E51 /* DailyMuseumTests */ = {
 			isa = PBXNativeTarget;
@@ -539,6 +555,7 @@
 			knownRegions = (
 				Base,
 				en,
+				"zh-Hans",
 			);
 			mainGroup = 90469F071F86745660CF1F94;
 			minimizedProjectReferenceProxies = 1;
@@ -559,6 +576,7 @@
 			files = (
 				4CDB8F310780177AFF08146B /* Assets.xcassets in Resources */,
 				ACA3EEF08B67CEBD295D3A96 /* LaunchScreen.storyboard in Resources */,
+				0B5F10A5A1B44D74885A5E01 /* InfoPlist.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

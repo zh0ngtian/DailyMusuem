@@ -22,7 +22,8 @@ targets:
     info:
       path: DailyMuseum/Info.plist
       properties:
-        CFBundleDisplayName: 每日博物馆
+        CFBundleDisplayName: MuseumMuse
+        CFBundleName: MuseumMuse
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "1"
         CFBundleURLTypes:
