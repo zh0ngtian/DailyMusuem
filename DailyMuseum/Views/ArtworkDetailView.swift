@@ -1069,7 +1069,7 @@ private enum ArtworkDetailTypography {
     static let infoValueFont = scaledFont(textStyle: .subheadline)
     static let footnoteFont = scaledFont(textStyle: .footnote)
     static let descriptionLineSpacing: CGFloat = 5
-    static let infoValueIndent: CGFloat = 58
+    static let infoLabelWidth: CGFloat = 44
 
     private static func scaledFont(textStyle: UIFont.TextStyle, weight: UIFont.Weight = .regular) -> UIFont {
         let pointSize = UIFont.preferredFont(forTextStyle: textStyle).pointSize
@@ -1150,45 +1150,19 @@ private struct InfoRow: View {
 
     var body: some View {
         if let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            SelectableAttributedTextView(attributedText: attributedText)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(alignment: .top, spacing: 14) {
+                Text(label)
+                    .font(Font(ArtworkDetailTypography.infoLabelFont))
+                    .foregroundStyle(Color(.secondaryLabel))
+                    .frame(width: ArtworkDetailTypography.infoLabelWidth, alignment: .leading)
+
+                SelectableTextBlock(
+                    text: value,
+                    font: ArtworkDetailTypography.infoValueFont,
+                    textColor: .label
+                )
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-    }
-
-    private var attributedText: NSAttributedString {
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.lineBreakMode = .byWordWrapping
-        paragraphStyle.tabStops = [
-            NSTextTab(
-                textAlignment: .left,
-                location: ArtworkDetailTypography.infoValueIndent
-            )
-        ]
-        paragraphStyle.defaultTabInterval = ArtworkDetailTypography.infoValueIndent
-        paragraphStyle.firstLineHeadIndent = 0
-        paragraphStyle.headIndent = ArtworkDetailTypography.infoValueIndent
-
-        let attributedText = NSMutableAttributedString()
-        attributedText.append(
-            NSAttributedString(
-                string: "\(label)\t",
-                attributes: [
-                    .font: ArtworkDetailTypography.infoLabelFont,
-                    .foregroundColor: UIColor.secondaryLabel,
-                    .paragraphStyle: paragraphStyle
-                ]
-            )
-        )
-        attributedText.append(
-            NSAttributedString(
-                string: value ?? "",
-                attributes: [
-                    .font: ArtworkDetailTypography.infoValueFont,
-                    .foregroundColor: UIColor.label,
-                    .paragraphStyle: paragraphStyle
-                ]
-            )
-        )
-        return attributedText
     }
 }
