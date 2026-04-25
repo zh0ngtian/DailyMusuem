@@ -670,16 +670,19 @@ struct WidgetRefreshEngine {
                     data = responseData
                 }
 
-                guard WidgetArtworkSnapshotStore.imageDimensions(from: data) != nil else {
+                guard let dimensions = WidgetArtworkSnapshotStore.imageDimensions(from: data) else {
                     throw URLError(.cannotDecodeContentData)
                 }
+                let preparedData = WidgetArtworkSnapshotStore.preparedImageDataForStorage(data)
+                let preparedDimensions = WidgetArtworkSnapshotStore.imageDimensions(from: preparedData)
+                let dimensionSummary = preparedDimensions?.summary ?? dimensions.summary
 
                 await Self.logEvent(
                     logSource: logSource,
                     instanceToken: instanceToken,
-                    summary: "候选 \(candidateAttempt) 图片拉取成功，尝试 \(attempt)/\(Constants.imageRetryLimit)，\(artwork.museumID.displayName) / \(artwork.title)，耗时 \(String(format: "%.2f", Date().timeIntervalSince(start)))s"
+                    summary: "候选 \(candidateAttempt) 图片拉取成功，尝试 \(attempt)/\(Constants.imageRetryLimit)，\(artwork.museumID.displayName) / \(artwork.title)，尺寸 \(dimensions.summary) -> \(dimensionSummary)，\(data.count) -> \(preparedData.count) bytes，耗时 \(String(format: "%.2f", Date().timeIntervalSince(start)))s"
                 )
-                return data
+                return preparedData
             } catch is CancellationError {
                 throw CancellationError()
             } catch {

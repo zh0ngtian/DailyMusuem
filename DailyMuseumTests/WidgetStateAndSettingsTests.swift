@@ -1,3 +1,4 @@
+import UIKit
 import WidgetKit
 import XCTest
 
@@ -827,6 +828,43 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(successAttempts, 1)
     }
 
+    func testWidgetRefreshEngineDownsamplesPayloadImageBeforeReturning() async throws {
+        let imageURL = URL(string: "https://example.com/nara-large.jpg")!
+        let sourceData = makeJPEGData(size: CGSize(width: 2400, height: 1600))
+        let sourceDimensions = try XCTUnwrap(WidgetArtworkSnapshotStore.imageDimensions(from: sourceData))
+        let loader = StubBatchLoader(
+            batches: [[
+                makeArtwork(
+                    museumID: .nnm,
+                    objectID: "narahaku-large",
+                    title: "Large Nara Image",
+                    imageURL: imageURL
+                )
+            ]]
+        )
+        let engine = WidgetRefreshEngine(
+            settingsReader: WidgetSettingsReader(defaults: defaults),
+            loaderFactory: { _, _, _ in loader },
+            randomIndex: { _ in 0 },
+            imageDataFetcher: { _, _ in sourceData }
+        )
+
+        let payload = try await engine.fetchRenderableArtwork(
+            scope: .single(.nnm),
+            refreshKey: "single:nnm",
+            logSource: "WidgetEngineDownsample"
+        )
+        let payloadDimensions = try XCTUnwrap(WidgetArtworkSnapshotStore.imageDimensions(from: payload.imageData))
+
+        XCTAssertGreaterThan(max(sourceDimensions.width, sourceDimensions.height), 1200)
+        XCTAssertLessThanOrEqual(max(payloadDimensions.width, payloadDimensions.height), 1200)
+        XCTAssertEqual(
+            CGFloat(payloadDimensions.width) / CGFloat(payloadDimensions.height),
+            CGFloat(sourceDimensions.width) / CGFloat(sourceDimensions.height),
+            accuracy: 0.02
+        )
+    }
+
     func testWidgetRefreshEngineStopsAfterFirstRenderableCandidate() async throws {
         let loader = StubBatchLoader(
             batches: [[
@@ -1417,6 +1455,27 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             primaryImageSmallURL: imageURL,
             objectURL: URL(string: "https://example.com/\(objectID)")
         )
+    }
+
+    private func makeJPEGData(size: CGSize) -> Data {
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        format.opaque = true
+
+        return UIGraphicsImageRenderer(size: size, format: format).jpegData(withCompressionQuality: 0.8) { context in
+            UIColor.black.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+
+            UIColor.white.setFill()
+            context.fill(
+                CGRect(
+                    x: size.width / 3,
+                    y: 0,
+                    width: size.width / 3,
+                    height: size.height
+                )
+            )
+        }
     }
 
     private func temporaryBaseURL() -> URL {

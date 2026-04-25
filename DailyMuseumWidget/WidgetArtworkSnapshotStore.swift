@@ -26,6 +26,7 @@ actor WidgetArtworkSnapshotStore {
         static let stateFileName = "instances.json"
         static let imagesDirectoryName = "images"
         static let widgetImageMaximumDimension: CGFloat = 1200
+        static let storedImageCompressionQuality: CGFloat = 0.85
     }
 
     struct ArtworkPayload: Codable, Equatable {
@@ -605,11 +606,60 @@ actor WidgetArtworkSnapshotStore {
             try FileManager.default.createDirectory(at: imagesDirectoryURL, withIntermediateDirectories: true)
             let fileName = "\(safeFileName(for: instanceToken))-\(nonce).bin"
             let fileURL = imagesDirectoryURL.appendingPathComponent(fileName)
-            try imageData.write(to: fileURL, options: [.atomic])
+            let storedData = Self.preparedImageDataForStorage(imageData)
+            try storedData.write(to: fileURL, options: [.atomic])
             return fileName
         } catch {
             return nil
         }
+    }
+
+    static func preparedImageDataForStorage(_ imageData: Data) -> Data {
+        guard let dimensions = imageDimensions(from: imageData) else {
+            return imageData
+        }
+
+        let maximumDimension = max(dimensions.width, dimensions.height)
+        guard maximumDimension > Int(Constants.widgetImageMaximumDimension),
+              let source = CGImageSourceCreateWithData(
+                imageData as CFData,
+                [kCGImageSourceShouldCache: false] as CFDictionary
+              ) else {
+            return imageData
+        }
+
+        let thumbnailOptions: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: Int(Constants.widgetImageMaximumDimension),
+        ]
+        guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(
+            source,
+            0,
+            thumbnailOptions as CFDictionary
+        ) else {
+            return imageData
+        }
+
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            output,
+            "public.jpeg" as CFString,
+            1,
+            nil
+        ) else {
+            return imageData
+        }
+
+        let destinationOptions = [
+            kCGImageDestinationLossyCompressionQuality: Constants.storedImageCompressionQuality
+        ] as CFDictionary
+        CGImageDestinationAddImage(destination, thumbnail, destinationOptions)
+        guard CGImageDestinationFinalize(destination) else {
+            return imageData
+        }
+        return output as Data
     }
 
     private func deleteImageFile(named fileName: String?) {
@@ -652,42 +702,10 @@ actor WidgetArtworkSnapshotStore {
         targetPointSize: CGSize,
         scale: CGFloat
     ) -> UIImage? {
-        guard let url = imageURL(for: fileName),
-              let data = try? Data(contentsOf: url) else {
-            return nil
-        }
-        return widgetImage(from: data, targetPointSize: targetPointSize, scale: scale)
-    }
-
-    static func widgetImage(
-        from data: Data,
-        targetPointSize: CGSize,
-        scale: CGFloat
-    ) -> UIImage? {
-        let targetPixelSize = normalizedWidgetPixelSize(for: targetPointSize, scale: scale)
-        guard targetPixelSize.width > 0, targetPixelSize.height > 0 else {
-            return UIImage(data: data)
-        }
-
-        return autoreleasepool {
-            guard let sourceImage = UIImage(data: data),
-                  let cgImage = sourceImage.cgImage else {
-                return UIImage(data: data)
-            }
-
-            let targetAspectRatio = targetPixelSize.width / targetPixelSize.height
-            let croppedImage = croppedWidgetImage(cgImage, targetAspectRatio: targetAspectRatio) ?? cgImage
-
-            let format = UIGraphicsImageRendererFormat.default()
-            format.scale = 1
-            format.opaque = true
-
-            return UIGraphicsImageRenderer(size: targetPixelSize, format: format).image { _ in
-                UIImage(cgImage: croppedImage).draw(
-                    in: CGRect(origin: .zero, size: targetPixelSize)
-                )
-            }
-        }
+        _ = targetPointSize
+        _ = scale
+        guard let url = imageURL(for: fileName) else { return nil }
+        return UIImage(contentsOfFile: url.path)
     }
 
     static func imageDimensions(from data: Data) -> WidgetImageDimensions? {
@@ -698,56 +716,5 @@ actor WidgetArtworkSnapshotStore {
             return nil
         }
         return WidgetImageDimensions(width: width, height: height)
-    }
-
-    private static func normalizedWidgetPixelSize(
-        for pointSize: CGSize,
-        scale: CGFloat
-    ) -> CGSize {
-        let normalizedScale = max(scale, 1)
-        let rawPixelSize = CGSize(
-            width: max(pointSize.width * normalizedScale, 1),
-            height: max(pointSize.height * normalizedScale, 1)
-        )
-        let maximumDimension = max(rawPixelSize.width, rawPixelSize.height)
-        guard maximumDimension > Constants.widgetImageMaximumDimension else {
-            return CGSize(
-                width: max(rawPixelSize.width.rounded(.down), 1),
-                height: max(rawPixelSize.height.rounded(.down), 1)
-            )
-        }
-
-        let scaleFactor = Constants.widgetImageMaximumDimension / maximumDimension
-        return CGSize(
-            width: max((rawPixelSize.width * scaleFactor).rounded(.down), 1),
-            height: max((rawPixelSize.height * scaleFactor).rounded(.down), 1)
-        )
-    }
-
-    private static func croppedWidgetImage(
-        _ cgImage: CGImage,
-        targetAspectRatio: CGFloat
-    ) -> CGImage? {
-        guard targetAspectRatio > 0 else {
-            return cgImage
-        }
-
-        let sourceWidth = cgImage.width
-        let sourceHeight = cgImage.height
-        let sourceAspectRatio = CGFloat(sourceWidth) / CGFloat(sourceHeight)
-
-        if abs(sourceAspectRatio - targetAspectRatio) < 0.001 {
-            return cgImage
-        }
-
-        if sourceAspectRatio > targetAspectRatio {
-            let cropWidth = max(Int((CGFloat(sourceHeight) * targetAspectRatio).rounded(.down)), 1)
-            let originX = max((sourceWidth - cropWidth) / 2, 0)
-            return cgImage.cropping(to: CGRect(x: originX, y: 0, width: cropWidth, height: sourceHeight))
-        }
-
-        let cropHeight = max(Int((CGFloat(sourceWidth) / targetAspectRatio).rounded(.down)), 1)
-        let originY = max((sourceHeight - cropHeight) / 2, 0)
-        return cgImage.cropping(to: CGRect(x: 0, y: originY, width: sourceWidth, height: cropHeight))
     }
 }

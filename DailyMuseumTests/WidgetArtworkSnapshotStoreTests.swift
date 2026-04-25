@@ -580,25 +580,42 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
         XCTAssertEqual(state?.artwork?.title, "旧展品")
     }
 
-    func testWidgetImageUsesCroppedThumbnailWithinPixelBudget() throws {
-        let sourceSize = CGSize(width: 6000, height: 600)
-        let sourceData = makeJPEGData(size: sourceSize)
+    func testMarkSuccessDownsamplesStoredImageBeforeWritingToAppGroup() async throws {
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let refreshKey = WidgetRefreshGroupKey.make(scope: .single(.nnm), family: nil)
+        let sourceData = makeJPEGData(size: CGSize(width: 2400, height: 1600))
+        let sourceDimensions = try XCTUnwrap(WidgetArtworkSnapshotStore.imageDimensions(from: sourceData))
 
-        let image = try XCTUnwrap(
-            WidgetArtworkSnapshotStore.widgetImage(
-                from: sourceData,
-                targetPointSize: CGSize(width: 380, height: 376),
-                scale: 3
-            )
+        _ = await store.beginRefresh(
+            instanceToken: refreshKey,
+            scopeRawValue: WidgetMuseumScope.single(.nnm).rawValue
+        )
+        let successState = await store.markSuccess(
+            instanceToken: refreshKey,
+            expectedNonce: 1,
+            payload: makePayload(
+                museumID: .nnm,
+                museumName: "奈良国立博物馆",
+                title: "大图展品"
+            ),
+            imageData: sourceData
         )
 
-        let pixelWidth = Int(image.size.width * image.scale)
-        let pixelHeight = Int(image.size.height * image.scale)
-        let aspectRatio = CGFloat(pixelWidth) / CGFloat(pixelHeight)
-        let expectedAspectRatio = 380.0 / 376.0
+        let imageFileName = try XCTUnwrap(successState?.artwork?.imageFileName)
+        let imageURL = baseURL
+            .appendingPathComponent("WidgetInstances", isDirectory: true)
+            .appendingPathComponent("images", isDirectory: true)
+            .appendingPathComponent(imageFileName)
+        let storedData = try Data(contentsOf: imageURL)
+        let storedDimensions = try XCTUnwrap(WidgetArtworkSnapshotStore.imageDimensions(from: storedData))
 
-        XCTAssertLessThanOrEqual(max(pixelWidth, pixelHeight), 1200)
-        XCTAssertEqual(aspectRatio, expectedAspectRatio, accuracy: 0.02)
+        XCTAssertGreaterThan(max(sourceDimensions.width, sourceDimensions.height), 1200)
+        XCTAssertLessThanOrEqual(max(storedDimensions.width, storedDimensions.height), 1200)
+        XCTAssertEqual(
+            CGFloat(storedDimensions.width) / CGFloat(storedDimensions.height),
+            CGFloat(sourceDimensions.width) / CGFloat(sourceDimensions.height),
+            accuracy: 0.02
+        )
     }
 
     private func makePayload(

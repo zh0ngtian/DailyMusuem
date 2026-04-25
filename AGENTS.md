@@ -858,7 +858,7 @@
   - 常见系统日志关键字包括：
     - `Widget archival failed due to image being too large`
     - `imageTooLarge`
-  - 成功态背景图必须先按小组件目标比例裁剪，并降采样到受控像素尺寸后再渲染。
+  - 成功态背景图必须在图片下载成功后、写入 App Group 前先降采样到受控像素尺寸，渲染时直接读取已降采样文件并交给 SwiftUI `scaledToFill` 裁剪，避免在 Widget View 内再次 `UIImage(data:)` + 重绘导致真机 Widget 内存峰值过高、`idle`、归档失败或进程被系统终止。
 - Widget 当前不再按隐藏 `instanceToken` 隔离内容：
   - provider 必须优先按 `scope` 命中共享状态
   - 即便配置里的旧 `instanceToken` 发生变化，同组实例也应继续显示同一份内容
