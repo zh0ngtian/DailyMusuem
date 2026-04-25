@@ -12,6 +12,7 @@ struct ArtworkDetailLoaderView: View {
     private let japanSearchAPI = JapanSearchAPI()
     private let nationalMuseumChinaAPI = NationalMuseumChinaAPI()
     private let shanghaiMuseumAPI = ShanghaiMuseumAPI()
+    private let britishMuseumAPI = BritishMuseumAPI()
 
     var body: some View {
         Group {
@@ -95,6 +96,8 @@ struct ArtworkDetailLoaderView: View {
                 artwork = try await nationalMuseumChinaAPI.fetchExhibit(exhibitID: exhibitID)
             case .shm:
                 artwork = try await shanghaiMuseumAPI.fetchArtwork(objectCode: reference.objectID)
+            case .bm:
+                artwork = try await britishMuseumAPI.fetchArtwork(objectID: reference.objectID)
             }
         } catch {
             if artwork == nil {

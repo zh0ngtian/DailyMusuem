@@ -340,6 +340,116 @@ final class ParsingAndAPITests: XCTestCase {
         )
     }
 
+    func testBritishMuseumDepartmentIndexLoadsTrackedPartialData() throws {
+        let projectRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let indexURL = projectRoot.appendingPathComponent(
+            "data/british_museum/department_index_partial",
+            isDirectory: true
+        )
+        let index = try BritishMuseumDepartmentIndex.load(fromDirectory: indexURL)
+
+        XCTAssertEqual(index.manifest.partial, true)
+        XCTAssertEqual(index.manifest.fetchedPages, 100)
+        XCTAssertEqual(
+            index.objectIDs(for: [
+                MuseumID.bm.feedCategory(withID: "egypt-sudan")!
+            ]).count,
+            189
+        )
+        XCTAssertEqual(index.departmentDisplayName(for: "Y_EA101366"), "埃及与苏丹")
+    }
+
+    func testBritishMuseumObjectPageParserMapsCoreFields() throws {
+        let html = """
+        <html>
+        <body>
+          <h2>stela</h2>
+          <div>Object Type</div><div>stela</div>
+          <div>Museum number</div><div>EA24</div>
+          <div>Title</div><div>Object: The Rosetta Stone</div>
+          <div>Description</div><div>Part of grey and pink granodiorite stela.</div>
+          <div>Cultures/periods</div><div>Ptolemaic</div>
+          <div>Production date</div><div>196BC</div>
+          <div>Materials</div><div>granodiorite</div>
+          <div>Dimensions</div><div>Length: 112.30 centimetres</div>
+          <div>Department</div><div>Egypt and Sudan</div>
+          <meta property="og:image" content="https://www.britishmuseum.org/images/rosetta.jpg">
+        </body>
+        </html>
+        """
+        let url = try XCTUnwrap(URL(string: "https://www.britishmuseum.org/collection/object/Y_EA24"))
+
+        let artwork = try BritishMuseumObjectPageParser.parse(
+            html: html,
+            objectID: "Y_EA24",
+            objectURL: url,
+            departmentFallback: nil
+        )
+
+        XCTAssertEqual(artwork.museumID, .bm)
+        XCTAssertEqual(artwork.objectID, "Y_EA24")
+        XCTAssertEqual(artwork.title, "The Rosetta Stone")
+        XCTAssertEqual(artwork.artworkDescription, "Part of grey and pink granodiorite stela.")
+        XCTAssertEqual(artwork.objectDate, "196BC")
+        XCTAssertEqual(artwork.medium, "granodiorite")
+        XCTAssertEqual(artwork.dimensions, "Length: 112.30 centimetres")
+        XCTAssertEqual(artwork.department, "Egypt and Sudan")
+        XCTAssertEqual(artwork.culture, "Ptolemaic")
+        XCTAssertEqual(artwork.primaryImageURL?.absoluteString, "https://www.britishmuseum.org/images/rosetta.jpg")
+        XCTAssertEqual(artwork.objectURL, url)
+    }
+
+    func testBritishMuseumObjectPageParserSkipsDecorativeLogoImages() throws {
+        let html = """
+        <html>
+        <body>
+          <h1>Object title</h1>
+          <img src="http://www.britishmuseum.org/themes/custom/bm/logo.svg">
+          <img src="https://www.britishmuseum.org/sites/default/files/styles/uncropped_large/public/collection-image.jpg">
+        </body>
+        </html>
+        """
+        let url = try XCTUnwrap(URL(string: "https://www.britishmuseum.org/collection/object/Y_EA24"))
+
+        let artwork = try BritishMuseumObjectPageParser.parse(
+            html: html,
+            objectID: "Y_EA24",
+            objectURL: url,
+            departmentFallback: nil
+        )
+
+        XCTAssertEqual(
+            artwork.primaryImageURL?.absoluteString,
+            "https://www.britishmuseum.org/sites/default/files/styles/uncropped_large/public/collection-image.jpg"
+        )
+    }
+
+    func testBritishMuseumObjectPageParserUpgradesHTTPImageURLsToHTTPS() throws {
+        let html = """
+        <html>
+        <head>
+          <meta property="og:image" content="http://www.britishmuseum.org/images/collection-object.jpg">
+        </head>
+        <body><h1>Object title</h1></body>
+        </html>
+        """
+        let url = try XCTUnwrap(URL(string: "https://www.britishmuseum.org/collection/object/Y_EA24"))
+
+        let artwork = try BritishMuseumObjectPageParser.parse(
+            html: html,
+            objectID: "Y_EA24",
+            objectURL: url,
+            departmentFallback: nil
+        )
+
+        XCTAssertEqual(
+            artwork.primaryImageURL?.absoluteString,
+            "https://www.britishmuseum.org/images/collection-object.jpg"
+        )
+    }
+
     func testJapanSearchAPIFallsBackFromContributorSearchAndFiltersSortsDedupes() async throws {
         let categoryTypeCode = "fallback-\(UUID().uuidString)"
         let recorder = RequestRecorder()
@@ -535,6 +645,13 @@ final class ParsingAndAPITests: XCTestCase {
             request.httpMethod == "POST"
                 && request.url?.host == "www.shanghaimuseum.net"
                 && request.url?.path == "/mu/frontend/pg/collection/search-antique"
+        })
+        XCTAssertTrue(recorder.requests.contains { request in
+            request.httpMethod == "GET"
+                && request.url?.host == "www.britishmuseum.org"
+                && request.url?.path == "/api/_search"
+                && queryValue("fields", in: request.url) == "identifier"
+                && queryValue("page", in: request.url) == "0"
         })
     }
 

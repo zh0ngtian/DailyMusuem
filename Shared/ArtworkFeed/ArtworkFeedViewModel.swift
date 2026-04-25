@@ -73,6 +73,7 @@ final class ArtworkFeedViewModel: ObservableObject {
     private let japanSearchAPI: JapanSearchAPI
     private let nationalMuseumChinaAPI: NationalMuseumChinaAPI
     private let shanghaiMuseumAPI: ShanghaiMuseumAPI
+    private let britishMuseumAPI: BritishMuseumAPI
 
     private var batchLoader: ArtworkBatchLoader?
     private var objectIDPool: [String] = []
@@ -86,7 +87,8 @@ final class ArtworkFeedViewModel: ObservableObject {
         metAPI: MetMuseumAPI = MetMuseumAPI(),
         japanSearchAPI: JapanSearchAPI = JapanSearchAPI(),
         nationalMuseumChinaAPI: NationalMuseumChinaAPI = NationalMuseumChinaAPI(),
-        shanghaiMuseumAPI: ShanghaiMuseumAPI = ShanghaiMuseumAPI()
+        shanghaiMuseumAPI: ShanghaiMuseumAPI = ShanghaiMuseumAPI(),
+        britishMuseumAPI: BritishMuseumAPI = BritishMuseumAPI()
     ) {
         self.museum = museum
         self.settings = settings ?? SettingsStore.shared
@@ -95,6 +97,7 @@ final class ArtworkFeedViewModel: ObservableObject {
         self.japanSearchAPI = japanSearchAPI
         self.nationalMuseumChinaAPI = nationalMuseumChinaAPI
         self.shanghaiMuseumAPI = shanghaiMuseumAPI
+        self.britishMuseumAPI = britishMuseumAPI
         self.selectedCategories = self.settings.feedCategories(for: museum.id)
     }
 
@@ -337,7 +340,8 @@ final class ArtworkFeedViewModel: ObservableObject {
             metAPI: metAPI,
             japanSearchAPI: japanSearchAPI,
             nationalMuseumChinaAPI: nationalMuseumChinaAPI,
-            shanghaiMuseumAPI: shanghaiMuseumAPI
+            shanghaiMuseumAPI: shanghaiMuseumAPI,
+            britishMuseumAPI: britishMuseumAPI
         )
     }
 

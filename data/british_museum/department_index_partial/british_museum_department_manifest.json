@@ -1,0 +1,67 @@
+{
+  "source": "https://www.britishmuseum.org/collection/search API /api/_search",
+  "partial": true,
+  "partialReason": "The public search API currently exposes only the first 100 result pages for this broad query; page 100+ cannot be used as a full-collection cursor.",
+  "query": "view=list&sort=object_name__asc&fields=identifier",
+  "reportedTotalResults": 2687070,
+  "fetchedPages": 100,
+  "pageSize": 100,
+  "departments": [
+    {
+      "departmentID": "africa-oceania-americas",
+      "departmentRaw": "Africa, Oceania and the Americas",
+      "departmentDisplayName": "非洲、大洋洲与美洲",
+      "file": "departments/africa-oceania-americas.json",
+      "count": 4949
+    },
+    {
+      "departmentID": "asia",
+      "departmentRaw": "Asia",
+      "departmentDisplayName": "亚洲",
+      "file": "departments/asia.json",
+      "count": 445
+    },
+    {
+      "departmentID": "britain-europe-prehistory",
+      "departmentRaw": "Britain, Europe and Prehistory",
+      "departmentDisplayName": "不列颠、欧洲与史前",
+      "file": "departments/britain-europe-prehistory.json",
+      "count": 1109
+    },
+    {
+      "departmentID": "egypt-sudan",
+      "departmentRaw": "Egypt and Sudan",
+      "departmentDisplayName": "埃及与苏丹",
+      "file": "departments/egypt-sudan.json",
+      "count": 189
+    },
+    {
+      "departmentID": "greece-rome",
+      "departmentRaw": "Greece and Rome",
+      "departmentDisplayName": "希腊与罗马",
+      "file": "departments/greece-rome.json",
+      "count": 569
+    },
+    {
+      "departmentID": "middle-east",
+      "departmentRaw": "Middle East",
+      "departmentDisplayName": "中东",
+      "file": "departments/middle-east.json",
+      "count": 193
+    },
+    {
+      "departmentID": "money-medals",
+      "departmentRaw": "Money and Medals",
+      "departmentDisplayName": "钱币与奖章",
+      "file": "departments/money-medals.json",
+      "count": 707
+    },
+    {
+      "departmentID": "prints-drawings",
+      "departmentRaw": "Prints and Drawings",
+      "departmentDisplayName": "版画与素描",
+      "file": "departments/prints-drawings.json",
+      "count": 1786
+    }
+  ]
+}

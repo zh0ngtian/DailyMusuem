@@ -1,0 +1,728 @@
+{
+  "partial": true,
+  "outputDir": "/Users/zhongtian/WorkSpace/DailyMusuem/build/british_museum_department_index_partial",
+  "generatedAt": "2026-04-25T11:49:16.769Z",
+  "source": "British Museum /api/_search broad search window",
+  "query": "view=list&sort=object_name__asc&fields=identifier",
+  "reportedTotalResults": 2687070,
+  "fetchedPages": 100,
+  "requestedPages": 100,
+  "pageSize": 100,
+  "uniqueObjectIDsSeen": 10000,
+  "assignedObjectIDs": 9947,
+  "unknownDepartmentCount": 53,
+  "missingObjectIDCount": 0,
+  "conflictingDepartmentCount": 0,
+  "departmentCounts": {
+    "africa-oceania-americas": 4949,
+    "asia": 445,
+    "britain-europe-prehistory": 1109,
+    "egypt-sudan": 189,
+    "greece-rome": 569,
+    "middle-east": 193,
+    "money-medals": 707,
+    "prints-drawings": 1786
+  },
+  "pageReports": [
+    {
+      "page": 0,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 1,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 2,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 3,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 4,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 5,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 6,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 7,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 8,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 9,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 10,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 11,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 12,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 13,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 14,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 15,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 16,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 17,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 18,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 19,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 20,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 21,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 22,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 23,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 24,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 25,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 26,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 27,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 28,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 29,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 30,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 31,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 32,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 33,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 34,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 35,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 36,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 37,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 38,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 39,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 40,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 41,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 42,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 43,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 44,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 45,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 46,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 47,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 48,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 49,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 50,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 51,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 52,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 53,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 54,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 55,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 56,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 57,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 58,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 59,
+      "status": "ok",
+      "records": 100,
+      "accepted": 99,
+      "duplicates": 0
+    },
+    {
+      "page": 60,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 61,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 62,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 63,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 64,
+      "status": "ok",
+      "records": 100,
+      "accepted": 99,
+      "duplicates": 0
+    },
+    {
+      "page": 65,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 66,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 67,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 68,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 69,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 70,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 71,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 72,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 73,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 74,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 75,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 76,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 77,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 78,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 79,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 80,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 81,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 82,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 83,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 84,
+      "status": "ok",
+      "records": 100,
+      "accepted": 96,
+      "duplicates": 0
+    },
+    {
+      "page": 85,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 86,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 87,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 88,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 89,
+      "status": "ok",
+      "records": 100,
+      "accepted": 89,
+      "duplicates": 0
+    },
+    {
+      "page": 90,
+      "status": "ok",
+      "records": 100,
+      "accepted": 84,
+      "duplicates": 0
+    },
+    {
+      "page": 91,
+      "status": "ok",
+      "records": 100,
+      "accepted": 88,
+      "duplicates": 0
+    },
+    {
+      "page": 92,
+      "status": "ok",
+      "records": 100,
+      "accepted": 96,
+      "duplicates": 0
+    },
+    {
+      "page": 93,
+      "status": "ok",
+      "records": 100,
+      "accepted": 98,
+      "duplicates": 0
+    },
+    {
+      "page": 94,
+      "status": "ok",
+      "records": 100,
+      "accepted": 98,
+      "duplicates": 0
+    },
+    {
+      "page": 95,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 96,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 97,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 98,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    },
+    {
+      "page": 99,
+      "status": "ok",
+      "records": 100,
+      "accepted": 100,
+      "duplicates": 0
+    }
+  ]
+}

@@ -838,7 +838,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
                     return StubBatchLoader(batches: [[metArtwork]])
                 case .tnm:
                     return StubBatchLoader(batches: [[tnmArtwork]])
-                case .nmc, .shm:
+                case .nmc, .shm, .bm:
                     return StubBatchLoader(batches: [])
                 }
             },

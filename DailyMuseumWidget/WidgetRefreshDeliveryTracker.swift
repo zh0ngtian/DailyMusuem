@@ -760,7 +760,7 @@ enum WidgetPreferredImageURLDecision {
         switch museumID {
         case .tnm:
             return compactUniqueURLs([artwork.primaryImageSmallURL, artwork.primaryImageURL])
-        case .met, .nmc, .shm:
+        case .met, .nmc, .shm, .bm:
             return compactUniqueURLs([artwork.primaryImageURL, artwork.primaryImageSmallURL])
         }
     }

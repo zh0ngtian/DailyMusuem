@@ -22,6 +22,7 @@ struct MuseumCategory: Identifiable, Hashable {
         case japanSearchType
         case nationalMuseumChinaBucket
         case shanghaiMuseumSubtype
+        case britishMuseumDepartment
     }
 
     let museumID: MuseumID
@@ -55,6 +56,11 @@ struct MuseumCategory: Identifiable, Hashable {
         return remoteValue
     }
 
+    var britishMuseumDepartmentID: String? {
+        guard kind == .britishMuseumDepartment else { return nil }
+        return remoteValue
+    }
+
     var isAll: Bool {
         kind == .all
     }
@@ -65,6 +71,7 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
     case tnm
     case nmc
     case shm
+    case bm
 
     var id: String { rawValue }
 
@@ -78,6 +85,8 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
             return "中国国家博物馆"
         case .shm:
             return "上海博物馆"
+        case .bm:
+            return "大英博物馆"
         }
     }
 
@@ -89,6 +98,8 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
             return "日本"
         case .nmc, .shm:
             return "中国"
+        case .bm:
+            return "英国"
         }
     }
 
@@ -102,6 +113,8 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
             return "北京"
         case .shm:
             return "上海"
+        case .bm:
+            return "伦敦"
         }
     }
 
@@ -119,6 +132,8 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
             return "NmcHomepageLogo"
         case .shm:
             return "ShmHomepageLogo"
+        case .bm:
+            return "BritishMuseumHomepageLogo"
         }
     }
 
@@ -128,7 +143,7 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
 
     var supportsTranslation: Bool {
         switch self {
-        case .met, .tnm:
+        case .met, .tnm, .bm:
             return true
         case .nmc, .shm:
             return false
@@ -137,7 +152,7 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
 
     var supportsWidgetContent: Bool {
         switch self {
-        case .met, .tnm, .nmc, .shm:
+        case .met, .tnm, .nmc, .shm, .bm:
             return true
         }
     }
@@ -146,7 +161,7 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
         switch self {
         case .nmc, .shm:
             return true
-        case .met, .tnm:
+        case .met, .tnm, .bm:
             return false
         }
     }
@@ -210,6 +225,18 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
                 "封泥", "符节（牌）", "印玺", "建筑配件", "器物配件", "织物", "绣品", "服装", "饰品", "文献",
                 "书籍图谱", "拓本", "玩具", "乐器"
             ].map { .shanghaiMuseumSubtype(museumID: self, name: $0) }
+        case .bm:
+            return [
+                .all(museumID: self),
+                .britishMuseumDepartment(museumID: self, id: "africa-oceania-americas", displayName: "非洲、大洋洲与美洲"),
+                .britishMuseumDepartment(museumID: self, id: "asia", displayName: "亚洲"),
+                .britishMuseumDepartment(museumID: self, id: "britain-europe-prehistory", displayName: "不列颠、欧洲与史前"),
+                .britishMuseumDepartment(museumID: self, id: "egypt-sudan", displayName: "埃及与苏丹"),
+                .britishMuseumDepartment(museumID: self, id: "greece-rome", displayName: "希腊与罗马"),
+                .britishMuseumDepartment(museumID: self, id: "middle-east", displayName: "中东"),
+                .britishMuseumDepartment(museumID: self, id: "money-medals", displayName: "钱币与奖章"),
+                .britishMuseumDepartment(museumID: self, id: "prints-drawings", displayName: "版画与素描")
+            ]
         }
     }
 
@@ -447,6 +474,17 @@ final class MuseumLatencyService: @unchecked Sendable {
             request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
             request.setValue("no-cache", forHTTPHeaderField: "Pragma")
             return request
+        case .bm:
+            var request = try makeGETRequest(
+                urlString: "https://www.britishmuseum.org/api/_search?view=list&sort=object_name__asc&fields=identifier&page=0"
+            )
+            request.setValue(Self.mobileUserAgent, forHTTPHeaderField: "User-Agent")
+            request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
+            request.setValue("en-GB,en;q=0.9,zh-CN;q=0.8", forHTTPHeaderField: "Accept-Language")
+            request.setValue("https://www.britishmuseum.org/collection/search", forHTTPHeaderField: "Referer")
+            request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+            request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+            return request
         }
     }
 
@@ -622,6 +660,16 @@ private extension MuseumCategory {
             displayName: name,
             kind: .shanghaiMuseumSubtype,
             remoteValue: name
+        )
+    }
+
+    static func britishMuseumDepartment(museumID: MuseumID, id: String, displayName: String) -> MuseumCategory {
+        MuseumCategory(
+            museumID: museumID,
+            id: id,
+            displayName: displayName,
+            kind: .britishMuseumDepartment,
+            remoteValue: id
         )
     }
 }

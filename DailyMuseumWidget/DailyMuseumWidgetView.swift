@@ -125,6 +125,8 @@ struct DailyMuseumWidgetView: View {
             return .nmc
         case .single(.shm):
             return .shm
+        case .single(.bm):
+            return .bm
         }
     }
 

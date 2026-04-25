@@ -35,6 +35,9 @@
   - 副标题：`北京`
   - 名称：`上海博物馆`
   - 副标题：`上海`
+  - 名称：`大英博物馆`
+  - 副标题：`伦敦`
+  - 状态：基于 `partial: true` Department 离线索引的实验性接入；已开放一级页、二级页、详情页分发和 Widget 单馆 scope，但当前索引不是全量馆藏，详情页抓取受官网 Cloudflare challenge 影响时会降级为索引占位数据。
 - 判断规则：
   - 仅接上 API、能拉到数据，不能视为“新增博物馆已完成”。
   - 只有同时完成 `一级页入口`、`首页延迟测试`、`二级页瀑布流`、`页面设置`、`详情页`、`Widget`、`深链接`、`验证闭环`、`AGENTS.md 回填`，才算正式支持。
@@ -218,7 +221,36 @@
   - 图片页解析失败时，当前允许继续返回文字详情；后续修改时不能因为图片页失败而直接丢弃整条详情
   - 主 App 二级页首批加载允许先用文章页解析出的文字字段渲染卡片，再等待图片页补齐图片链接与后续图片显示
 
-#### 3.1.5 首页延迟测试
+#### 3.1.5 大英博物馆
+
+- 大英博物馆当前为基于 Department 离线索引的实验性接入。
+- 主 App 二级页候选池只从已打包的 Department 倒排索引读取 `objectID`，不在运行时扫描全量官网搜索结果。
+- 主 App 二级页普通加载优先使用索引占位数据快速渲染卡片；展品标题、图片、描述、年代等详情仍在进入详情页或 Widget `network-only` 刷新时按 `objectID` 抓取官网详情页。
+- 大英博物馆详情页请求地址固定为 `https://www.britishmuseum.org/collection/object/{objectID}`。
+- 大英博物馆详情页主图解析只能返回 HTTPS 展品图；如果官网 HTML 中出现 `http://` 的大英博物馆图片 URL，需要规整为 `https://`，并且必须过滤 `logo`、`icon`、`sprite`、`placeholder`、`.svg`、`.ico`、`/themes/`、`/core/`、`/modules/`、`/assets/` 等站点装饰资源，避免把官网 logo 当作展品图或触发 ATS 拦截。
+- 如果官网详情页返回 Cloudflare challenge 或解析失败，当前允许降级为只含 `objectID`、Department、官网链接和版权声明的占位展品；不能把占位数据误认为完整详情。
+- 大英博物馆 Widget 已支持单馆 scope，候选池同样来自离线索引；Widget 刷新仍走 `network-only` 详情抓取，候选无可用图片时继续按现有单件候选推进规则丢弃，不使用主 App 占位数据假装刷新成功。
+- 大英博物馆索引构建脚本为 `scripts/build_british_museum_department_index.py`。
+- 当前脚本只消费官网 `Download results` 导出的离线 CSV / TSV，不在 App 或 Widget 端实时抓取官网搜索结果。
+- 大英博物馆官网 `Download results` 只支持结果数不超过 `10,000` 的搜索；宽查询对应的隐藏搜索接口也不能直接翻过前 `100` 页。任何基于宽查询窗口生成的索引都必须标记为 `partial: true`，不能当作全量馆藏索引。
+- 如果后续要从官网接口补齐全量索引，必须先设计可审计的分片策略，让每个分片结果数不超过 `10,000`，并在 `build_summary.json` 中记录分片、去重和覆盖校验结果。
+- 当前可被 Git 追踪的实验性窗口索引放在 `data/british_museum/department_index_partial/`，该目录只保存 `partial: true` 的前 `10,000` 条宽查询结果。
+- `data/british_museum/department_index_partial/` 需要作为资源打包进主 App、Widget Extension 和测试 target；后续移动目录时必须同步更新 `Project.yml`。
+- 当前只生成 Department 倒排索引：
+  - 清单文件：`british_museum_department_manifest.json`
+  - 单馆部门文件：`departments/{departmentID}.json`
+  - 不生成 `objectID -> Department` 正向索引
+- 倒排索引只保存展品 `objectID`，不保存标题、图片、描述、年代等详情字段；详情仍需运行时按官网详情页抓取。
+- 如果官网导出没有详情 URL 或 `objectID` 字段，脚本允许按 `Museum number` 和 Department 前缀推断官网对象 ID；推断数量必须写入 `build_summary.json`，后续接入详情链路时需要抽样校验。
+- 同一 Department 内重复 `objectID` 必须去重，并按稳定顺序输出。
+- 构建异常必须单独输出报告：
+  - `reports/unknown_department.json`
+  - `reports/conflicting_department.json`
+  - `reports/build_summary.json`
+- 大英博物馆官网存在 Cloudflare challenge，不能假设 `URLSession` / `curl` 可稳定直接抓取官网页面；如后续增加页面抓取，必须优先离线执行并遵守官网 `robots.txt` 中的 `Crawl-delay: 20`。
+- 大英博物馆版权与文本 / 数据挖掘限制需要单独确认；不得把离线索引用作绕过授权或批量抓取图片的依据。
+
+#### 3.1.6 首页延迟测试
 
 - 首页延迟测试只用于展示当前网络延迟，不写入展品搜索、详情或 Widget 缓存。
 - 每个已支持博物馆需要配置一个轻量 API：
@@ -226,6 +258,7 @@
   - 东京国立博物馆：`https://jpsearch.go.jp/api/item/search/jps-cross`，参数使用 `f-db=cobas`、`q-contributor=東京国立博物館`、`f-contents=image`、`from=0`、`size=1`
   - 中国国家博物馆：`https://appapi.chnmuseum.cn/api/exhibit_list`，参数使用 `cate_id=0`、`limit=1`、`page=1`、`p=i`、`son_cate_id=0`
   - 上海博物馆：`https://www.shanghaimuseum.net/mu/frontend/pg/collection/search-antique`，请求体使用 `page=1`、`limit=1`
+  - 大英博物馆：`https://www.britishmuseum.org/api/_search?view=list&sort=object_name__asc&fields=identifier&page=0`，请求头需要保留浏览器风格 `User-Agent`、`Accept-Language` 和 `Referer`
 - 后续新增博物馆时，延迟测试 API 必须优先选择单次、轻量、不会改变服务端状态的请求。
 
 ### 3.2 分类规范
@@ -371,6 +404,22 @@
   - 必须确认新的 subtype 文案可直接用于 UI 展示
   - 必须确认请求体继续传递正确的 `subtype` 值
 
+#### 3.2.6 大英博物馆 Department 分类
+
+- 大英博物馆当前分类来源为官网导出数据中的 `Department` / `Dept` 字段。
+- App 侧类别筛选使用索引内稳定 `departmentID`，不直接向 UI 展示英文 Department 原文。
+- 当前只允许使用官方 8 个 curatorial departments 作为分类：
+  - `Africa, Oceania and the Americas` -> `africa-oceania-americas` -> `非洲、大洋洲与美洲`
+  - `Asia` -> `asia` -> `亚洲`
+  - `Britain, Europe and Prehistory` -> `britain-europe-prehistory` -> `不列颠、欧洲与史前`
+  - `Egypt and Sudan` -> `egypt-sudan` -> `埃及与苏丹`
+  - `Greece and Rome` -> `greece-rome` -> `希腊与罗马`
+  - `Middle East` -> `middle-east` -> `中东`
+  - `Money and Medals` -> `money-medals` -> `钱币与奖章`
+  - `Prints and Drawings` -> `prints-drawings` -> `版画与素描`
+- `Collection Care`、`Scientific Research`、`Human remains` 等跨馆支持部门不能作为展品分类。
+- 如果导出数据出现空 Department 或不在上述 8 个映射中的值，必须进入异常报告，不允许静默并入正式分类。
+
 ## 4. 主 App 规范
 
 ### 4.1 信息架构
@@ -431,6 +480,8 @@
   - 副标题显示：`北京`
   - 主标题显示：`上海博物馆`
   - 副标题显示：`上海`
+  - 主标题显示：`大英博物馆`
+  - 副标题显示：`伦敦`
 
 ### 4.3 二级页面
 
@@ -591,7 +642,7 @@
 - 收藏夹页按博物馆分组展示已收藏展品。
 - 收藏夹中的展品卡片样式、宽度、间距需要对齐对应博物馆二级页的列表模式，不允许继续使用额外的系统列表 inset 把卡片压窄。
 - 分组顺序需要跟随首页当前固定的国家分组顺序：
-  - 当前顺序为 `中国国家博物馆`、`上海博物馆`、`大都会艺术博物馆`、`东京国立博物馆`
+  - 当前顺序为 `中国国家博物馆`、`上海博物馆`、`大都会艺术博物馆`、`东京国立博物馆`、`大英博物馆`
 - 每个分组内的展品按最近收藏在前排序。
 - 收藏夹页点击展品后，需要进入对应展品详情页。
 - 收藏夹页中的展品需要支持左滑删除，左滑删除等价于取消收藏。
@@ -605,11 +656,13 @@
   - `东京国立博物馆`
   - `中国国家博物馆`
   - `上海博物馆`
+  - `大英博物馆`
 - 博物馆副标题只显示城市：
   - `纽约`
   - `东京`
   - `北京`
   - `上海`
+  - `伦敦`
 - 不再在副标题中重复展示博物馆名称。
 
 ## 5. Widget 规范
@@ -652,6 +705,7 @@
   - `东京国立博物馆`
   - `中国国家博物馆`
   - `上海博物馆`
+  - `大英博物馆`
 - 主 App 内各博物馆当前保存的类别选择仍然需要保留：
   - 小组件刷新时继续复用这些类别作为过滤条件
 - 不再提供以下旧配置项：

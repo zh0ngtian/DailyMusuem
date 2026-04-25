@@ -115,6 +115,7 @@ actor ArtworkBatchLoader {
     private let japanSearchAPI: JapanSearchAPI
     private let nationalMuseumChinaAPI: NationalMuseumChinaAPI
     private let shanghaiMuseumAPI: ShanghaiMuseumAPI
+    private let britishMuseumAPI: BritishMuseumAPI
 
     private var objectIDPool: [String] = []
     private var loadedObjectIDs: Set<String> = []
@@ -129,7 +130,8 @@ actor ArtworkBatchLoader {
         metAPI: MetMuseumAPI = MetMuseumAPI(),
         japanSearchAPI: JapanSearchAPI = JapanSearchAPI(),
         nationalMuseumChinaAPI: NationalMuseumChinaAPI = NationalMuseumChinaAPI(),
-        shanghaiMuseumAPI: ShanghaiMuseumAPI = ShanghaiMuseumAPI()
+        shanghaiMuseumAPI: ShanghaiMuseumAPI = ShanghaiMuseumAPI(),
+        britishMuseumAPI: BritishMuseumAPI = BritishMuseumAPI()
     ) {
         self.museumID = museumID
         self.categories = museumID.normalizedFeedCategories(categories)
@@ -140,6 +142,7 @@ actor ArtworkBatchLoader {
         self.japanSearchAPI = japanSearchAPI
         self.nationalMuseumChinaAPI = nationalMuseumChinaAPI
         self.shanghaiMuseumAPI = shanghaiMuseumAPI
+        self.britishMuseumAPI = britishMuseumAPI
         hasMoreRemoteItemIDs = true
     }
 
@@ -263,6 +266,15 @@ actor ArtworkBatchLoader {
             await log("展品 ID 已就绪，当前可用 \(objectIDPool.count) 条。")
         case .shm:
             try await ensureShanghaiPool(targetCount: targetCount, reason: "首次进入")
+        case .bm:
+            let ids = try await britishMuseumAPI.objectIDs(
+                categories: categories,
+                onLog: onLog
+            )
+            await log("开始按\(randomOrder ? "随机" : "objectID 顺序")模式整理大英博物馆 objectIDs，类别：\(selectedCategoriesLogLabel)。")
+            objectIDPool = randomOrder ? ids.shuffled() : ids.sorted()
+            hasMoreRemoteItemIDs = false
+            await log("大英博物馆 objectIDs 已就绪，当前可用 \(objectIDPool.count) 条。")
         }
     }
 
@@ -278,7 +290,7 @@ actor ArtworkBatchLoader {
             try await ensureTokyoPool(targetCount: nextTargetCount, reason: "继续浏览")
         case .shm:
             try await ensureShanghaiPool(targetCount: nextTargetCount, reason: "继续浏览")
-        case .met, .nmc:
+        case .met, .nmc, .bm:
             break
         }
     }
@@ -463,6 +475,39 @@ actor ArtworkBatchLoader {
                 let failures = results.compactMap(\.failureMessage)
                 if !failures.isEmpty {
                     await log("上海博物馆本批详情失败 \(failures.count) 条。")
+                    for message in failures.prefix(3) {
+                        await log(message)
+                    }
+                }
+                return results.compactMap(\.artwork)
+            }
+        case .bm:
+            return await withTaskGroup(of: BatchLoadResult.self) { group in
+                for objectID in candidateIDs {
+                    group.addTask { [britishMuseumAPI, cachePolicy, onArtworkReady] in
+                        do {
+                            try Task.checkCancellation()
+                            let artwork: Artwork
+                            if cachePolicy == .networkOnly {
+                                artwork = try await britishMuseumAPI.fetchArtwork(
+                                    objectID: objectID,
+                                    cachePolicy: cachePolicy
+                                )
+                            } else {
+                                artwork = await britishMuseumAPI.indexedArtwork(objectID: objectID)
+                            }
+                            try Task.checkCancellation()
+                            await onArtworkReady?(artwork)
+                            return .artwork(artwork)
+                        } catch {
+                            return .failure("objectID=\(objectID) 详情获取失败：\(error.localizedDescription)")
+                        }
+                    }
+                }
+                let results = await collectBatchResults(from: &group)
+                let failures = results.compactMap(\.failureMessage)
+                if !failures.isEmpty {
+                    await log("大英博物馆本批详情失败 \(failures.count) 条。")
                     for message in failures.prefix(3) {
                         await log(message)
                     }

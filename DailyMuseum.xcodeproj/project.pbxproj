@@ -3,38 +3,52 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 63;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
 		010B92CC939F14CA27C2A0FB /* JapanSearchPersistentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81AF35BA5DF051D95514488B /* JapanSearchPersistentCache.swift */; };
 		014375A5D184F881FD7070C1 /* WidgetManualRefreshRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5BCD57FB86FC7D9454A8587 /* WidgetManualRefreshRunner.swift */; };
+		01C5796E66ECCDAA2E30E720 /* asia.json in Resources */ = {isa = PBXBuildFile; fileRef = E69EA672D5A777FE0710A3C0 /* asia.json */; };
+		0203617451AA8D11CF1A47E3 /* middle-east.json in Resources */ = {isa = PBXBuildFile; fileRef = 6BA1828D5CE10B7F0B97240E /* middle-east.json */; };
 		0221CE15D7D3E4EDE27D79FC /* ArtworkListRowCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B534D07A84678EB11A2A0F5 /* ArtworkListRowCardView.swift */; };
 		048A14DA9BBF5DC796231307 /* MuseumListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB101B5E24D3739851DC6A22 /* MuseumListView.swift */; };
 		076F9714F7BD5FF4BB3C9548 /* DailyMuseumWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 677E368A7DD1F542B480E2C3 /* DailyMuseumWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		07D7736A77F39CB6028E891B /* ArtworkFeedItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71CBDD45FB2452D4E907C758 /* ArtworkFeedItem.swift */; };
 		090F68A2DF9313C3F0E986FC /* RequestLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0773F3ED0D9C2C7D00381424 /* RequestLogger.swift */; };
+		09963E9C35DE40CB46B63A66 /* middle-east.json in Resources */ = {isa = PBXBuildFile; fileRef = 6BA1828D5CE10B7F0B97240E /* middle-east.json */; };
 		09B43AA4EB71B869B66F2569 /* MetMuseumPersistentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B767DED860727F7B1D106D3E /* MetMuseumPersistentCache.swift */; };
 		0C29EBB7118BA7DA8620B6F1 /* ArtworkCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3069A0CBA34322E131468A6 /* ArtworkCardView.swift */; };
+		0C7CC9F6E933C01B06E91FA9 /* unknown_department.json in Resources */ = {isa = PBXBuildFile; fileRef = 42F2AC83C9FE4925E2C942B1 /* unknown_department.json */; };
 		10425B44D3DC479F9D20FE9C /* MetMuseumModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63E587269ECC706F1F22C266 /* MetMuseumModels.swift */; };
 		10BFA44C9A4240C5EBF57018 /* SettingsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD5690663479FBDA165A96B /* SettingsKeys.swift */; };
+		121CF15EC6B5F6860D27C275 /* money-medals.json in Resources */ = {isa = PBXBuildFile; fileRef = EB55B8C705D61B85136752F9 /* money-medals.json */; };
 		143394D49730B9AAE5B9C68B /* MetMuseumWebDescriptionBrowserFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75205576B729AEB95D7A1CC9 /* MetMuseumWebDescriptionBrowserFetcher.swift */; };
 		14B082D6FFDB65D6DA0F9EB7 /* WidgetStateAndSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E85039D52D33451509A0868 /* WidgetStateAndSettingsTests.swift */; };
 		164B18A892946803105F93B3 /* nmc-detail.html in Resources */ = {isa = PBXBuildFile; fileRef = BD550F604C3CC2B156729689 /* nmc-detail.html */; };
+		17202EE1C15D148DE588EEBD /* missing_object_id.json in Resources */ = {isa = PBXBuildFile; fileRef = A30B9E59124F4D1DD1F4E7A7 /* missing_object_id.json */; };
 		19972E0AC511408E6B230C44 /* ArtworkFeedCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EC70DA2766D6FFD98283BC4 /* ArtworkFeedCache.swift */; };
 		1A5FF2DFAC46F3920B6A67E4 /* AppDeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 217B48EE2D107B1146488C81 /* AppDeepLink.swift */; };
+		1B97561AAE362F76A55836BF /* missing_object_id.json in Resources */ = {isa = PBXBuildFile; fileRef = A30B9E59124F4D1DD1F4E7A7 /* missing_object_id.json */; };
 		1E1E769E8F11B29392A69DE5 /* met-meta-fallback.html in Resources */ = {isa = PBXBuildFile; fileRef = C48CE0EBDA0C27F939506A95 /* met-meta-fallback.html */; };
 		1F31599DB4A916708584C85F /* LogTimestampFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63B74CA27ECF1DE6E23D8E0F /* LogTimestampFormatter.swift */; };
 		202A66A894794C852608588A /* LogTimestampFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63B74CA27ECF1DE6E23D8E0F /* LogTimestampFormatter.swift */; };
 		207957B9F0BC89033407E721 /* ShanghaiMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04279914561DC56D5FA7C7E0 /* ShanghaiMuseumAPI.swift */; };
+		22DA38635CF9FD3894610510 /* british_museum_department_manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = 4950D3FF16927BA9F55000B4 /* british_museum_department_manifest.json */; };
 		23C3A7F80D86D0CE04456893 /* MetMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DE3B16D47B38730CD4475CE /* MetMuseumAPI.swift */; };
 		2504A1D7A159B9476755E503 /* WidgetRefreshDeliveryTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30FEFFA3E3CD614C956FEA98 /* WidgetRefreshDeliveryTracker.swift */; };
 		2580F721762415DE7E4269A9 /* RequestLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F3052397EB170BF0730F5B4 /* RequestLogsView.swift */; };
 		25F50C06099559E4DBB10D2C /* SettingsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD5690663479FBDA165A96B /* SettingsKeys.swift */; };
 		26E380BEA06C51547FE13415 /* MuseumRequestCachePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B261DB738D9FD5711A2D6ED /* MuseumRequestCachePolicy.swift */; };
 		27A16A60F3963299A690DE5E /* JapanSearchAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFDCEFCEFAE0A60F402972CF /* JapanSearchAPI.swift */; };
+		28A59519569181DDB9D3D39F /* britain-europe-prehistory.json in Resources */ = {isa = PBXBuildFile; fileRef = 11E925B907DC721A762764F2 /* britain-europe-prehistory.json */; };
+		29C665734A81E52D881DEAB6 /* prints-drawings.json in Resources */ = {isa = PBXBuildFile; fileRef = 760F5353A8FD13D200EBD888 /* prints-drawings.json */; };
+		2B081B72AAD26BF72BFC8252 /* greece-rome.json in Resources */ = {isa = PBXBuildFile; fileRef = FB0B6B52D7690FE3C5E5F1EF /* greece-rome.json */; };
+		2D19FF904A8967D0E9017E6F /* egypt-sudan.json in Resources */ = {isa = PBXBuildFile; fileRef = 26747C3C714E95EEE16A8882 /* egypt-sudan.json */; };
 		2DF453C26258E1256FC88944 /* SettingsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD5690663479FBDA165A96B /* SettingsKeys.swift */; };
 		359187C2F581E0B49E2DFE3F /* MetMuseumPersistentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B767DED860727F7B1D106D3E /* MetMuseumPersistentCache.swift */; };
+		35C3897E50BA10F245CCC939 /* britain-europe-prehistory.json in Resources */ = {isa = PBXBuildFile; fileRef = 11E925B907DC721A762764F2 /* britain-europe-prehistory.json */; };
+		386635AFFD8916A66FDA950E /* build_summary.json in Resources */ = {isa = PBXBuildFile; fileRef = 2434C89952F5E0853D96A0B7 /* build_summary.json */; };
 		39EF46DCBA1A93ADAB139396 /* RequestLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0773F3ED0D9C2C7D00381424 /* RequestLogger.swift */; };
 		3C76032D89CE9DB40E9A91B5 /* WidgetManualRefreshRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5BCD57FB86FC7D9454A8587 /* WidgetManualRefreshRunner.swift */; };
 		3CEB39B09A6657F163706A4B /* MuseumRequestCachePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B261DB738D9FD5711A2D6ED /* MuseumRequestCachePolicy.swift */; };
@@ -44,28 +58,37 @@
 		46D15A1FFC5F33AEF41388A2 /* JapanSearchAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFDCEFCEFAE0A60F402972CF /* JapanSearchAPI.swift */; };
 		4763B0241317625657255B1E /* WidgetArtworkSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C479641DC62C47615D086EE /* WidgetArtworkSnapshotStore.swift */; };
 		47875A95039007E1D161ABF1 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EEE448C8964D21F694014F7 /* RootView.swift */; };
+		48A74AD80A452FD8337A416B /* build_summary.json in Resources */ = {isa = PBXBuildFile; fileRef = 2434C89952F5E0853D96A0B7 /* build_summary.json */; };
 		48ADEC2F139C0580ECCD8474 /* WidgetRefreshDeliveryTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30FEFFA3E3CD614C956FEA98 /* WidgetRefreshDeliveryTracker.swift */; };
 		4A52AADAA05E981E758DC0CB /* FavoritesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59C380E89F1FC0CACD45A21B /* FavoritesStore.swift */; };
 		4B2F819053D552D94899A3A0 /* FavoritesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59C380E89F1FC0CACD45A21B /* FavoritesStore.swift */; };
+		4B9178E0180605C99B5BACB2 /* egypt-sudan.json in Resources */ = {isa = PBXBuildFile; fileRef = 26747C3C714E95EEE16A8882 /* egypt-sudan.json */; };
 		4CCF626A0EC4DE04A6970486 /* WidgetConfigurationIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ABE6EEDAB63E735DD709799 /* WidgetConfigurationIntent.swift */; };
 		4CDB8F310780177AFF08146B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D2E9FEFE6D6787330AAA0104 /* Assets.xcassets */; };
+		51F0C03A374B8FB2D0030F8B /* british_museum_department_manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = 4950D3FF16927BA9F55000B4 /* british_museum_department_manifest.json */; };
 		5601240D9836EF70D90487A0 /* ArtworkFeedViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27983725A26AC36A5EA28756 /* ArtworkFeedViewModel.swift */; };
 		5610487BA191F1B6C6E8AE02 /* WidgetSettingsReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFEC49CE4C55DCDEA5364224 /* WidgetSettingsReader.swift */; };
+		57CE208225CE1713A8DD6B40 /* asia.json in Resources */ = {isa = PBXBuildFile; fileRef = E69EA672D5A777FE0710A3C0 /* asia.json */; };
 		5875B0F754457BC5643B7F8B /* JapanSearchAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFDCEFCEFAE0A60F402972CF /* JapanSearchAPI.swift */; };
+		5ABA7BE50C6ED54D4598CEE9 /* britain-europe-prehistory.json in Resources */ = {isa = PBXBuildFile; fileRef = 11E925B907DC721A762764F2 /* britain-europe-prehistory.json */; };
 		5CC00FF6639BCA691EC911D4 /* RefreshWidgetIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DB226201B7F579BFCF07E7A /* RefreshWidgetIntent.swift */; };
 		5CD44E4C3C51F0C9DC86B62C /* ArtworkFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56BD6F2F27B9A4E39394EB50 /* ArtworkFeedView.swift */; };
 		604D80758FBC9229EF6232A3 /* NationalMuseumChinaAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 197FEFC5FEC3B51DB5E4F537 /* NationalMuseumChinaAPI.swift */; };
 		613EB3DC359C2C75B6798013 /* JapanSearchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9000674963F093B5BC9FE7 /* JapanSearchModels.swift */; };
 		626A4F3FABA4F40BF4F5B669 /* RequestLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0773F3ED0D9C2C7D00381424 /* RequestLogger.swift */; };
+		686B8328A5D75DC091846442 /* unknown_department.json in Resources */ = {isa = PBXBuildFile; fileRef = 42F2AC83C9FE4925E2C942B1 /* unknown_department.json */; };
 		68F05418F5EFFF72F3EB40A7 /* WidgetConfigurationIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ABE6EEDAB63E735DD709799 /* WidgetConfigurationIntent.swift */; };
 		6C7D299EDB5EEBF0D7E2492A /* NationalMuseumChinaAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 197FEFC5FEC3B51DB5E4F537 /* NationalMuseumChinaAPI.swift */; };
 		6DAE6E8652B53C8FAB50973F /* WidgetMuseumScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 785DF258A9365EE2171A1EDA /* WidgetMuseumScope.swift */; };
 		6E98875786462837438D5333 /* ImageMemoryCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFBFD7C33C4CE48C10423B05 /* ImageMemoryCache.swift */; };
+		72CBB99828B983F33FB66810 /* prints-drawings.json in Resources */ = {isa = PBXBuildFile; fileRef = 760F5353A8FD13D200EBD888 /* prints-drawings.json */; };
+		72F66D67DFC14A059B76CBF3 /* prints-drawings.json in Resources */ = {isa = PBXBuildFile; fileRef = 760F5353A8FD13D200EBD888 /* prints-drawings.json */; };
 		752579CACD31E606674EED80 /* Museum.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22F7ECE0FEA6838A9CA48031 /* Museum.swift */; };
 		768CB71B07681723D487B0E7 /* Artwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6236876208BA288526D7D379 /* Artwork.swift */; };
 		7C1D0CDB2BA138EC3688D49E /* ArtworkFeedCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EC70DA2766D6FFD98283BC4 /* ArtworkFeedCache.swift */; };
 		7D49ED0C055B49ADF0BB67BA /* ArtworkFeedCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EC70DA2766D6FFD98283BC4 /* ArtworkFeedCache.swift */; };
 		7D7B4261C7FDB3E5EF55DC31 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D567DE125D65B4BF7B005CEA /* SettingsStore.swift */; };
+		81C88E92EDCDBF19B2E4A18A /* conflicting_department.json in Resources */ = {isa = PBXBuildFile; fileRef = 51AB3F327675C53EE895D279 /* conflicting_department.json */; };
 		828BB63598930EDF4CE1D542 /* ParsingAndAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AB578154F6CB44C5B73D6FD /* ParsingAndAPITests.swift */; };
 		85112783CD28996B11A9101D /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D567DE125D65B4BF7B005CEA /* SettingsStore.swift */; };
 		85717FAD517234673788BBE6 /* WidgetSettingsReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFEC49CE4C55DCDEA5364224 /* WidgetSettingsReader.swift */; };
@@ -73,39 +96,54 @@
 		871AEAA835A3CAEF21587F92 /* WidgetArtworkSnapshotStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE70EA404100D32A48865F90 /* WidgetArtworkSnapshotStoreTests.swift */; };
 		87F6CECE8690A90AE55AC7B8 /* JapanSearchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9000674963F093B5BC9FE7 /* JapanSearchModels.swift */; };
 		8AA9F4124D1ECEB6AE2B42BC /* MetMuseumPersistentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B767DED860727F7B1D106D3E /* MetMuseumPersistentCache.swift */; };
+		8BC652FFAEA01FBC482A2ABF /* greece-rome.json in Resources */ = {isa = PBXBuildFile; fileRef = FB0B6B52D7690FE3C5E5F1EF /* greece-rome.json */; };
 		8CC0195C8ECB3BBE91FA8E12 /* ArtworkFeedViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27983725A26AC36A5EA28756 /* ArtworkFeedViewModel.swift */; };
+		8F96AF684F51F7E74F83A59A /* BritishMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25570C884C0D66E8BFF23C28 /* BritishMuseumAPI.swift */; };
+		8FDEA1741570D86206B12BE1 /* middle-east.json in Resources */ = {isa = PBXBuildFile; fileRef = 6BA1828D5CE10B7F0B97240E /* middle-east.json */; };
 		915F168BF32339F1C34D5E69 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D567DE125D65B4BF7B005CEA /* SettingsStore.swift */; };
 		96F201E336F9C153509002C3 /* CoreLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5EEE2EB1580589947A6FEDA /* CoreLogicTests.swift */; };
+		97D4F01F2A682C25D549680A /* british_museum_department_manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = 4950D3FF16927BA9F55000B4 /* british_museum_department_manifest.json */; };
+		9C51091257CE7E83022AC753 /* africa-oceania-americas.json in Resources */ = {isa = PBXBuildFile; fileRef = FE2F49D5D26A84D4D0EC9322 /* africa-oceania-americas.json */; };
 		9DA9630412EDAEFDE3EAC41E /* AppRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D49DEAE0ACDF038EE933986B /* AppRouter.swift */; };
+		A0A4AE0761970B0CAEFBDE63 /* money-medals.json in Resources */ = {isa = PBXBuildFile; fileRef = EB55B8C705D61B85136752F9 /* money-medals.json */; };
 		A160B9CD7430EE891181FA94 /* met-overview.html in Resources */ = {isa = PBXBuildFile; fileRef = 15CC322130D2C36A4D586EC3 /* met-overview.html */; };
 		A38484C2185A31CF1C746E1F /* FavoritesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59C380E89F1FC0CACD45A21B /* FavoritesStore.swift */; };
 		A5994779E3359E86DD37A8BD /* WidgetConfigurationIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ABE6EEDAB63E735DD709799 /* WidgetConfigurationIntent.swift */; };
+		A6B0B8BBCA0FCC0C13ABC41E /* africa-oceania-americas.json in Resources */ = {isa = PBXBuildFile; fileRef = FE2F49D5D26A84D4D0EC9322 /* africa-oceania-americas.json */; };
+		A7D56BB5C670754BB7BDA611 /* build_summary.json in Resources */ = {isa = PBXBuildFile; fileRef = 2434C89952F5E0853D96A0B7 /* build_summary.json */; };
 		A9A3F24657BDD51957EA848B /* DailyMuseumWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41E30B7CB5F9A6C88D27C0C2 /* DailyMuseumWidgetView.swift */; };
 		A9EFC7883E19EBC1EF52F69D /* ArtworkDetailLoaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B2A7EA64F8C40563153939F /* ArtworkDetailLoaderView.swift */; };
 		AA13EE5D38DF6679999B07EF /* ArtworkFeedItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71CBDD45FB2452D4E907C758 /* ArtworkFeedItem.swift */; };
 		AC4FDD416DF8E33F134AD066 /* ImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BA863EC7AE41653AA5A9382 /* ImageLoader.swift */; };
 		AC9A30889523ECD67B0C6F2E /* WidgetArtworkSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C479641DC62C47615D086EE /* WidgetArtworkSnapshotStore.swift */; };
 		ACA3EEF08B67CEBD295D3A96 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FABED403F7CD2A9A4E6D1FEB /* LaunchScreen.storyboard */; };
+		B274004B63C12FF64F255723 /* greece-rome.json in Resources */ = {isa = PBXBuildFile; fileRef = FB0B6B52D7690FE3C5E5F1EF /* greece-rome.json */; };
 		B7533C6D8A41BD65DC1B91C7 /* ShanghaiMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04279914561DC56D5FA7C7E0 /* ShanghaiMuseumAPI.swift */; };
 		BA503B583A43593254FC7A8E /* ArtworkFeedItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71CBDD45FB2452D4E907C758 /* ArtworkFeedItem.swift */; };
+		BA6255DEEB7BEE90B4B11DE1 /* conflicting_department.json in Resources */ = {isa = PBXBuildFile; fileRef = 51AB3F327675C53EE895D279 /* conflicting_department.json */; };
 		BB4EB0811A3E804BBA440AEF /* CachedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7C1FAD7D063813D4D6C9F2A /* CachedAsyncImage.swift */; };
 		BCB4A26C7A84A6F6DA20EF02 /* ImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BA863EC7AE41653AA5A9382 /* ImageLoader.swift */; };
 		BE339BFB1CB1E63EA1C63F84 /* WidgetMuseumScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 785DF258A9365EE2171A1EDA /* WidgetMuseumScope.swift */; };
 		C196A854993FEC75D12539BE /* JapanSearchPersistentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81AF35BA5DF051D95514488B /* JapanSearchPersistentCache.swift */; };
+		C3DCD4DE4E87B2EE83661C7A /* BritishMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25570C884C0D66E8BFF23C28 /* BritishMuseumAPI.swift */; };
 		C807F84E57178E093DE6064D /* WidgetRefreshDeliveryTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30FEFFA3E3CD614C956FEA98 /* WidgetRefreshDeliveryTracker.swift */; };
 		CED1F1FA337791BFC579A74C /* JapanSearchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9000674963F093B5BC9FE7 /* JapanSearchModels.swift */; };
 		D196A25010220D77782341EC /* DailyMuseumWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA2C496990992A4623A8A9C9 /* DailyMuseumWidgetBundle.swift */; };
+		D2037638F3E1B1C58201D045 /* egypt-sudan.json in Resources */ = {isa = PBXBuildFile; fileRef = 26747C3C714E95EEE16A8882 /* egypt-sudan.json */; };
 		D222D68A2DF97D3D2721196A /* ShanghaiMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04279914561DC56D5FA7C7E0 /* ShanghaiMuseumAPI.swift */; };
 		D42C8238EF8C0D8582535336 /* MetMuseumModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63E587269ECC706F1F22C266 /* MetMuseumModels.swift */; };
+		D43020C295BA54771B07484F /* unknown_department.json in Resources */ = {isa = PBXBuildFile; fileRef = 42F2AC83C9FE4925E2C942B1 /* unknown_department.json */; };
 		D6F07A89D69991764AEC6902 /* FavoritesStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 090F116BD2F05BC2CB7C3DC7 /* FavoritesStoreTests.swift */; };
 		D70FAF2FDD8A6B78C62DDA9D /* Artwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6236876208BA288526D7D379 /* Artwork.swift */; };
 		D7688FF2CCD4DDF0F7F6544D /* WidgetMuseumScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 785DF258A9365EE2171A1EDA /* WidgetMuseumScope.swift */; };
 		D8DA575A29B99005AD6A590F /* WidgetManualRefreshSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 966F79E2EE781E007C0663DE /* WidgetManualRefreshSupport.swift */; };
 		D92BF8CACC23E37738349E04 /* CachedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7C1FAD7D063813D4D6C9F2A /* CachedAsyncImage.swift */; };
+		DA2929D956E053CC487E7C5C /* BritishMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25570C884C0D66E8BFF23C28 /* BritishMuseumAPI.swift */; };
 		E1CA2063A268CDC49E0512CB /* NationalMuseumChinaAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 197FEFC5FEC3B51DB5E4F537 /* NationalMuseumChinaAPI.swift */; };
 		E22BD293BEBC5DE722E82E26 /* Museum.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22F7ECE0FEA6838A9CA48031 /* Museum.swift */; };
 		E34068BA81AA887116679881 /* ArtworkFeedViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B80C6D7D22F20C3E88A9744F /* ArtworkFeedViewModelTests.swift */; };
 		E5A1A6D3D86B31E82DCADD4A /* ImageMemoryCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFBFD7C33C4CE48C10423B05 /* ImageMemoryCache.swift */; };
+		E68BE62E149384290EA74799 /* missing_object_id.json in Resources */ = {isa = PBXBuildFile; fileRef = A30B9E59124F4D1DD1F4E7A7 /* missing_object_id.json */; };
 		E6F45083BBEDF96C8635C070 /* WidgetArtworkSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C479641DC62C47615D086EE /* WidgetArtworkSnapshotStore.swift */; };
 		E7F14E6F91CEB38C95CF47CA /* MetMuseumModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63E587269ECC706F1F22C266 /* MetMuseumModels.swift */; };
 		E899CA41ABFEE0CC2009E85B /* MuseumRequestCachePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B261DB738D9FD5711A2D6ED /* MuseumRequestCachePolicy.swift */; };
@@ -117,10 +155,14 @@
 		EDCA33ABA853CDF8C3FE7FA5 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ACA67A0EFEEB5748BD15991 /* SettingsView.swift */; };
 		EE309BCCC53ECF316CA57CF3 /* DailyMuseumWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9F9F5A9C19616F19DCE43E /* DailyMuseumWidget.swift */; };
 		EF41EA911A12CAEEFA2C4BBA /* LogTimestampFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63B74CA27ECF1DE6E23D8E0F /* LogTimestampFormatter.swift */; };
+		F039AF6F9005B6303DF5F677 /* africa-oceania-americas.json in Resources */ = {isa = PBXBuildFile; fileRef = FE2F49D5D26A84D4D0EC9322 /* africa-oceania-americas.json */; };
 		F0AE0A1C3CC1749CBE7B804F /* WaterfallGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64A154303832F3F9AF23F141 /* WaterfallGrid.swift */; };
+		F1D265AED972CC37E51DF306 /* asia.json in Resources */ = {isa = PBXBuildFile; fileRef = E69EA672D5A777FE0710A3C0 /* asia.json */; };
 		F47332D90352D1E9E64D26C4 /* ArtworkDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F45F7D1EF6D115D013098444 /* ArtworkDetailView.swift */; };
 		F5399D305E02913A1EC5AB10 /* MetMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DE3B16D47B38730CD4475CE /* MetMuseumAPI.swift */; };
 		F5F3A8D0A90A4DA91148C6BF /* MetMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DE3B16D47B38730CD4475CE /* MetMuseumAPI.swift */; };
+		F665ED0AB421D93F7C86A651 /* money-medals.json in Resources */ = {isa = PBXBuildFile; fileRef = EB55B8C705D61B85136752F9 /* money-medals.json */; };
+		F9199BC7CFE31DDE6C3D16F8 /* conflicting_department.json in Resources */ = {isa = PBXBuildFile; fileRef = 51AB3F327675C53EE895D279 /* conflicting_department.json */; };
 		FA0D5BE2C5BFAD512BE486C0 /* AppDeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 217B48EE2D107B1146488C81 /* AppDeepLink.swift */; };
 		FA1DFAF26C30C3811D3EE7D2 /* AppShortcutHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BFE471F94A682558E6A71A9 /* AppShortcutHandler.swift */; };
 		FA61C66FE799EE5EE5329728 /* WidgetSettingsReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFEC49CE4C55DCDEA5364224 /* WidgetSettingsReader.swift */; };
@@ -162,21 +204,28 @@
 		0773F3ED0D9C2C7D00381424 /* RequestLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestLogger.swift; sourceTree = "<group>"; };
 		090F116BD2F05BC2CB7C3DC7 /* FavoritesStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesStoreTests.swift; sourceTree = "<group>"; };
 		0ACA67A0EFEEB5748BD15991 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		11E925B907DC721A762764F2 /* britain-europe-prehistory.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "britain-europe-prehistory.json"; sourceTree = "<group>"; };
 		15CC322130D2C36A4D586EC3 /* met-overview.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "met-overview.html"; sourceTree = "<group>"; };
 		197FEFC5FEC3B51DB5E4F537 /* NationalMuseumChinaAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NationalMuseumChinaAPI.swift; sourceTree = "<group>"; };
 		1B7AF25AA60373F1FEF52146 /* DailyMuseumWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DailyMuseumWidget.entitlements; sourceTree = "<group>"; };
-		1CA69050D6181865B9708213 /* DailyMuseumTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DailyMuseumTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		1CA69050D6181865B9708213 /* DailyMuseumTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = DailyMuseumTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		217B48EE2D107B1146488C81 /* AppDeepLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDeepLink.swift; sourceTree = "<group>"; };
 		22F7ECE0FEA6838A9CA48031 /* Museum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Museum.swift; sourceTree = "<group>"; };
+		2434C89952F5E0853D96A0B7 /* build_summary.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = build_summary.json; sourceTree = "<group>"; };
 		24DBCD6E661D8383B4C5F9E3 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		25570C884C0D66E8BFF23C28 /* BritishMuseumAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BritishMuseumAPI.swift; sourceTree = "<group>"; };
+		26747C3C714E95EEE16A8882 /* egypt-sudan.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "egypt-sudan.json"; sourceTree = "<group>"; };
 		27983725A26AC36A5EA28756 /* ArtworkFeedViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkFeedViewModel.swift; sourceTree = "<group>"; };
 		30FEFFA3E3CD614C956FEA98 /* WidgetRefreshDeliveryTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetRefreshDeliveryTracker.swift; sourceTree = "<group>"; };
 		3101F293FCA2DD99BB88661C /* FavoritesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesView.swift; sourceTree = "<group>"; };
 		3AB578154F6CB44C5B73D6FD /* ParsingAndAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsingAndAPITests.swift; sourceTree = "<group>"; };
 		3EC70DA2766D6FFD98283BC4 /* ArtworkFeedCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkFeedCache.swift; sourceTree = "<group>"; };
 		41E30B7CB5F9A6C88D27C0C2 /* DailyMuseumWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyMuseumWidgetView.swift; sourceTree = "<group>"; };
+		42F2AC83C9FE4925E2C942B1 /* unknown_department.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = unknown_department.json; sourceTree = "<group>"; };
+		4950D3FF16927BA9F55000B4 /* british_museum_department_manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = british_museum_department_manifest.json; sourceTree = "<group>"; };
 		4B2A7EA64F8C40563153939F /* ArtworkDetailLoaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkDetailLoaderView.swift; sourceTree = "<group>"; };
 		4E9000674963F093B5BC9FE7 /* JapanSearchModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JapanSearchModels.swift; sourceTree = "<group>"; };
+		51AB3F327675C53EE895D279 /* conflicting_department.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = conflicting_department.json; sourceTree = "<group>"; };
 		56BD6F2F27B9A4E39394EB50 /* ArtworkFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkFeedView.swift; sourceTree = "<group>"; };
 		59C380E89F1FC0CACD45A21B /* FavoritesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesStore.swift; sourceTree = "<group>"; };
 		5B534D07A84678EB11A2A0F5 /* ArtworkListRowCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkListRowCardView.swift; sourceTree = "<group>"; };
@@ -187,11 +236,13 @@
 		63E587269ECC706F1F22C266 /* MetMuseumModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetMuseumModels.swift; sourceTree = "<group>"; };
 		64A154303832F3F9AF23F141 /* WaterfallGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaterfallGrid.swift; sourceTree = "<group>"; };
 		66FE9D0B5E8CBC6277FA891B /* DailyMuseumApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyMuseumApp.swift; sourceTree = "<group>"; };
-		677E368A7DD1F542B480E2C3 /* DailyMuseumWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DailyMuseumWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		677E368A7DD1F542B480E2C3 /* DailyMuseumWidgetExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = DailyMuseumWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		6ABE6EEDAB63E735DD709799 /* WidgetConfigurationIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetConfigurationIntent.swift; sourceTree = "<group>"; };
 		6B261DB738D9FD5711A2D6ED /* MuseumRequestCachePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuseumRequestCachePolicy.swift; sourceTree = "<group>"; };
+		6BA1828D5CE10B7F0B97240E /* middle-east.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "middle-east.json"; sourceTree = "<group>"; };
 		71CBDD45FB2452D4E907C758 /* ArtworkFeedItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkFeedItem.swift; sourceTree = "<group>"; };
 		75205576B729AEB95D7A1CC9 /* MetMuseumWebDescriptionBrowserFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetMuseumWebDescriptionBrowserFetcher.swift; sourceTree = "<group>"; };
+		760F5353A8FD13D200EBD888 /* prints-drawings.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "prints-drawings.json"; sourceTree = "<group>"; };
 		785DF258A9365EE2171A1EDA /* WidgetMuseumScope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetMuseumScope.swift; sourceTree = "<group>"; };
 		7BFE471F94A682558E6A71A9 /* AppShortcutHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShortcutHandler.swift; sourceTree = "<group>"; };
 		7C479641DC62C47615D086EE /* WidgetArtworkSnapshotStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetArtworkSnapshotStore.swift; sourceTree = "<group>"; };
@@ -203,6 +254,7 @@
 		9DE3B16D47B38730CD4475CE /* MetMuseumAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetMuseumAPI.swift; sourceTree = "<group>"; };
 		9E85039D52D33451509A0868 /* WidgetStateAndSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetStateAndSettingsTests.swift; sourceTree = "<group>"; };
 		9F3052397EB170BF0730F5B4 /* RequestLogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestLogsView.swift; sourceTree = "<group>"; };
+		A30B9E59124F4D1DD1F4E7A7 /* missing_object_id.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = missing_object_id.json; sourceTree = "<group>"; };
 		A49931525A891BFC0604633C /* DailyMuseum.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DailyMuseum.entitlements; sourceTree = "<group>"; };
 		A5EEE2EB1580589947A6FEDA /* CoreLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreLogicTests.swift; sourceTree = "<group>"; };
 		AFEC49CE4C55DCDEA5364224 /* WidgetSettingsReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSettingsReader.swift; sourceTree = "<group>"; };
@@ -216,7 +268,7 @@
 		BE9F9F5A9C19616F19DCE43E /* DailyMuseumWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyMuseumWidget.swift; sourceTree = "<group>"; };
 		C48CE0EBDA0C27F939506A95 /* met-meta-fallback.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "met-meta-fallback.html"; sourceTree = "<group>"; };
 		C5BCD57FB86FC7D9454A8587 /* WidgetManualRefreshRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetManualRefreshRunner.swift; sourceTree = "<group>"; };
-		CE050719A8E48E3DE4D76BBB /* DailyMuseum.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DailyMuseum.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CE050719A8E48E3DE4D76BBB /* DailyMuseum.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = DailyMuseum.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CFBFD7C33C4CE48C10423B05 /* ImageMemoryCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageMemoryCache.swift; sourceTree = "<group>"; };
 		D2E9FEFE6D6787330AAA0104 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		D49DEAE0ACDF038EE933986B /* AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouter.swift; sourceTree = "<group>"; };
@@ -225,8 +277,12 @@
 		DA2C496990992A4623A8A9C9 /* DailyMuseumWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyMuseumWidgetBundle.swift; sourceTree = "<group>"; };
 		DB101B5E24D3739851DC6A22 /* MuseumListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuseumListView.swift; sourceTree = "<group>"; };
 		DFDCEFCEFAE0A60F402972CF /* JapanSearchAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JapanSearchAPI.swift; sourceTree = "<group>"; };
+		E69EA672D5A777FE0710A3C0 /* asia.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = asia.json; sourceTree = "<group>"; };
+		EB55B8C705D61B85136752F9 /* money-medals.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "money-medals.json"; sourceTree = "<group>"; };
 		F45F7D1EF6D115D013098444 /* ArtworkDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkDetailView.swift; sourceTree = "<group>"; };
 		FABED403F7CD2A9A4E6D1FEB /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		FB0B6B52D7690FE3C5E5F1EF /* greece-rome.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "greece-rome.json"; sourceTree = "<group>"; };
+		FE2F49D5D26A84D4D0EC9322 /* africa-oceania-americas.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "africa-oceania-americas.json"; sourceTree = "<group>"; };
 		FE70EA404100D32A48865F90 /* WidgetArtworkSnapshotStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetArtworkSnapshotStoreTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -239,6 +295,17 @@
 			path = Services;
 			sourceTree = "<group>";
 		};
+		083F13A8D7D6AFE50403A0B8 /* reports */ = {
+			isa = PBXGroup;
+			children = (
+				2434C89952F5E0853D96A0B7 /* build_summary.json */,
+				51AB3F327675C53EE895D279 /* conflicting_department.json */,
+				A30B9E59124F4D1DD1F4E7A7 /* missing_object_id.json */,
+				42F2AC83C9FE4925E2C942B1 /* unknown_department.json */,
+			);
+			path = reports;
+			sourceTree = "<group>";
+		};
 		0F8ACE05F507B92A0E80653D /* JapanSearch */ = {
 			isa = PBXGroup;
 			children = (
@@ -247,6 +314,17 @@
 				81AF35BA5DF051D95514488B /* JapanSearchPersistentCache.swift */,
 			);
 			path = JapanSearch;
+			sourceTree = "<group>";
+		};
+		125ABE80B46D7EA1928CA86D /* department_index_partial */ = {
+			isa = PBXGroup;
+			children = (
+				4950D3FF16927BA9F55000B4 /* british_museum_department_manifest.json */,
+				B34D49505DB3303F98363418 /* departments */,
+				083F13A8D7D6AFE50403A0B8 /* reports */,
+			);
+			name = department_index_partial;
+			path = data/british_museum/department_index_partial;
 			sourceTree = "<group>";
 		};
 		24F54B3AB67BE88EFFFE3CE4 /* MetMuseum */ = {
@@ -323,6 +401,7 @@
 				6B261DB738D9FD5711A2D6ED /* MuseumRequestCachePolicy.swift */,
 				C5BCD57FB86FC7D9454A8587 /* WidgetManualRefreshRunner.swift */,
 				5225386D7CA9D444567A323F /* ArtworkFeed */,
+				DF1AAA0CC5638F3D89BC08F5 /* BritishMuseum */,
 				A68417A79F9D150D53ED0C41 /* Images */,
 				0F8ACE05F507B92A0E80653D /* JapanSearch */,
 				2D9E1AB212E9EA83BCC2C332 /* Logging */,
@@ -355,6 +434,7 @@
 				540C4352AA99A790037E6727 /* DailyMuseum */,
 				72AA4F9933BC8BED3C4E0266 /* DailyMuseumTests */,
 				B853AF91266F3159C7D5DDB2 /* DailyMuseumWidget */,
+				125ABE80B46D7EA1928CA86D /* department_index_partial */,
 				63A075E04AB411510BCCBE31 /* Shared */,
 				41BF8271109E2C2D713CC4AF /* Products */,
 			);
@@ -385,6 +465,21 @@
 				CFBFD7C33C4CE48C10423B05 /* ImageMemoryCache.swift */,
 			);
 			path = Images;
+			sourceTree = "<group>";
+		};
+		B34D49505DB3303F98363418 /* departments */ = {
+			isa = PBXGroup;
+			children = (
+				FE2F49D5D26A84D4D0EC9322 /* africa-oceania-americas.json */,
+				E69EA672D5A777FE0710A3C0 /* asia.json */,
+				11E925B907DC721A762764F2 /* britain-europe-prehistory.json */,
+				26747C3C714E95EEE16A8882 /* egypt-sudan.json */,
+				FB0B6B52D7690FE3C5E5F1EF /* greece-rome.json */,
+				6BA1828D5CE10B7F0B97240E /* middle-east.json */,
+				EB55B8C705D61B85136752F9 /* money-medals.json */,
+				760F5353A8FD13D200EBD888 /* prints-drawings.json */,
+			);
+			path = departments;
 			sourceTree = "<group>";
 		};
 		B3F7EF00803CBE83E17F964E /* Settings */ = {
@@ -425,6 +520,14 @@
 				BD550F604C3CC2B156729689 /* nmc-detail.html */,
 			);
 			path = Fixtures;
+			sourceTree = "<group>";
+		};
+		DF1AAA0CC5638F3D89BC08F5 /* BritishMuseum */ = {
+			isa = PBXGroup;
+			children = (
+				25570C884C0D66E8BFF23C28 /* BritishMuseumAPI.swift */,
+			);
+			path = BritishMuseum;
 			sourceTree = "<group>";
 		};
 		E0117BA06A7E99FBF2FCBB83 /* NationalMuseumChina */ = {
@@ -482,6 +585,7 @@
 			buildConfigurationList = 55EF284912239C59A2465E13 /* Build configuration list for PBXNativeTarget "DailyMuseumWidgetExtension" */;
 			buildPhases = (
 				BF1E154830FADC5F0E38AEF4 /* Sources */,
+				9FADFB7F0FCC2A0B7854127E /* Resources */,
 			);
 			buildRules = (
 			);
@@ -529,6 +633,7 @@
 			);
 			mainGroup = 90469F071F86745660CF1F94;
 			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -546,6 +651,39 @@
 			files = (
 				4CDB8F310780177AFF08146B /* Assets.xcassets in Resources */,
 				ACA3EEF08B67CEBD295D3A96 /* LaunchScreen.storyboard in Resources */,
+				A6B0B8BBCA0FCC0C13ABC41E /* africa-oceania-americas.json in Resources */,
+				F1D265AED972CC37E51DF306 /* asia.json in Resources */,
+				28A59519569181DDB9D3D39F /* britain-europe-prehistory.json in Resources */,
+				51F0C03A374B8FB2D0030F8B /* british_museum_department_manifest.json in Resources */,
+				A7D56BB5C670754BB7BDA611 /* build_summary.json in Resources */,
+				F9199BC7CFE31DDE6C3D16F8 /* conflicting_department.json in Resources */,
+				2D19FF904A8967D0E9017E6F /* egypt-sudan.json in Resources */,
+				B274004B63C12FF64F255723 /* greece-rome.json in Resources */,
+				8FDEA1741570D86206B12BE1 /* middle-east.json in Resources */,
+				17202EE1C15D148DE588EEBD /* missing_object_id.json in Resources */,
+				F665ED0AB421D93F7C86A651 /* money-medals.json in Resources */,
+				72F66D67DFC14A059B76CBF3 /* prints-drawings.json in Resources */,
+				686B8328A5D75DC091846442 /* unknown_department.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9FADFB7F0FCC2A0B7854127E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9C51091257CE7E83022AC753 /* africa-oceania-americas.json in Resources */,
+				01C5796E66ECCDAA2E30E720 /* asia.json in Resources */,
+				35C3897E50BA10F245CCC939 /* britain-europe-prehistory.json in Resources */,
+				97D4F01F2A682C25D549680A /* british_museum_department_manifest.json in Resources */,
+				48A74AD80A452FD8337A416B /* build_summary.json in Resources */,
+				81C88E92EDCDBF19B2E4A18A /* conflicting_department.json in Resources */,
+				4B9178E0180605C99B5BACB2 /* egypt-sudan.json in Resources */,
+				8BC652FFAEA01FBC482A2ABF /* greece-rome.json in Resources */,
+				09963E9C35DE40CB46B63A66 /* middle-east.json in Resources */,
+				E68BE62E149384290EA74799 /* missing_object_id.json in Resources */,
+				A0A4AE0761970B0CAEFBDE63 /* money-medals.json in Resources */,
+				72CBB99828B983F33FB66810 /* prints-drawings.json in Resources */,
+				D43020C295BA54771B07484F /* unknown_department.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -553,9 +691,22 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F039AF6F9005B6303DF5F677 /* africa-oceania-americas.json in Resources */,
+				57CE208225CE1713A8DD6B40 /* asia.json in Resources */,
+				5ABA7BE50C6ED54D4598CEE9 /* britain-europe-prehistory.json in Resources */,
+				22DA38635CF9FD3894610510 /* british_museum_department_manifest.json in Resources */,
+				386635AFFD8916A66FDA950E /* build_summary.json in Resources */,
+				BA6255DEEB7BEE90B4B11DE1 /* conflicting_department.json in Resources */,
+				D2037638F3E1B1C58201D045 /* egypt-sudan.json in Resources */,
+				2B081B72AAD26BF72BFC8252 /* greece-rome.json in Resources */,
 				1E1E769E8F11B29392A69DE5 /* met-meta-fallback.html in Resources */,
 				A160B9CD7430EE891181FA94 /* met-overview.html in Resources */,
+				0203617451AA8D11CF1A47E3 /* middle-east.json in Resources */,
+				1B97561AAE362F76A55836BF /* missing_object_id.json in Resources */,
+				121CF15EC6B5F6860D27C275 /* money-medals.json in Resources */,
 				164B18A892946803105F93B3 /* nmc-detail.html in Resources */,
+				29C665734A81E52D881DEAB6 /* prints-drawings.json in Resources */,
+				0C7CC9F6E933C01B06E91FA9 /* unknown_department.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -572,6 +723,7 @@
 				AA13EE5D38DF6679999B07EF /* ArtworkFeedItem.swift in Sources */,
 				ECE253F7723E9092C651604B /* ArtworkFeedViewModel.swift in Sources */,
 				E34068BA81AA887116679881 /* ArtworkFeedViewModelTests.swift in Sources */,
+				8F96AF684F51F7E74F83A59A /* BritishMuseumAPI.swift in Sources */,
 				96F201E336F9C153509002C3 /* CoreLogicTests.swift in Sources */,
 				4B2F819053D552D94899A3A0 /* FavoritesStore.swift in Sources */,
 				D6F07A89D69991764AEC6902 /* FavoritesStoreTests.swift in Sources */,
@@ -610,6 +762,7 @@
 				19972E0AC511408E6B230C44 /* ArtworkFeedCache.swift in Sources */,
 				BA503B583A43593254FC7A8E /* ArtworkFeedItem.swift in Sources */,
 				5601240D9836EF70D90487A0 /* ArtworkFeedViewModel.swift in Sources */,
+				C3DCD4DE4E87B2EE83661C7A /* BritishMuseumAPI.swift in Sources */,
 				BB4EB0811A3E804BBA440AEF /* CachedAsyncImage.swift in Sources */,
 				EE309BCCC53ECF316CA57CF3 /* DailyMuseumWidget.swift in Sources */,
 				D196A25010220D77782341EC /* DailyMuseumWidgetBundle.swift in Sources */,
@@ -658,6 +811,7 @@
 				5CD44E4C3C51F0C9DC86B62C /* ArtworkFeedView.swift in Sources */,
 				8CC0195C8ECB3BBE91FA8E12 /* ArtworkFeedViewModel.swift in Sources */,
 				0221CE15D7D3E4EDE27D79FC /* ArtworkListRowCardView.swift in Sources */,
+				DA2929D956E053CC487E7C5C /* BritishMuseumAPI.swift in Sources */,
 				D92BF8CACC23E37738349E04 /* CachedAsyncImage.swift in Sources */,
 				3E9E2BDFE01616ACE8B45CE8 /* DailyMuseumApp.swift in Sources */,
 				A38484C2185A31CF1C746E1F /* FavoritesStore.swift in Sources */,
@@ -717,7 +871,6 @@
 				CODE_SIGN_ENTITLEMENTS = DailyMuseum/DailyMuseum.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = PGKB4LZW48;
 				INFOPLIST_FILE = DailyMuseum/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -792,7 +945,6 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = DailyMuseumWidget/DailyMuseumWidgetAppGroup.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = PGKB4LZW48;
 				INFOPLIST_FILE = DailyMuseumWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -812,7 +964,6 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = PGKB4LZW48;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -835,7 +986,6 @@
 				CODE_SIGN_ENTITLEMENTS = DailyMuseum/DailyMuseum.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = PGKB4LZW48;
 				INFOPLIST_FILE = DailyMuseum/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -854,7 +1004,6 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = PGKB4LZW48;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -875,7 +1024,6 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = DailyMuseumWidget/DailyMuseumWidgetAppGroup.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = PGKB4LZW48;
 				INFOPLIST_FILE = DailyMuseumWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

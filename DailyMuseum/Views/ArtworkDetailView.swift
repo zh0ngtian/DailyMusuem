@@ -435,7 +435,7 @@ struct ArtworkDetailView: View {
 
     private func translationSourceLanguage(for museumID: MuseumID) -> Locale.Language? {
         switch museumID {
-        case .met:
+        case .met, .bm:
             return Locale.Language(identifier: "en")
         case .tnm:
             return Locale.Language(identifier: "ja")

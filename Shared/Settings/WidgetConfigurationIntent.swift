@@ -7,6 +7,7 @@ enum WidgetConfiguredMuseumScope: String, AppEnum, CaseIterable {
     case shm
     case met
     case tnm
+    case bm
 
     static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "展示范围")
 
@@ -16,6 +17,7 @@ enum WidgetConfiguredMuseumScope: String, AppEnum, CaseIterable {
         .shm: DisplayRepresentation(title: "上海博物馆"),
         .met: DisplayRepresentation(title: "大都会艺术博物馆"),
         .tnm: DisplayRepresentation(title: "东京国立博物馆"),
+        .bm: DisplayRepresentation(title: "大英博物馆"),
     ]
 
     var scope: WidgetMuseumScope {
@@ -30,6 +32,8 @@ enum WidgetConfiguredMuseumScope: String, AppEnum, CaseIterable {
             return .single(.nmc)
         case .shm:
             return .single(.shm)
+        case .bm:
+            return .single(.bm)
         }
     }
 
@@ -43,6 +47,8 @@ enum WidgetConfiguredMuseumScope: String, AppEnum, CaseIterable {
             self = .nmc
         case .shm:
             self = .shm
+        case .bm:
+            self = .bm
         }
     }
 }

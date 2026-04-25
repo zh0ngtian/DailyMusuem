@@ -70,24 +70,25 @@ final class CoreLogicTests: XCTestCase {
         let museums = MuseumRepository.museums(inPreferredOrder: [.tnm, .tnm, .met])
         let widgetMuseums = MuseumRepository.widgetMuseums(inPreferredOrder: [.tnm, .tnm, .met])
 
-        XCTAssertEqual(museums.map(\.id), [.tnm, .met, .nmc, .shm])
-        XCTAssertEqual(widgetMuseums.map(\.id), [.tnm, .met, .nmc, .shm])
+        XCTAssertEqual(museums.map(\.id), [.tnm, .met, .nmc, .shm, .bm])
+        XCTAssertEqual(widgetMuseums.map(\.id), [.tnm, .met, .nmc, .shm, .bm])
     }
 
     func testMuseumRepositoryHomepageCountrySectionsPlaceChinaFirst() {
         let sections = MuseumRepository.homepageCountrySections
 
-        XCTAssertEqual(sections.map(\.country), ["中国", "美国", "日本"])
+        XCTAssertEqual(sections.map(\.country), ["中国", "美国", "日本", "英国"])
         XCTAssertEqual(sections[0].museums.map(\.id), [.nmc, .shm])
         XCTAssertEqual(sections[1].museums.map(\.id), [.met])
         XCTAssertEqual(sections[2].museums.map(\.id), [.tnm])
-        XCTAssertEqual(MuseumRepository.homepageMuseumIDs, [.nmc, .shm, .met, .tnm])
+        XCTAssertEqual(sections[3].museums.map(\.id), [.bm])
+        XCTAssertEqual(MuseumRepository.homepageMuseumIDs, [.nmc, .shm, .met, .tnm, .bm])
     }
 
     func testMuseumRepositoryWidgetMuseumsFollowHomepageOrderWithoutGrouping() {
         let widgetMuseums = MuseumRepository.widgetMuseums(inPreferredOrder: MuseumRepository.homepageMuseumIDs)
 
-        XCTAssertEqual(widgetMuseums.map(\.id), [.nmc, .shm, .met, .tnm])
+        XCTAssertEqual(widgetMuseums.map(\.id), [.nmc, .shm, .met, .tnm, .bm])
     }
 
     func testMuseumMetadataUsesStableCountryAndCityFieldsForHomepageCopy() {
@@ -103,6 +104,9 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertEqual(MuseumRepository.museum(for: .shm).country, "中国")
         XCTAssertEqual(MuseumRepository.museum(for: .shm).city, "上海")
         XCTAssertEqual(MuseumRepository.museum(for: .shm).subtitle, "上海")
+        XCTAssertEqual(MuseumRepository.museum(for: .bm).country, "英国")
+        XCTAssertEqual(MuseumRepository.museum(for: .bm).city, "伦敦")
+        XCTAssertEqual(MuseumRepository.museum(for: .bm).subtitle, "伦敦")
     }
 
     func testMuseumLatencyMeasurementFormatsDisplayTextAndQuality() {
@@ -189,6 +193,7 @@ final class CoreLogicTests: XCTestCase {
     func testWidgetMuseumScopeRawValueRoundTrip() {
         XCTAssertEqual(WidgetMuseumScope(rawValue: WidgetMuseumScope.all.rawValue), .all)
         XCTAssertEqual(WidgetMuseumScope(rawValue: WidgetMuseumScope.single(.tnm).rawValue), .single(.tnm))
+        XCTAssertEqual(WidgetMuseumScope(rawValue: WidgetMuseumScope.single(.bm).rawValue), .single(.bm))
         XCTAssertNil(WidgetMuseumScope(rawValue: "single:unknown"))
     }
 
@@ -314,6 +319,7 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertEqual(MuseumID.tnm.copyrightNotice, "©东京国立博物馆 版权所有")
         XCTAssertEqual(MuseumID.nmc.copyrightNotice, "©中国国家博物馆 版权所有")
         XCTAssertEqual(MuseumID.shm.copyrightNotice, "©上海博物馆 版权所有")
+        XCTAssertEqual(MuseumID.bm.copyrightNotice, "©大英博物馆 版权所有")
     }
 
     func testArtworkShareContentUsesUnifiedShareTextFormat() throws {
