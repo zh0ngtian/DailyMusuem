@@ -49,7 +49,7 @@ enum WidgetConfiguredMuseumScope: String, AppEnum, CaseIterable {
 
 struct DailyMuseumWidgetConfigurationIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "配置小组件"
-    static var description = IntentDescription("为当前小组件选择展示范围；同范围的小组件会共享内容。")
+    static var description = IntentDescription("为当前小组件选择展品展示范围。")
 
     @Parameter(title: "展示范围", default: .all)
     var museumScope: WidgetConfiguredMuseumScope

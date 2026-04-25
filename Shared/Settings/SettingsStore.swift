@@ -25,16 +25,6 @@ final class SettingsStore: ObservableObject {
         WidgetCenter.shared.reloadTimelines(ofKind: SettingsKeys.widgetKind)
     }
 
-    func forceRefreshAllWidgets(logSource: String = "App 快捷操作") {
-        Task {
-            await RequestLogger.shared.logEvent(
-                source: logSource,
-                summary: "触发刷新当前 WidgetKit 配置中的小组件"
-            )
-            await WidgetRefreshCoordinator.shared.refreshAllKnownInstances(logSource: logSource)
-        }
-    }
-
     func saveWidgetRefreshInterval(_ interval: WidgetRefreshInterval) {
         widgetRefreshInterval = interval
         defaults.set(interval.rawValue, forKey: SettingsKeys.widgetRefreshIntervalHours)
