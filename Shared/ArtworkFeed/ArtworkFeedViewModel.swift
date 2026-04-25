@@ -3,11 +3,32 @@ import SwiftUI
 
 @MainActor
 protocol ArtworkFeedSettingsProviding: AnyObject {
+    var naraMuseumDataSource: NaraMuseumDataSource { get }
     func feedCategories(for museumID: MuseumID) -> [MuseumCategory]
+    func feedCategories(for museumID: MuseumID, naraDataSource: NaraMuseumDataSource?) -> [MuseumCategory]
     func saveFeedCategories(_ categories: [MuseumCategory], for museumID: MuseumID)
+    func saveFeedCategories(_ categories: [MuseumCategory], for museumID: MuseumID, naraDataSource: NaraMuseumDataSource?)
+    func saveNaraMuseumDataSource(_ dataSource: NaraMuseumDataSource)
 }
 
 extension SettingsStore: ArtworkFeedSettingsProviding {}
+
+extension ArtworkFeedSettingsProviding {
+    var naraMuseumDataSource: NaraMuseumDataSource { .defaultValue }
+
+    func feedCategories(for museumID: MuseumID, naraDataSource: NaraMuseumDataSource?) -> [MuseumCategory] {
+        if museumID == .nnm, let naraDataSource {
+            return museumID.defaultFeedCategories(naraDataSource: naraDataSource)
+        }
+        return feedCategories(for: museumID)
+    }
+
+    func saveFeedCategories(_ categories: [MuseumCategory], for museumID: MuseumID, naraDataSource: NaraMuseumDataSource?) {
+        saveFeedCategories(categories, for: museumID)
+    }
+
+    func saveNaraMuseumDataSource(_ dataSource: NaraMuseumDataSource) {}
+}
 
 @MainActor
 protocol ArtworkFeedCaching: AnyObject {
@@ -63,6 +84,7 @@ final class ArtworkFeedViewModel: ObservableObject {
     @Published private(set) var hasMoreItems = true
     @Published private(set) var loadingLogs: [String] = []
     @Published private(set) var selectedCategories: [MuseumCategory]
+    @Published private(set) var naraMuseumDataSource: NaraMuseumDataSource
     @Published private(set) var showsInlineInitialLoading = false
     @Published private(set) var preservedItemsDuringRefresh: [ArtworkFeedItem] = []
 
@@ -71,6 +93,7 @@ final class ArtworkFeedViewModel: ObservableObject {
     private let cache: ArtworkFeedCaching
     private let metAPI: MetMuseumAPI
     private let japanSearchAPI: JapanSearchAPI
+    private let naraMuseumAPI: NaraMuseumAPI
     private let nationalMuseumChinaAPI: NationalMuseumChinaAPI
     private let shanghaiMuseumAPI: ShanghaiMuseumAPI
 
@@ -85,21 +108,29 @@ final class ArtworkFeedViewModel: ObservableObject {
         cache: ArtworkFeedCaching? = nil,
         metAPI: MetMuseumAPI = MetMuseumAPI(),
         japanSearchAPI: JapanSearchAPI = JapanSearchAPI(),
+        naraMuseumAPI: NaraMuseumAPI = NaraMuseumAPI(),
         nationalMuseumChinaAPI: NationalMuseumChinaAPI = NationalMuseumChinaAPI(),
         shanghaiMuseumAPI: ShanghaiMuseumAPI = ShanghaiMuseumAPI()
     ) {
+        let resolvedSettings = settings ?? SettingsStore.shared
+        let resolvedNaraDataSource = museum.id == .nnm ? resolvedSettings.naraMuseumDataSource : .colbase
         self.museum = museum
-        self.settings = settings ?? SettingsStore.shared
+        self.settings = resolvedSettings
         self.cache = cache ?? ArtworkFeedCache.shared
         self.metAPI = metAPI
         self.japanSearchAPI = japanSearchAPI
+        self.naraMuseumAPI = naraMuseumAPI
         self.nationalMuseumChinaAPI = nationalMuseumChinaAPI
         self.shanghaiMuseumAPI = shanghaiMuseumAPI
-        self.selectedCategories = self.settings.feedCategories(for: museum.id)
+        self.naraMuseumDataSource = resolvedNaraDataSource
+        self.selectedCategories = resolvedSettings.feedCategories(
+            for: museum.id,
+            naraDataSource: museum.id == .nnm ? resolvedNaraDataSource : nil
+        )
     }
 
     var availableCategories: [MuseumCategory] {
-        museum.id.selectableFeedCategories
+        museum.id == .nnm ? museum.id.selectableFeedCategories(naraDataSource: naraMuseumDataSource) : museum.id.selectableFeedCategories
     }
 
     var displayItems: [ArtworkFeedItem] {
@@ -117,7 +148,10 @@ final class ArtworkFeedViewModel: ObservableObject {
     }
 
     var isAllCategoriesSelected: Bool {
-        museum.id.areAllFeedCategoriesSelected(selectedCategories)
+        if museum.id == .nnm {
+            return museum.id.areAllFeedCategoriesSelected(selectedCategories, naraDataSource: naraMuseumDataSource)
+        }
+        return museum.id.areAllFeedCategoriesSelected(selectedCategories)
     }
 
     var selectedCategoriesSummary: String {
@@ -133,11 +167,34 @@ final class ArtworkFeedViewModel: ObservableObject {
     }
 
     func selectAllCategories() async {
-        await updateSelectedCategories(museum.id.defaultFeedCategories)
+        if museum.id == .nnm {
+            await updateSelectedCategories(museum.id.defaultFeedCategories(naraDataSource: naraMuseumDataSource))
+        } else {
+            await updateSelectedCategories(museum.id.defaultFeedCategories)
+        }
     }
 
     func applySelectedCategories(_ categories: [MuseumCategory]) async {
         await updateSelectedCategories(categories)
+    }
+
+    func applyPageSettings(naraDataSource: NaraMuseumDataSource?, selectedCategories categories: [MuseumCategory]) async {
+        guard museum.id == .nnm else {
+            await updateSelectedCategories(categories)
+            return
+        }
+
+        let nextDataSource = naraDataSource ?? naraMuseumDataSource
+        let normalized = museum.id.normalizedFeedCategories(categories, naraDataSource: nextDataSource)
+        let dataSourceChanged = nextDataSource != naraMuseumDataSource
+        let categoriesChanged = normalized.map(\.id) != selectedCategories.map(\.id)
+        guard dataSourceChanged || categoriesChanged else { return }
+
+        naraMuseumDataSource = nextDataSource
+        settings.saveNaraMuseumDataSource(nextDataSource)
+        selectedCategories = normalized
+        settings.saveFeedCategories(normalized, for: museum.id, naraDataSource: nextDataSource)
+        await reload()
     }
 
     func toggleCategorySelection(_ category: MuseumCategory) async {
@@ -171,7 +228,7 @@ final class ArtworkFeedViewModel: ObservableObject {
             categorySelectionKey: categorySelectionKey
         )
 
-        if museum.id == .tnm || museum.id == .nnm {
+        if museum.id == .tnm || (museum.id == .nnm && naraMuseumDataSource == .colbase) {
             if let typeCodes = selectedJapanSearchTypeCodes {
                 for typeCode in typeCodes {
                     await japanSearchAPI.resetSearchCache(
@@ -203,7 +260,7 @@ final class ArtworkFeedViewModel: ObservableObject {
         objectIDPool = []
         loadedObjectIDs = []
         hasMoreItems = true
-        hasMoreRemoteItemIDs = museum.id == .tnm || museum.id == .nnm || museum.id == .shm
+        hasMoreRemoteItemIDs = museum.id == .tnm || (museum.id == .nnm && naraMuseumDataSource == .colbase) || museum.id == .shm
         isLoadingMore = false
         loadingLogs = []
         appendLoadingLog("开始加载 \(museum.displayName) 展品，当前类别：\(selectedCategoriesLogLabel)。")
@@ -338,6 +395,7 @@ final class ArtworkFeedViewModel: ObservableObject {
             },
             metAPI: metAPI,
             japanSearchAPI: japanSearchAPI,
+            naraMuseumAPI: naraMuseumAPI,
             nationalMuseumChinaAPI: nationalMuseumChinaAPI,
             shanghaiMuseumAPI: shanghaiMuseumAPI
         )
@@ -348,7 +406,10 @@ final class ArtworkFeedViewModel: ObservableObject {
     }
 
     private var categorySelectionKey: String {
-        museum.id.feedCategoryStorageValue(for: selectedCategories)
+        if museum.id == .nnm {
+            return "\(naraMuseumDataSource.rawValue):\(museum.id.feedCategoryStorageValue(for: selectedCategories, naraDataSource: naraMuseumDataSource))"
+        }
+        return museum.id.feedCategoryStorageValue(for: selectedCategories)
     }
 
     private var selectedCategoriesLogLabel: String {
@@ -366,11 +427,17 @@ final class ArtworkFeedViewModel: ObservableObject {
     }
 
     private func updateSelectedCategories(_ categories: [MuseumCategory]) async {
-        let normalized = museum.id.normalizedFeedCategories(categories)
+        let normalized = museum.id == .nnm
+            ? museum.id.normalizedFeedCategories(categories, naraDataSource: naraMuseumDataSource)
+            : museum.id.normalizedFeedCategories(categories)
         guard normalized.map(\.id) != selectedCategories.map(\.id) else { return }
 
         selectedCategories = normalized
-        settings.saveFeedCategories(normalized, for: museum.id)
+        settings.saveFeedCategories(
+            normalized,
+            for: museum.id,
+            naraDataSource: museum.id == .nnm ? naraMuseumDataSource : nil
+        )
         await reload()
     }
 

@@ -167,6 +167,28 @@ final class FavoritesStoreTests: XCTestCase {
         XCTAssertEqual(sections.map(\.museumID), [.nmc, .shm, .met, .tnm, .nnm])
     }
 
+    func testNaraOfficialAndColbaseFavoritesRemainDistinctWhenDataSourceChanges() {
+        let store = FavoritesStore(defaults: defaults)
+
+        store.toggleFavorite(
+            artwork: makeArtwork(museumID: .nnm, objectID: "narahaku-1032-0", title: "馆方源展品"),
+            favoritedAt: Date(timeIntervalSince1970: 100)
+        )
+        defaults.set(NaraMuseumDataSource.colbase.rawValue, forKey: SettingsKeys.naraMuseumDataSource)
+        store.toggleFavorite(
+            artwork: makeArtwork(museumID: .nnm, objectID: "cobas-16086", title: "ColBase 展品"),
+            favoritedAt: Date(timeIntervalSince1970: 200)
+        )
+
+        let reloaded = FavoritesStore(defaults: defaults)
+        let sections = reloaded.groupedFavorites(orderedMuseumIDs: MuseumRepository.homepageMuseumIDs)
+        let naraSection = sections.first { $0.museumID == .nnm }
+
+        XCTAssertEqual(naraSection?.items.map(\.objectID), ["cobas-16086", "narahaku-1032-0"])
+        XCTAssertTrue(reloaded.isFavorite(museumID: .nnm, objectID: "narahaku-1032-0"))
+        XCTAssertTrue(reloaded.isFavorite(museumID: .nnm, objectID: "cobas-16086"))
+    }
+
     private func makeArtwork(museumID: MuseumID, objectID: String, title: String) -> Artwork {
         Artwork(
             id: "\(museumID.rawValue)-\(objectID)",

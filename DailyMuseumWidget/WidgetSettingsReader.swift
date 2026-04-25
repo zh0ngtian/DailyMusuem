@@ -8,7 +8,16 @@ struct WidgetSettingsReader {
     }
 
     func categories(for museumID: MuseumID) -> [MuseumCategory] {
-        museumID.feedCategories(withStoredValue: defaults.string(forKey: SettingsKeys.feedCategoryPrefix + museumID.rawValue))
+        let naraDataSource = museumID == .nnm ? naraMuseumDataSource() : nil
+        let storedValue = defaults.string(forKey: SettingsKeys.feedCategoryKey(for: museumID, naraDataSource: naraDataSource))
+        if museumID == .nnm, let naraDataSource {
+            return museumID.feedCategories(withStoredValue: storedValue, naraDataSource: naraDataSource)
+        }
+        return museumID.feedCategories(withStoredValue: storedValue)
+    }
+
+    func naraMuseumDataSource() -> NaraMuseumDataSource {
+        NaraMuseumDataSource.storedValue(in: defaults)
     }
 
     func widgetRefreshInterval() -> WidgetRefreshInterval {
@@ -113,6 +122,7 @@ actor ArtworkBatchLoader {
     private let onLog: (@Sendable (String) async -> Void)?
     private let metAPI: MetMuseumAPI
     private let japanSearchAPI: JapanSearchAPI
+    private let naraMuseumAPI: NaraMuseumAPI
     private let nationalMuseumChinaAPI: NationalMuseumChinaAPI
     private let shanghaiMuseumAPI: ShanghaiMuseumAPI
 
@@ -128,16 +138,21 @@ actor ArtworkBatchLoader {
         onLog: (@Sendable (String) async -> Void)? = nil,
         metAPI: MetMuseumAPI = MetMuseumAPI(),
         japanSearchAPI: JapanSearchAPI = JapanSearchAPI(),
+        naraMuseumAPI: NaraMuseumAPI = NaraMuseumAPI(),
         nationalMuseumChinaAPI: NationalMuseumChinaAPI = NationalMuseumChinaAPI(),
         shanghaiMuseumAPI: ShanghaiMuseumAPI = ShanghaiMuseumAPI()
     ) {
         self.museumID = museumID
-        self.categories = museumID.normalizedFeedCategories(categories)
+        let naraDataSource = Self.inferredNaraDataSource(museumID: museumID, categories: categories)
+        self.categories = museumID == .nnm
+            ? museumID.normalizedFeedCategories(categories, naraDataSource: naraDataSource)
+            : museumID.normalizedFeedCategories(categories)
         self.randomOrder = randomOrder
         self.cachePolicy = cachePolicy
         self.onLog = onLog
         self.metAPI = metAPI
         self.japanSearchAPI = japanSearchAPI
+        self.naraMuseumAPI = naraMuseumAPI
         self.nationalMuseumChinaAPI = nationalMuseumChinaAPI
         self.shanghaiMuseumAPI = shanghaiMuseumAPI
         hasMoreRemoteItemIDs = true
@@ -229,8 +244,14 @@ actor ArtworkBatchLoader {
             objectIDPool = randomOrder ? ids.map(String.init).shuffled() : ids.sorted().map(String.init)
             hasMoreRemoteItemIDs = false
             await log("objectIDs 已就绪，当前可用 \(objectIDPool.count) 条。")
-        case .tnm, .nnm:
+        case .tnm:
             try await ensureJapanSearchPool(targetCount: targetCount, reason: "首次进入")
+        case .nnm:
+            if naraMuseumDataSource == .official {
+                try await ensureNaraOfficialPool(targetCount: targetCount, reason: "首次进入")
+            } else {
+                try await ensureJapanSearchPool(targetCount: targetCount, reason: "首次进入")
+            }
         case .nmc:
             let ids: [Int]
             if let categoryIDs = selectedNationalMuseumChinaCategoryIDs {
@@ -274,8 +295,14 @@ actor ArtworkBatchLoader {
 
         let nextTargetCount = max(objectIDPool.count, loadedObjectIDs.count + minimumRemainingCount)
         switch museumID {
-        case .tnm, .nnm:
+        case .tnm:
             try await ensureJapanSearchPool(targetCount: nextTargetCount, reason: "继续浏览")
+        case .nnm:
+            if naraMuseumDataSource == .official {
+                try await ensureNaraOfficialPool(targetCount: nextTargetCount, reason: "继续浏览")
+            } else {
+                try await ensureJapanSearchPool(targetCount: nextTargetCount, reason: "继续浏览")
+            }
         case .shm:
             try await ensureShanghaiPool(targetCount: nextTargetCount, reason: "继续浏览")
         case .met, .nmc:
@@ -341,6 +368,33 @@ actor ArtworkBatchLoader {
         await log("itemIDs 已就绪，当前缓存 \(objectIDPool.count) 条，\(hasMoreRemoteItemIDs ? "后续可继续拉取" : "已无更多远端数据")。")
     }
 
+    private func ensureNaraOfficialPool(targetCount: Int, reason: String) async throws {
+        let result = try await naraMuseumAPI.searchArtworkIDs(
+            departments: selectedNaraOfficialDepartments,
+            minimumCount: targetCount,
+            cachePolicy: cachePolicy,
+            onLog: onLog
+        )
+
+        await log("\(reason)时按\(randomOrder ? "随机" : "ID 顺序")模式整理奈良馆方展品，类别：\(selectedCategoriesLogLabel)。")
+        let uniqueIDs = Self.stableUniqueStrings(result.objectIDs)
+        if uniqueIDs.count != result.objectIDs.count {
+            await log("奈良馆方搜索结果存在重复 objectID，已去重 \(result.objectIDs.count - uniqueIDs.count) 条。")
+        }
+
+        if objectIDPool.isEmpty {
+            objectIDPool = randomOrder ? uniqueIDs.shuffled() : uniqueIDs.sorted()
+        } else if randomOrder {
+            let existing = Set(objectIDPool)
+            objectIDPool.append(contentsOf: uniqueIDs.filter { !existing.contains($0) }.shuffled())
+        } else {
+            objectIDPool = uniqueIDs.sorted()
+        }
+
+        hasMoreRemoteItemIDs = result.hasMoreRemoteItems
+        await log("奈良馆方 objectIDs 已就绪，当前缓存 \(objectIDPool.count) 条，\(hasMoreRemoteItemIDs ? "后续可继续拉取" : "已无更多远端数据")。")
+    }
+
     private func ensureShanghaiPool(targetCount: Int, reason: String) async throws {
         let result = try await shanghaiMuseumAPI.searchArtworkCodes(
             subtypes: selectedShanghaiMuseumSubtypes,
@@ -395,7 +449,66 @@ actor ArtworkBatchLoader {
                 }
                 return await collectArtworks(from: &group)
             }
-        case .tnm, .nnm:
+        case .tnm:
+            return await withTaskGroup(of: BatchLoadResult.self) { group in
+                for itemID in candidateIDs {
+                    group.addTask { [japanSearchAPI, cachePolicy, onArtworkReady, museumID] in
+                        do {
+                            try Task.checkCancellation()
+                            let item = try await japanSearchAPI.fetchItem(
+                                museumID: museumID,
+                                itemID: itemID,
+                                cachePolicy: cachePolicy
+                            )
+                            try Task.checkCancellation()
+                            let artwork = item.toArtwork(museumID: museumID)
+                            await onArtworkReady?(artwork)
+                            return .artwork(artwork)
+                        } catch {
+                            return .failure("itemID=\(itemID) 详情获取失败：\(error.localizedDescription)")
+                        }
+                    }
+                }
+                let results = await collectBatchResults(from: &group)
+                let failures = results.compactMap(\.failureMessage)
+                if !failures.isEmpty {
+                    await log("\(museumID.displayName)本批详情失败 \(failures.count) 条。")
+                    for message in failures.prefix(3) {
+                        await log(message)
+                    }
+                }
+                return results.compactMap(\.artwork)
+            }
+        case .nnm:
+            if naraMuseumDataSource == .official {
+                return await withTaskGroup(of: BatchLoadResult.self) { group in
+                    for objectID in candidateIDs {
+                        group.addTask { [naraMuseumAPI, cachePolicy, onArtworkReady] in
+                            do {
+                                try Task.checkCancellation()
+                                let artwork = try await naraMuseumAPI.fetchArtwork(
+                                    objectID: objectID,
+                                    cachePolicy: cachePolicy
+                                )
+                                try Task.checkCancellation()
+                                await onArtworkReady?(artwork)
+                                return .artwork(artwork)
+                            } catch {
+                                return .failure("objectID=\(objectID) 详情获取失败：\(error.localizedDescription)")
+                            }
+                        }
+                    }
+                    let results = await collectBatchResults(from: &group)
+                    let failures = results.compactMap(\.failureMessage)
+                    if !failures.isEmpty {
+                        await log("奈良国立博物馆馆方本批详情失败 \(failures.count) 条。")
+                        for message in failures.prefix(3) {
+                            await log(message)
+                        }
+                    }
+                    return results.compactMap(\.artwork)
+                }
+            }
             return await withTaskGroup(of: BatchLoadResult.self) { group in
                 for itemID in candidateIDs {
                     group.addTask { [japanSearchAPI, cachePolicy, onArtworkReady, museumID] in
@@ -521,7 +634,10 @@ actor ArtworkBatchLoader {
     }
 
     private var isAllCategoriesSelected: Bool {
-        museumID.areAllFeedCategoriesSelected(categories)
+        if museumID == .nnm {
+            return museumID.areAllFeedCategoriesSelected(categories, naraDataSource: naraMuseumDataSource)
+        }
+        return museumID.areAllFeedCategoriesSelected(categories)
     }
 
     private var selectedCategoriesLogLabel: String {
@@ -536,6 +652,15 @@ actor ArtworkBatchLoader {
     private var selectedJapanSearchTypeCodes: [String]? {
         guard !isAllCategoriesSelected else { return nil }
         return categories.compactMap(\.japanSearchTypeCode)
+    }
+
+    private var selectedNaraOfficialDepartments: [String]? {
+        guard museumID == .nnm, naraMuseumDataSource == .official, !isAllCategoriesSelected else { return nil }
+        return categories.compactMap(\.naraMuseumOfficialDepartment)
+    }
+
+    private var naraMuseumDataSource: NaraMuseumDataSource {
+        Self.inferredNaraDataSource(museumID: museumID, categories: categories)
     }
 
     private var selectedNationalMuseumChinaCategoryIDs: [Int]? {
@@ -568,6 +693,14 @@ actor ArtworkBatchLoader {
             result.append(value)
         }
         return result
+    }
+
+    private static func inferredNaraDataSource(museumID: MuseumID, categories: [MuseumCategory]) -> NaraMuseumDataSource {
+        guard museumID == .nnm else { return .colbase }
+        if categories.contains(where: { $0.kind == .naraMuseumOfficialDepartment }) {
+            return .official
+        }
+        return .colbase
     }
 
     private enum BatchLoadResult {

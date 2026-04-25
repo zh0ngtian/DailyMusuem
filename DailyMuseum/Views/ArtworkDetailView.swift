@@ -383,7 +383,7 @@ struct ArtworkDetailView: View {
                 switch availabilityStatus {
                 case .installed:
                     translationConfiguration = TranslationSession.Configuration(
-                        source: translationSourceLanguage(for: artwork.museumID),
+                        source: translationSourceLanguage(for: artwork),
                         target: Constants.translationTargetLanguage
                     )
                 case .supported:
@@ -417,7 +417,7 @@ struct ArtworkDetailView: View {
         for artwork: Artwork,
         availability: LanguageAvailability
     ) async throws -> LanguageAvailability.Status {
-        if let sourceLanguage = translationSourceLanguage(for: artwork.museumID) {
+        if let sourceLanguage = translationSourceLanguage(for: artwork) {
             return await availability.status(
                 from: sourceLanguage,
                 to: Constants.translationTargetLanguage
@@ -433,11 +433,16 @@ struct ArtworkDetailView: View {
         )
     }
 
-    private func translationSourceLanguage(for museumID: MuseumID) -> Locale.Language? {
-        switch museumID {
+    private func translationSourceLanguage(for artwork: Artwork) -> Locale.Language? {
+        switch artwork.museumID {
         case .met:
             return Locale.Language(identifier: "en")
-        case .tnm, .nnm:
+        case .tnm:
+            return Locale.Language(identifier: "ja")
+        case .nnm:
+            if NaraMuseumAPI.isOfficialObjectID(artwork.objectID) {
+                return Locale.Language(identifier: "zh-Hans")
+            }
             return Locale.Language(identifier: "ja")
         case .nmc, .shm:
             return nil

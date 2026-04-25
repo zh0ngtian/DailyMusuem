@@ -703,7 +703,15 @@ struct WidgetRefreshEngine {
 
     private func categorySummary(for museumID: MuseumID) -> String {
         let categories = settingsReader.categories(for: museumID)
-        if museumID.areAllFeedCategoriesSelected(categories) {
+        let isAllSelected = if museumID == .nnm {
+            museumID.areAllFeedCategoriesSelected(
+                categories,
+                naraDataSource: settingsReader.naraMuseumDataSource()
+            )
+        } else {
+            museumID.areAllFeedCategoriesSelected(categories)
+        }
+        if isAllSelected {
             return "全部"
         }
         return categories.map(\.displayName).joined(separator: "、")
@@ -734,11 +742,11 @@ enum WidgetImageRequestPolicy {
         request.httpMethod = "GET"
         request.cachePolicy = .reloadIgnoringLocalCacheData
 
-        if requiresBrowserLikeHeaders(url: url) {
+        if let referer = browserLikeHeaderReferer(url: url) {
             request.setValue(Constants.safariUserAgent, forHTTPHeaderField: "User-Agent")
             request.setValue(Constants.accept, forHTTPHeaderField: "Accept")
             request.setValue(Constants.acceptLanguage, forHTTPHeaderField: "Accept-Language")
-            request.setValue("https://colbase.nich.go.jp/", forHTTPHeaderField: "Referer")
+            request.setValue(referer, forHTTPHeaderField: "Referer")
             request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
             request.setValue("no-cache", forHTTPHeaderField: "Pragma")
         }
@@ -746,8 +754,15 @@ enum WidgetImageRequestPolicy {
         return request
     }
 
-    private static func requiresBrowserLikeHeaders(url: URL) -> Bool {
-        url.host?.contains("colbase.nich.go.jp") == true
+    private static func browserLikeHeaderReferer(url: URL) -> String? {
+        guard let host = url.host else { return nil }
+        if host.contains("colbase.nich.go.jp") {
+            return "https://colbase.nich.go.jp/"
+        }
+        if host.contains("narahaku.go.jp") {
+            return "https://www.narahaku.go.jp/chinese/collection/"
+        }
+        return nil
     }
 }
 
@@ -758,7 +773,12 @@ enum WidgetPreferredImageURLDecision {
 
     static func resolveCandidates(for artwork: Artwork, museumID: MuseumID) -> [URL] {
         switch museumID {
-        case .tnm, .nnm:
+        case .tnm:
+            return compactUniqueURLs([artwork.primaryImageSmallURL, artwork.primaryImageURL])
+        case .nnm:
+            if NaraMuseumAPI.isOfficialObjectID(artwork.objectID) {
+                return compactUniqueURLs([artwork.primaryImageURL, artwork.primaryImageSmallURL])
+            }
             return compactUniqueURLs([artwork.primaryImageSmallURL, artwork.primaryImageURL])
         case .met, .nmc, .shm:
             return compactUniqueURLs([artwork.primaryImageURL, artwork.primaryImageSmallURL])

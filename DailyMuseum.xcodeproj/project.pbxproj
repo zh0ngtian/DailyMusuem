@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		010B92CC939F14CA27C2A0FB /* JapanSearchPersistentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81AF35BA5DF051D95514488B /* JapanSearchPersistentCache.swift */; };
+		0A1100030000000000000003 /* NaraMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1100010000000000000001 /* NaraMuseumAPI.swift */; };
+		0A1100040000000000000004 /* NaraMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1100010000000000000001 /* NaraMuseumAPI.swift */; };
+		0A1100050000000000000005 /* NaraMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1100010000000000000001 /* NaraMuseumAPI.swift */; };
 		014375A5D184F881FD7070C1 /* WidgetManualRefreshRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5BCD57FB86FC7D9454A8587 /* WidgetManualRefreshRunner.swift */; };
 		0221CE15D7D3E4EDE27D79FC /* ArtworkListRowCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B534D07A84678EB11A2A0F5 /* ArtworkListRowCardView.swift */; };
 		048A14DA9BBF5DC796231307 /* MuseumListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB101B5E24D3739851DC6A22 /* MuseumListView.swift */; };
@@ -160,6 +163,7 @@
 /* Begin PBXFileReference section */
 		04279914561DC56D5FA7C7E0 /* ShanghaiMuseumAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShanghaiMuseumAPI.swift; sourceTree = "<group>"; };
 		0773F3ED0D9C2C7D00381424 /* RequestLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestLogger.swift; sourceTree = "<group>"; };
+		0A1100010000000000000001 /* NaraMuseumAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NaraMuseumAPI.swift; sourceTree = "<group>"; };
 		090F116BD2F05BC2CB7C3DC7 /* FavoritesStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesStoreTests.swift; sourceTree = "<group>"; };
 		0ACA67A0EFEEB5748BD15991 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		15CC322130D2C36A4D586EC3 /* met-overview.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "met-overview.html"; sourceTree = "<group>"; };
@@ -259,6 +263,14 @@
 			path = MetMuseum;
 			sourceTree = "<group>";
 		};
+		0A1100020000000000000002 /* NaraMuseum */ = {
+			isa = PBXGroup;
+			children = (
+				0A1100010000000000000001 /* NaraMuseumAPI.swift */,
+			);
+			path = NaraMuseum;
+			sourceTree = "<group>";
+		};
 		2D9E1AB212E9EA83BCC2C332 /* Logging */ = {
 			isa = PBXGroup;
 			children = (
@@ -327,6 +339,7 @@
 				0F8ACE05F507B92A0E80653D /* JapanSearch */,
 				2D9E1AB212E9EA83BCC2C332 /* Logging */,
 				24F54B3AB67BE88EFFFE3CE4 /* MetMuseum */,
+				0A1100020000000000000002 /* NaraMuseum */,
 				E0117BA06A7E99FBF2FCBB83 /* NationalMuseumChina */,
 				B3F7EF00803CBE83E17F964E /* Settings */,
 				310C6DBA23F91DFEA7C144BB /* ShanghaiMuseum */,
@@ -584,6 +597,7 @@
 				8AA9F4124D1ECEB6AE2B42BC /* MetMuseumPersistentCache.swift in Sources */,
 				E22BD293BEBC5DE722E82E26 /* Museum.swift in Sources */,
 				26E380BEA06C51547FE13415 /* MuseumRequestCachePolicy.swift in Sources */,
+				0A1100050000000000000005 /* NaraMuseumAPI.swift in Sources */,
 				6C7D299EDB5EEBF0D7E2492A /* NationalMuseumChinaAPI.swift in Sources */,
 				828BB63598930EDF4CE1D542 /* ParsingAndAPITests.swift in Sources */,
 				090F68A2DF9313C3F0E986FC /* RequestLogger.swift in Sources */,
@@ -626,6 +640,7 @@
 				09B43AA4EB71B869B66F2569 /* MetMuseumPersistentCache.swift in Sources */,
 				EC1E9A6F5E8D8396F9E74410 /* Museum.swift in Sources */,
 				E899CA41ABFEE0CC2009E85B /* MuseumRequestCachePolicy.swift in Sources */,
+				0A1100040000000000000004 /* NaraMuseumAPI.swift in Sources */,
 				E1CA2063A268CDC49E0512CB /* NationalMuseumChinaAPI.swift in Sources */,
 				5CC00FF6639BCA691EC911D4 /* RefreshWidgetIntent.swift in Sources */,
 				39EF46DCBA1A93ADAB139396 /* RequestLogger.swift in Sources */,
@@ -675,6 +690,7 @@
 				752579CACD31E606674EED80 /* Museum.swift in Sources */,
 				048A14DA9BBF5DC796231307 /* MuseumListView.swift in Sources */,
 				3CEB39B09A6657F163706A4B /* MuseumRequestCachePolicy.swift in Sources */,
+				0A1100030000000000000003 /* NaraMuseumAPI.swift in Sources */,
 				604D80758FBC9229EF6232A3 /* NationalMuseumChinaAPI.swift in Sources */,
 				626A4F3FABA4F40BF4F5B669 /* RequestLogger.swift in Sources */,
 				2580F721762415DE7E4269A9 /* RequestLogsView.swift in Sources */,

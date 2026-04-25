@@ -5,12 +5,20 @@ enum SettingsKeys {
     static let widgetKind = "DailyMuseumWidget"
     static let feedCategoryPrefix = "feed.category."
     static let feedDisplayModePrefix = "feed.displayMode."
+    static let naraMuseumDataSource = "naraMuseum.dataSource"
     static let widgetRefreshIntervalHours = "widget.refreshIntervalHours"
     static let widgetAutoRefreshStartMinutes = "widget.autoRefreshStartMinutes"
     static let widgetAutoRefreshEndMinutes = "widget.autoRefreshEndMinutes"
     static let museumLatencyTestEnabled = "museum.latencyTestEnabled"
     static let museumDisplayOrder = "museum.displayOrder"
     static let favoritesArtworks = "favorites.artworks"
+
+    static func feedCategoryKey(for museumID: MuseumID, naraDataSource: NaraMuseumDataSource? = nil) -> String {
+        if museumID == .nnm, naraDataSource == .official {
+            return feedCategoryPrefix + museumID.rawValue + ".official"
+        }
+        return feedCategoryPrefix + museumID.rawValue
+    }
 }
 
 enum WidgetRefreshInterval: Int, CaseIterable, Identifiable, Equatable, Hashable {

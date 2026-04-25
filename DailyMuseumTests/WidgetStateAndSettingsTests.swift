@@ -33,6 +33,35 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(categories.map(\.id), ["american-decorative-arts", "modern-art"])
     }
 
+    func testWidgetSettingsReaderDefaultsNaraToOfficialDataSourceAndCategories() {
+        let reader = WidgetSettingsReader(defaults: defaults)
+
+        XCTAssertEqual(reader.naraMuseumDataSource(), .official)
+        XCTAssertEqual(
+            reader.categories(for: .nnm).map(\.id),
+            MuseumID.nnm.selectableFeedCategories(naraDataSource: .official).map(\.id)
+        )
+    }
+
+    func testWidgetSettingsReaderKeepsNaraOfficialAndColbaseCategoryStorageSeparate() {
+        defaults.set(NaraMuseumDataSource.official.rawValue, forKey: SettingsKeys.naraMuseumDataSource)
+        defaults.set(
+            "official-sculpture,official-painting",
+            forKey: SettingsKeys.feedCategoryKey(for: .nnm, naraDataSource: .official)
+        )
+        defaults.set(
+            "paint,sculpture",
+            forKey: SettingsKeys.feedCategoryKey(for: .nnm, naraDataSource: .colbase)
+        )
+
+        var reader = WidgetSettingsReader(defaults: defaults)
+        XCTAssertEqual(reader.categories(for: .nnm).map(\.id), ["official-sculpture", "official-painting"])
+
+        defaults.set(NaraMuseumDataSource.colbase.rawValue, forKey: SettingsKeys.naraMuseumDataSource)
+        reader = WidgetSettingsReader(defaults: defaults)
+        XCTAssertEqual(reader.categories(for: .nnm).map(\.id), ["paint", "sculpture"])
+    }
+
     func testWidgetSettingsReaderUsesStoredRefreshInterval() {
         defaults.set(3, forKey: SettingsKeys.widgetRefreshIntervalHours)
 
@@ -84,6 +113,33 @@ final class WidgetStateAndSettingsTests: XCTestCase {
 
         XCTAssertFalse(defaults.bool(forKey: SettingsKeys.museumLatencyTestEnabled))
         XCTAssertFalse(SettingsStore(defaults: defaults).isMuseumLatencyTestEnabled)
+    }
+
+    @MainActor
+    func testSettingsStorePersistsNaraDataSourceAndSeparateCategories() {
+        let store = SettingsStore(defaults: defaults)
+
+        XCTAssertEqual(store.naraMuseumDataSource, .official)
+        store.saveFeedCategories(
+            [MuseumID.nnm.selectableFeedCategories(naraDataSource: .official)[0]],
+            for: .nnm,
+            naraDataSource: .official
+        )
+        store.saveNaraMuseumDataSource(.colbase)
+        store.saveFeedCategories(
+            [MuseumID.nnm.selectableFeedCategories(naraDataSource: .colbase)[2]],
+            for: .nnm,
+            naraDataSource: .colbase
+        )
+
+        let reloaded = SettingsStore(defaults: defaults)
+
+        XCTAssertEqual(reloaded.naraMuseumDataSource, .colbase)
+        XCTAssertEqual(reloaded.feedCategories(for: .nnm).map(\.id), ["paint"])
+        XCTAssertEqual(
+            reloaded.feedCategories(for: .nnm, naraDataSource: .official).map(\.id),
+            ["official-sculpture"]
+        )
     }
 
     func testWidgetAutoRefreshWindowNormalizesEndNotEarlierThanStart() {
@@ -401,6 +457,59 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(fromValues, ["0", "0", "10"])
     }
 
+    func testArtworkBatchLoaderLoadsNaraOfficialSourceWithOfficialDepartment() async throws {
+        let recorder = WidgetRequestRecorder()
+        let testID = UUID().uuidString
+
+        let session = makeStubSession(testID: testID) { request in
+            let url = try XCTUnwrap(request.url)
+            recorder.record(url)
+
+            if url.path == "/chinese/collection/" || url.path == "/chinese/collection" {
+                XCTAssertEqual(
+                    URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                        .queryItems?
+                        .first(where: { $0.name == "bumon" })?
+                        .value,
+                    "雕刻"
+                )
+                return WidgetStubbedResponse(
+                    response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data: Data(Self.naraOfficialSearchHTML.utf8)
+                )
+            }
+
+            if url.path == "/chinese/collection/1032-0.html" {
+                return WidgetStubbedResponse(
+                    response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data: Data(Self.naraOfficialDetailHTML.utf8)
+                )
+            }
+
+            XCTFail("Unexpected URL: \(url.absoluteString)")
+            return WidgetStubbedResponse(
+                response: HTTPURLResponse(url: url, statusCode: 404, httpVersion: nil, headerFields: nil)!,
+                data: Data()
+            )
+        }
+
+        let loader = ArtworkBatchLoader(
+            museumID: .nnm,
+            categories: [MuseumID.nnm.selectableFeedCategories(naraDataSource: .official)[0]],
+            randomOrder: false,
+            cachePolicy: .networkOnly,
+            naraMuseumAPI: NaraMuseumAPI(session: session)
+        )
+
+        let batch = try await loader.nextBatch(count: 1)
+
+        XCTAssertEqual(batch.map(\.objectID), ["narahaku-1032-0"])
+        XCTAssertEqual(batch.first?.title, "浮雕佛传图")
+        XCTAssertEqual(batch.first?.department, "雕刻")
+        XCTAssertEqual(batch.first?.primaryImageURL?.absoluteString, "https://www.narahaku.go.jp/_fKkxXPHb/D025456.jpg")
+        XCTAssertTrue(recorder.urls.allSatisfy { !$0.path.contains("/api/item/search/jps-cross") })
+    }
+
     func testArtworkBatchLoaderMetIsNotInitiallyExhaustedAndLoadsFirstBatch() async throws {
         let testID = UUID().uuidString
         let recorder = WidgetRequestRecorder()
@@ -603,6 +712,24 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             primaryImageSmallURL: smallURL,
             objectURL: nil
         )
+        let naraOfficialArtwork = Artwork(
+            id: "nnm-narahaku-1032-0",
+            museumID: .nnm,
+            objectID: "narahaku-1032-0",
+            title: "Test",
+            artworkDescription: nil,
+            artistDisplayName: nil,
+            objectDate: nil,
+            medium: nil,
+            dimensions: nil,
+            department: nil,
+            culture: nil,
+            country: nil,
+            repository: nil,
+            primaryImageURL: largeURL,
+            primaryImageSmallURL: smallURL,
+            objectURL: nil
+        )
 
         XCTAssertEqual(
             WidgetPreferredImageURLDecision.resolve(for: tokyoArtwork, museumID: .tnm),
@@ -616,6 +743,10 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             WidgetPreferredImageURLDecision.resolveCandidates(for: naraArtwork, museumID: .nnm),
             [smallURL!, largeURL!]
         )
+        XCTAssertEqual(
+            WidgetPreferredImageURLDecision.resolveCandidates(for: naraOfficialArtwork, museumID: .nnm),
+            [largeURL!, smallURL!]
+        )
     }
 
     func testWidgetImageRequestPolicyAddsBrowserHeadersForTokyoColbaseImage() {
@@ -624,6 +755,17 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         let request = WidgetImageRequestPolicy.makeRequest(url: url, timeout: 3)
 
         XCTAssertEqual(request.value(forHTTPHeaderField: "Referer"), "https://colbase.nich.go.jp/")
+        XCTAssertNotNil(request.value(forHTTPHeaderField: "User-Agent"))
+        XCTAssertNotNil(request.value(forHTTPHeaderField: "Accept"))
+        XCTAssertNotNil(request.value(forHTTPHeaderField: "Accept-Language"))
+    }
+
+    func testWidgetImageRequestPolicyAddsBrowserHeadersForNaraOfficialImage() {
+        let url = URL(string: "https://www.narahaku.go.jp/photo/exhibition/D025456.jpg")!
+
+        let request = WidgetImageRequestPolicy.makeRequest(url: url, timeout: 3)
+
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Referer"), "https://www.narahaku.go.jp/chinese/collection/")
         XCTAssertNotNil(request.value(forHTTPHeaderField: "User-Agent"))
         XCTAssertNotNil(request.value(forHTTPHeaderField: "Accept"))
         XCTAssertNotNil(request.value(forHTTPHeaderField: "Accept-Language"))
@@ -1180,6 +1322,40 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             data: try! JSONSerialization.data(withJSONObject: jsonObject)
         )
     }
+
+    private static let naraOfficialSearchHTML = """
+    <div class="list clearfix">
+      <p data-href="1032-0.html">
+        <a href="1032-0.html">
+          <i><img src="http://www.narahaku.go.jp/photo/exhibition/D025456.jpg" data-original="http://www.narahaku.go.jp/photo/exhibition/D025456.jpg" alt="浮雕佛传图" /></i>
+          <span>浮雕佛传图<br>贵霜王朝<br /> 2世纪</span>
+        </a>
+      </p>
+    </div>
+    """
+
+    private static let naraOfficialDetailHTML = """
+    <div id="content" class="gallery-detail">
+      <div class="description">
+        <h2>浮雕佛传图</h2>
+        <p><br>
+          石造　浮雕　圆雕<br>
+          高8.9cm　长34.0～74.0cm<br>
+          印度　贵霜王朝　2世纪<br>
+        </p>
+        <div class="btnOperation"></div>
+      </div>
+      <div class="main">
+        <img src="//www.narahaku.go.jp/photo/exhibition/D025456.jpg" data-id="1032-0" data-original="//www.narahaku.go.jp/photo/exhibition/D025456.jpg" palm="//www.narahaku.go.jp/_fKkxXPHb/D025456.jpg" alt="浮雕佛传图" class="mainPicture" />
+      </div>
+      <div class="text" id="kaisetsu">
+        <p>该作品是将佛教创始人释迦牟尼传记的场面表现出来的浮雕的一部分。</p>
+      </div>
+      <table class="dbdetail">
+        <tr><th>门类</th><td>雕刻</td></tr>
+      </table>
+    </div>
+    """
 
     private static let nationalMuseumChinaDetailHTML = """
     <!DOCTYPE html>

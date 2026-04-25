@@ -66,6 +66,51 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertEqual(value, "american-decorative-arts,modern-art")
     }
 
+    func testNaraMuseumDataSourceDefaultsToOfficialWithExpectedDisplayNames() {
+        XCTAssertEqual(NaraMuseumDataSource.defaultValue, .official)
+        XCTAssertEqual(NaraMuseumDataSource.official.displayName, "馆方数据源")
+        XCTAssertEqual(NaraMuseumDataSource.colbase.displayName, "ColBase")
+    }
+
+    func testNaraMuseumOfficialCategoriesUseOfficialDepartments() {
+        let officialCategories = MuseumID.nnm.selectableFeedCategories(naraDataSource: .official)
+
+        XCTAssertEqual(
+            officialCategories.map(\.displayName),
+            ["雕刻", "绘画", "书迹", "工艺", "考古", "中国古代青铜器", "其他"]
+        )
+        XCTAssertEqual(
+            officialCategories.map(\.id),
+            [
+                "official-sculpture",
+                "official-painting",
+                "official-calligraphy",
+                "official-craft",
+                "official-archaeology",
+                "official-ancient-chinese-bronze",
+                "official-other"
+            ]
+        )
+        XCTAssertTrue(officialCategories.allSatisfy { $0.kind == .naraMuseumOfficialDepartment })
+        XCTAssertEqual(
+            MuseumID.nnm.feedCategoryStorageValue(
+                for: officialCategories,
+                naraDataSource: .official
+            ),
+            "all"
+        )
+    }
+
+    func testNaraMuseumColbaseCategoriesRemainJapanSearchTypes() {
+        let colbaseCategories = MuseumID.nnm.selectableFeedCategories(naraDataSource: .colbase)
+
+        XCTAssertEqual(
+            colbaseCategories.map(\.id),
+            ["archeology", "ancdoc", "paint", "craft", "sculpture", "ceramic", "metal", "lacquer", "weaponry", "daw"]
+        )
+        XCTAssertTrue(colbaseCategories.allSatisfy { $0.kind == .japanSearchType })
+    }
+
     func testMuseumRepositoryPreferredOrderDeduplicatesAndAppendsMissingMuseums() {
         let museums = MuseumRepository.museums(inPreferredOrder: [.tnm, .tnm, .met])
         let widgetMuseums = MuseumRepository.widgetMuseums(inPreferredOrder: [.tnm, .tnm, .met])

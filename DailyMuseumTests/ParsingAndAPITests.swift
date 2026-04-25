@@ -340,6 +340,119 @@ final class ParsingAndAPITests: XCTestCase {
         )
     }
 
+    func testNaraMuseumOfficialSearchPageParserParsesCandidatesAndNormalizesURLs() {
+        let html = """
+        <div class="list clearfix">
+          <p data-href="1032-0.html">
+            <a href="1032-0.html">
+              <i><img src="http://www.narahaku.go.jp/photo/exhibition/D025456.jpg" data-original="http://www.narahaku.go.jp/photo/exhibition/D025456.jpg" alt="浮雕佛传图" /></i>
+              <span>浮雕佛传图<br>贵霜王朝<br /> 2世纪</span>
+            </a>
+          </p>
+          <p data-href="1324-0.html">
+            <a href="1324-0.html">
+              <i><img src="//www.narahaku.go.jp/photo/exhibition/H017708.jpg" alt="菩萨立像" /></i>
+              <span>菩萨立像<br>贵霜王朝<br /> 3世纪</span>
+            </a>
+          </p>
+        </div>
+        """
+
+        let summaries = NaraMuseumAPI.parseSearchPage(
+            html,
+            baseURL: URL(string: "https://www.narahaku.go.jp/chinese/collection/")!
+        )
+
+        XCTAssertEqual(summaries.map(\.rawID), ["1032-0", "1324-0"])
+        XCTAssertEqual(summaries.first?.objectID, "narahaku-1032-0")
+        XCTAssertEqual(summaries.first?.title, "浮雕佛传图")
+        XCTAssertEqual(summaries.first?.summary, "浮雕佛传图 / 贵霜王朝 / 2世纪")
+        XCTAssertEqual(
+            summaries.first?.thumbnailURL?.absoluteString,
+            "https://www.narahaku.go.jp/photo/exhibition/D025456.jpg"
+        )
+        XCTAssertEqual(
+            summaries.first?.detailURL.absoluteString,
+            "https://www.narahaku.go.jp/chinese/collection/1032-0.html"
+        )
+    }
+
+    func testNaraMuseumOfficialDetailPageParserMapsArtworkFields() throws {
+        let html = """
+        <div id="content" class="gallery-detail">
+          <div class="description">
+            <h2>浮雕佛传图</h2>
+            <p><br>
+              石造　浮雕　圆雕<br>
+              高8.9cm　长34.0～74.0cm<br>
+              印度　贵霜王朝　2世纪<br>
+            </p>
+            <div class="btnOperation"></div>
+          </div>
+          <div class="main">
+            <img src="//www.narahaku.go.jp/photo/exhibition/D025456.jpg" data-id="1032-0" data-original="//www.narahaku.go.jp/photo/exhibition/D025456.jpg" palm="//www.narahaku.go.jp/_fKkxXPHb/D025456.jpg" alt="浮雕佛传图" class="mainPicture" />
+          </div>
+          <div class="text" id="kaisetsu">
+            <p>该作品是将佛教创始人释迦牟尼传记的场面表现出来的浮雕的一部分。</p>
+          </div>
+          <table class="dbdetail">
+            <tr><th>门类</th><td>雕刻</td></tr>
+          </table>
+        </div>
+        """
+        let detailURL = URL(string: "https://www.narahaku.go.jp/chinese/collection/1032-0.html")!
+
+        let artwork = try NaraMuseumAPI.parseDetailPage(html, rawID: "1032-0", detailURL: detailURL)
+
+        XCTAssertEqual(artwork.id, "nnm-narahaku-1032-0")
+        XCTAssertEqual(artwork.objectID, "narahaku-1032-0")
+        XCTAssertEqual(artwork.museumID, .nnm)
+        XCTAssertEqual(artwork.title, "浮雕佛传图")
+        XCTAssertEqual(artwork.medium, "石造　浮雕　圆雕")
+        XCTAssertEqual(artwork.dimensions, "高8.9cm　长34.0～74.0cm")
+        XCTAssertEqual(artwork.country, "印度")
+        XCTAssertEqual(artwork.objectDate, "贵霜王朝 2世纪")
+        XCTAssertEqual(artwork.department, "雕刻")
+        XCTAssertEqual(artwork.normalizedDescriptionText, "该作品是将佛教创始人释迦牟尼传记的场面表现出来的浮雕的一部分。")
+        XCTAssertEqual(artwork.repository, "奈良国立博物馆")
+        XCTAssertEqual(artwork.primaryImageURL?.absoluteString, "https://www.narahaku.go.jp/_fKkxXPHb/D025456.jpg")
+        XCTAssertEqual(artwork.primaryImageSmallURL?.absoluteString, "https://www.narahaku.go.jp/photo/exhibition/D025456.jpg")
+        XCTAssertEqual(artwork.objectURL, detailURL)
+    }
+
+    func testNaraMuseumOfficialDetailPageParserHandlesMissingMediumLine() throws {
+        let html = """
+        <div id="content" class="gallery-detail">
+          <div class="description">
+            <h2>銮</h2>
+            <p><br>
+              <br>
+              高17.8cm<br>
+              中国　中国・西周　公元前11世纪<br>
+            </p>
+            <div class="btnOperation"></div>
+          </div>
+          <div class="main">
+            <img src="//www.narahaku.go.jp/photo/exhibition/D037178.jpg" data-id="1317-331" data-original="//www.narahaku.go.jp/photo/exhibition/D037178.jpg" palm="//www.narahaku.go.jp/_fKkxXPHb/D037178.jpg" alt="銮" class="mainPicture" />
+          </div>
+          <div class="text" id="kaisetsu"></div>
+          <table class="dbdetail">
+            <tr><th>门类</th><td>考古</td></tr>
+          </table>
+        </div>
+        """
+        let detailURL = URL(string: "https://www.narahaku.go.jp/chinese/collection/1317-331.html")!
+
+        let artwork = try NaraMuseumAPI.parseDetailPage(html, rawID: "1317-331", detailURL: detailURL)
+
+        XCTAssertEqual(artwork.title, "銮")
+        XCTAssertNil(artwork.medium)
+        XCTAssertEqual(artwork.dimensions, "高17.8cm")
+        XCTAssertEqual(artwork.country, "中国")
+        XCTAssertEqual(artwork.objectDate, "中国・西周 公元前11世纪")
+        XCTAssertEqual(artwork.department, "考古")
+    }
+
     func testJapanSearchAPIFallsBackFromContributorSearchAndFiltersSortsDedupes() async throws {
         let categoryTypeCode = "fallback-\(UUID().uuidString)"
         let recorder = RequestRecorder()
@@ -592,11 +705,8 @@ final class ParsingAndAPITests: XCTestCase {
         })
         XCTAssertTrue(recorder.requests.contains { request in
             request.httpMethod == "GET"
-                && request.url?.host == "jpsearch.go.jp"
-                && request.url?.path == "/api/item/search/jps-cross"
-                && queryValue("size", in: request.url) == "1"
-                && queryValue("f-db", in: request.url) == "cobas"
-                && queryValue("q-contributor", in: request.url) == "Nara National Museum"
+                && request.url?.host == "www.narahaku.go.jp"
+                && (request.url?.path == "/chinese/collection/" || request.url?.path == "/chinese/collection")
         })
         XCTAssertTrue(recorder.requests.contains { request in
             request.httpMethod == "GET"

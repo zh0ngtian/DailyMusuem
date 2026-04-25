@@ -95,12 +95,17 @@ struct ArtworkFeedView: View {
         .sheet(item: $pageSettingsPresentation) { presentation in
             NavigationStack {
                 PageSettingsSheet(
+                    museumID: museum.id,
                     initialDisplayMode: presentation.displayMode,
+                    initialNaraDataSource: presentation.naraDataSource,
                     initialSelectedCategoryIDs: presentation.selectedCategoryIDs,
-                    availableCategories: viewModel.availableCategories,
                     isCategorySelectionDisabled: viewModel.state == .loading || viewModel.isLoadingMore,
-                    onApply: { draftDisplayMode, selectedCategories in
-                        await applyPageSettings(displayMode: draftDisplayMode, selectedCategories: selectedCategories)
+                    onApply: { draftDisplayMode, draftNaraDataSource, selectedCategories in
+                        await applyPageSettings(
+                            displayMode: draftDisplayMode,
+                            naraDataSource: draftNaraDataSource,
+                            selectedCategories: selectedCategories
+                        )
                     }
                 )
             }
@@ -193,17 +198,25 @@ struct ArtworkFeedView: View {
     private func presentPageSettings() {
         pageSettingsPresentation = PageSettingsPresentation(
             displayMode: displayMode,
+            naraDataSource: museum.id == .nnm ? viewModel.naraMuseumDataSource : nil,
             selectedCategoryIDs: Set(viewModel.selectedCategories.map(\.id))
         )
     }
 
-    private func applyPageSettings(displayMode: DisplayMode, selectedCategories: [MuseumCategory]) async {
+    private func applyPageSettings(
+        displayMode: DisplayMode,
+        naraDataSource: NaraMuseumDataSource?,
+        selectedCategories: [MuseumCategory]
+    ) async {
         if displayMode != self.displayMode {
             self.displayMode = displayMode
             settings.saveFeedDisplayModeRawValue(displayMode.rawValue, for: museum.id)
         }
 
-        await viewModel.applySelectedCategories(selectedCategories)
+        await viewModel.applyPageSettings(
+            naraDataSource: naraDataSource,
+            selectedCategories: selectedCategories
+        )
     }
 
     @ViewBuilder
@@ -253,31 +266,37 @@ struct ArtworkFeedView: View {
     private struct PageSettingsPresentation: Identifiable {
         let id = UUID()
         let displayMode: DisplayMode
+        let naraDataSource: NaraMuseumDataSource?
         let selectedCategoryIDs: Set<String>
     }
 
     private struct PageSettingsSheet: View {
-        let availableCategories: [MuseumCategory]
+        let museumID: MuseumID
+        let initialNaraDataSource: NaraMuseumDataSource?
         let isCategorySelectionDisabled: Bool
-        let onApply: (DisplayMode, [MuseumCategory]) async -> Void
+        let onApply: (DisplayMode, NaraMuseumDataSource?, [MuseumCategory]) async -> Void
 
         @Environment(\.dismiss) private var dismiss
         @State private var draftDisplayMode: DisplayMode
+        @State private var draftNaraDataSource: NaraMuseumDataSource
         @State private var draftSelectedCategoryIDs: Set<String>
         @State private var isApplying = false
         @State private var alertMessage: String?
 
         init(
+            museumID: MuseumID,
             initialDisplayMode: DisplayMode,
+            initialNaraDataSource: NaraMuseumDataSource?,
             initialSelectedCategoryIDs: Set<String>,
-            availableCategories: [MuseumCategory],
             isCategorySelectionDisabled: Bool,
-            onApply: @escaping (DisplayMode, [MuseumCategory]) async -> Void
+            onApply: @escaping (DisplayMode, NaraMuseumDataSource?, [MuseumCategory]) async -> Void
         ) {
-            self.availableCategories = availableCategories
+            self.museumID = museumID
+            self.initialNaraDataSource = initialNaraDataSource
             self.isCategorySelectionDisabled = isCategorySelectionDisabled
             self.onApply = onApply
             _draftDisplayMode = State(initialValue: initialDisplayMode)
+            _draftNaraDataSource = State(initialValue: initialNaraDataSource ?? .colbase)
             _draftSelectedCategoryIDs = State(initialValue: initialSelectedCategoryIDs)
         }
 
@@ -291,6 +310,23 @@ struct ArtworkFeedView: View {
                     }
                     .pickerStyle(.segmented)
                     .disabled(isApplying)
+                }
+
+                if showsNaraDataSourcePicker {
+                    Section("数据源") {
+                        Picker("当前数据源", selection: $draftNaraDataSource) {
+                            ForEach(NaraMuseumDataSource.allCases) { dataSource in
+                                Text(dataSource.displayName).tag(dataSource)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .disabled(isSelectionInteractionDisabled)
+                        .onChange(of: draftNaraDataSource) { _, newValue in
+                            draftSelectedCategoryIDs = Set(
+                                museumID.defaultFeedCategories(naraDataSource: newValue).map(\.id)
+                            )
+                        }
+                    }
                 }
 
                 Section("筛选") {
@@ -372,6 +408,17 @@ struct ArtworkFeedView: View {
             isCategorySelectionDisabled || isApplying
         }
 
+        private var showsNaraDataSourcePicker: Bool {
+            museumID == .nnm && initialNaraDataSource != nil
+        }
+
+        private var availableCategories: [MuseumCategory] {
+            if showsNaraDataSourcePicker {
+                return museumID.selectableFeedCategories(naraDataSource: draftNaraDataSource)
+            }
+            return museumID.selectableFeedCategories
+        }
+
         private var isAllCategoriesSelected: Bool {
             draftSelectedCategoryIDs.count == availableCategories.count
         }
@@ -432,7 +479,11 @@ struct ArtworkFeedView: View {
             isApplying = true
             defer { isApplying = false }
 
-            await onApply(draftDisplayMode, selectedCategories)
+            await onApply(
+                draftDisplayMode,
+                showsNaraDataSourcePicker ? draftNaraDataSource : nil,
+                selectedCategories
+            )
             dismiss()
         }
     }

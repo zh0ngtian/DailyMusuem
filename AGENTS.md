@@ -171,24 +171,44 @@
 
 #### 3.1.3 奈良国立博物馆
 
-- 奈良国立博物馆当前复用 `Japan Search Web API` / `ColBase` 链路：
+- 奈良国立博物馆当前支持两套数据源：
+  - 默认数据源：馆方中文藏品数据库 `https://www.narahaku.go.jp/chinese/collection/`
+  - 可选数据源：`Japan Search Web API` / `ColBase`
+- 奈良馆数据源选择只在奈良二级页“页面设置”中展示：
+  - 默认值为 `馆方数据源`
+  - 可切换为 `ColBase`
+  - 数据源选择通过 App Group `UserDefaults` 持久化，主 App 列表、详情页和 Widget 刷新读取同一设置
+  - 数据源切换不影响已经收藏的文物；收藏夹中的 `narahaku-*` 馆方源展品和 ColBase 展品都必须继续可见、可打开、可取消收藏
+- 奈良馆方源搜索页：
+  - `https://www.narahaku.go.jp/chinese/collection/?bumon={门类}&img=1&action=image_search`
+  - 用于解析候选池中的 `data-href`、缩略图、标题和摘要
+  - 候选需要合并去重
+- 奈良馆方源详情页：
+  - `https://www.narahaku.go.jp/chinese/collection/{id}.html`
+  - 用于解析标题、材质、尺寸、国家 / 年代、门类、说明区、主图 / 缩略图和官网链接
+  - 若详情页没有艺术家或介绍文本，字段保持空值，不允许伪造内容
+  - 部分详情页会缺失材质行，例如 `1317-331.html` 的说明区只有空行、尺寸、国家 / 年代；解析时必须先识别尺寸行，不能按固定行号把年代解析到尺寸里
+  - `http://www.narahaku.go.jp/...` 和协议相对图片 URL 需要规范化为 `https://...`
+- 奈良馆方源展品 `objectID` 必须使用 `narahaku-{原始ID}`：
+  - 示例：`narahaku-1032-0`
+  - 用于区分收藏 key、feed cache key、Widget candidate key 和深链接
+  - 详情 loader 对 `.nnm` 需要按 `objectID` 前缀分发：`narahaku-` 走馆方详情，否则走 Japan Search / ColBase
+- 奈良 ColBase 源继续复用 `Japan Search Web API`：
   - 搜索 itemIDs：
     - `https://jpsearch.go.jp/api/item/search/jps-cross`
   - 拉取单件详情：
     - `https://jpsearch.go.jp/api/item/{itemID}`
-- 奈良馆搜索当前使用的核心筛选条件包括：
+- 奈良 ColBase 源搜索当前使用的核心筛选条件包括：
   - `f-db=cobas`
   - `q-contributor=Nara National Museum`
   - `f-contents=image`
-- 奈良馆搜索 fallback 规则：
+- 奈良 ColBase 源搜索 fallback 规则：
   - 当 contributor 查询返回空结果时，需要允许退回 `cobas` 全库搜索并在本地过滤奈良国立博物馆数据。
   - 本地过滤需要接受 contributor `奈良国立博物館`、`Nara National Museum`，以及 provider `narahaku`。
-- 奈良馆搜索存在与东京馆相同的分页约束：
+- 奈良 ColBase 源搜索存在与东京馆相同的分页约束：
   - 大 `size` 值在 iPhone 端不稳定，分页大小必须按当前约定的小页策略处理，不能恢复成一次抓取超大页。
   - 主 App 二级页和 Widget 均继续按 `10` 条小页增量推进。
-- 奈良馆当前不依赖官网页面抓取详情：
-  - 展品列表和详情信息都以 `Japan Search Web API` 返回为准。
-  - ColBase `linkUrl` 作为官网原始链接，用于详情页官网入口、AI 按钮和 Widget 深链接来源。
+- ColBase `linkUrl` 作为 ColBase 源官网原始链接，用于详情页官网入口、AI 按钮和 Widget 深链接来源。
 
 #### 3.1.4 中国国家博物馆
 
@@ -247,7 +267,7 @@
 - 每个已支持博物馆需要配置一个轻量 API：
   - 大都会艺术博物馆：`https://collectionapi.metmuseum.org/public/collection/v1/departments`
   - 东京国立博物馆：`https://jpsearch.go.jp/api/item/search/jps-cross`，参数使用 `f-db=cobas`、`q-contributor=東京国立博物館`、`f-contents=image`、`from=0`、`size=1`
-  - 奈良国立博物馆：`https://jpsearch.go.jp/api/item/search/jps-cross`，参数使用 `f-db=cobas`、`q-contributor=Nara National Museum`、`f-contents=image`、`from=0`、`size=1`
+  - 奈良国立博物馆：`https://www.narahaku.go.jp/chinese/collection/`
   - 中国国家博物馆：`https://appapi.chnmuseum.cn/api/exhibit_list`，参数使用 `cate_id=0`、`limit=1`、`page=1`、`p=i`、`son_cate_id=0`
   - 上海博物馆：`https://www.shanghaimuseum.net/mu/frontend/pg/collection/search-antique`，请求体使用 `page=1`、`limit=1`
 - 后续新增博物馆时，延迟测试 API 必须优先选择单次、轻量、不会改变服务端状态的请求。
@@ -313,9 +333,20 @@
 
 #### 3.2.4 奈良国立博物馆分类
 
-- 奈良国立博物馆分类来源以 `Japan Search Web API` 的 `facets.type.counts` 为准。
-- 请求侧需要继续使用 `f-type` 作为筛选值。
-- 奈良馆内部需要保留 raw code，展示层必须使用下面这组中文映射：
+- 奈良国立博物馆分类随当前数据源切换。
+- 馆方源分类来源为奈良馆方中文藏品数据库门类：
+  - 请求侧使用 `bumon`
+  - UI 展示值和请求值当前均为中文门类，但实现仍需区分职责，不能把 UI 文案判断写死为数据契约
+  - `雕刻`
+  - `绘画`
+  - `书迹`
+  - `工艺`
+  - `考古`
+  - `中国古代青铜器`
+  - `其他`
+- ColBase 源分类来源以 `Japan Search Web API` 的 `facets.type.counts` 为准。
+- ColBase 源请求侧需要继续使用 `f-type` 作为筛选值。
+- ColBase 源内部需要保留 raw code，展示层必须使用下面这组中文映射：
   - `archeology` -> `考古与历史资料`
   - `ancdoc` -> `书迹与古文书`
   - `paint` -> `绘画`
@@ -326,7 +357,9 @@
   - `lacquer` -> `漆器`
   - `weaponry` -> `刀剑与兵器`
   - `daw` -> `染织`
-- 后续如果奈良馆接口返回额外类型：
+- 两套分类需要分别记忆，互不污染。
+- 切换数据源时，页面设置内的草稿分类重置为该数据源的 `全部`；只有点击 `完成` 后才保存数据源、保存分类并刷新列表。
+- 后续如果奈良馆任一数据源返回额外类型：
   - 不能直接把 raw code 暴露给用户
   - 必须先补中文映射后再开放到 UI
 
@@ -505,6 +538,11 @@
   - 显示设置才真正生效
   - 类别筛选才真正生效
   - 如类别发生变化，才重新按新类别进行数据拉取和显示
+- 奈良国立博物馆的页面设置额外提供 `数据源`：
+  - 只对奈良馆显示，其他博物馆页面设置不变
+  - 默认选中 `馆方数据源`
+  - 可切换 `ColBase`
+  - 数据源和分类一样，只能在点击 `完成` 后生效；未点击 `完成` 直接关闭时，本次数据源和分类草稿都不写入
 - 如果用户没有点击 `完成`，而是直接通过下滑手势关闭页面设置：
   - 本次设置修改不生效
   - 不允许写入记忆状态
@@ -528,10 +566,14 @@
   - 重新走首批加载逻辑。
   - 刷新过程中直接进入二级页内联的 `正在加载展品...` 状态，不再回退到独立的 `正在加载展品...` 全屏界面。
   - 刷新中的首批加载提示出现时，屏幕上已经渲染出的展品卡片仍需保留，待新首批结果完成后再整体切换。
-- 东京国立博物馆和奈良国立博物馆的数据池也不允许预拉取：
+- 东京国立博物馆和奈良国立博物馆 ColBase 源的数据池也不允许预拉取：
   - Japan Search 搜索分页大小按 `10` 条处理。
   - 首次进入只准备首批所需的 `10` 条候选数据。
   - 后续每次继续浏览时，也只按下一批所需数量增量补齐，不要额外预备 `30` 条或更多数据。
+- 奈良国立博物馆馆方源同样不允许预拉详情：
+  - 首次进入只从馆方分类结果页准备候选，再拉首批 `10` 条详情
+  - 后续继续浏览仍按每批 `10` 条推进
+  - 不允许为了补齐首屏在同一批里额外追拉更多详情
 
 #### 4.3.3 排序与展示
 
@@ -639,6 +681,10 @@
   - 当前顺序为 `中国国家博物馆`、`上海博物馆`、`大都会艺术博物馆`、`东京国立博物馆`、`奈良国立博物馆`
 - 每个分组内的展品按最近收藏在前排序。
 - 收藏夹页点击展品后，需要进入对应展品详情页。
+- 奈良国立博物馆的数据源切换不影响已经收藏的文物：
+  - 收藏夹不按当前奈良数据源过滤
+  - 已收藏的 `narahaku-*` 馆方源展品和 ColBase 展品都必须继续显示
+  - 点击收藏夹中的奈良展品时，详情页按 `objectID` 前缀分发到正确数据源
 - 收藏夹页中的展品需要支持左滑删除，左滑删除等价于取消收藏。
 - 收藏夹列表左滑删除后，同一展品详情页右上角星标状态也必须同步为未收藏；反过来，在详情页取消收藏后返回收藏夹时，对应卡片也必须立即消失。
 - 取消收藏可通过收藏夹列表左滑删除，或通过详情页右上角星标完成。
@@ -702,6 +748,7 @@
   - `上海博物馆`
 - 主 App 内各博物馆当前保存的类别选择仍然需要保留：
   - 小组件刷新时继续复用这些类别作为过滤条件
+  - 奈良国立博物馆需要同时读取当前数据源，并读取该数据源对应的分类存储；馆方源和 ColBase 源分类互不污染
 - 不再提供以下旧配置项：
   - 全局展示范围
   - 是否优先展示有图片的展品
@@ -742,6 +789,12 @@
   - 不允许为了展示单件 Widget 先把 `exhibit_list` 的全部 `page_count` 页拉完
   - 刷新时先通过列表接口确认页数，再从当前生效类别的少量随机页中准备候选
   - 单次刷新最多只允许发起少量列表页请求，详情和图片继续按单件候选逐个推进
+- 奈良国立博物馆小组件刷新必须跟随当前奈良数据源：
+  - 馆方源使用 network-only 馆方候选和馆方详情，不复用主 App 缓存
+  - ColBase 源继续使用 network-only Japan Search / ColBase 候选和详情
+  - 单馆 scope 时，只能使用当前数据源下当前生效类别
+  - 对 `narahaku.go.jp` 图片需要使用浏览器风格请求头和馆方 Referer：`https://www.narahaku.go.jp/chinese/collection/`
+  - 对 ColBase 图片继续优先使用缩略图和 ColBase Referer
 - 单馆 scope 时：
   - 只从当前博物馆和该馆当前生效类别中选择候选
 - `所有博物馆` scope 时：
@@ -786,6 +839,10 @@
 ### 5.6 深链接
 
 - 小组件点击主体区域时，需通过 App 内深链接跳转到对应展品详情。
+- 奈良国立博物馆深链接需要保留原始 `objectID`：
+  - `narahaku-*` 进入馆方源详情
+  - 其他 `.nnm` objectID 进入 Japan Search / ColBase 详情
+  - 当前奈良数据源设置不得改变已生成深链接或已收藏展品的详情分发
 - 深链接目标必须能在以下场景下正常工作：
   - App 已在前台
   - App 在后台
@@ -893,6 +950,10 @@
     - 当前关键 widget 日志能看到对应的共享刷新键
   - 6. 再查系统日志，确认没有 `imageTooLarge`、归档失败或 Chrono 渲染错误
   - 7. 最后以桌面截图作为最终验收证据
+- 奈良国立博物馆数据源切换验证还需要补充：
+  - 主 App 页面设置默认显示 `馆方数据源`
+  - 切换 `ColBase` 后，收藏夹中切换前已收藏的 `narahaku-*` 展品仍可见并能打开
+  - Widget 单馆 `奈良国立博物馆` 刷新时，日志中的候选来源和图片 Referer 应与当前奈良数据源一致
 - 常用日志命令：
   - `zsh scripts/pull_simulator_request_logs.sh --udid <SIMULATOR_ID> --clear --trigger-refresh --instance-token <TOKEN> --wait 8 --tail 120`
   - `zsh scripts/pull_simulator_request_logs.sh --udid <SIMULATOR_ID> --instances`

@@ -11,6 +11,7 @@ final class SettingsStore: ObservableObject {
     @Published private(set) var widgetAutoRefreshStartMinutes: Int
     @Published private(set) var widgetAutoRefreshEndMinutes: Int
     @Published private(set) var isMuseumLatencyTestEnabled: Bool
+    @Published private(set) var naraMuseumDataSource: NaraMuseumDataSource
 
     init(defaults resolvedDefaults: UserDefaults = UserDefaults(suiteName: SettingsKeys.appGroupID) ?? .standard) {
         defaults = resolvedDefaults
@@ -19,6 +20,7 @@ final class SettingsStore: ObservableObject {
         widgetAutoRefreshStartMinutes = autoRefreshWindow.startMinutes
         widgetAutoRefreshEndMinutes = autoRefreshWindow.endMinutes
         isMuseumLatencyTestEnabled = resolvedDefaults.bool(forKey: SettingsKeys.museumLatencyTestEnabled)
+        naraMuseumDataSource = NaraMuseumDataSource.storedValue(in: resolvedDefaults)
     }
 
     func requestWidgetReload(invalidateContent: Bool = false) {
@@ -52,6 +54,13 @@ final class SettingsStore: ObservableObject {
         defaults.synchronize()
     }
 
+    func saveNaraMuseumDataSource(_ dataSource: NaraMuseumDataSource) {
+        naraMuseumDataSource = dataSource
+        defaults.set(dataSource.rawValue, forKey: SettingsKeys.naraMuseumDataSource)
+        defaults.synchronize()
+        requestWidgetReload()
+    }
+
     private func saveWidgetAutoRefreshWindow(startMinutes: Int, endMinutes: Int) {
         let normalizedWindow = WidgetAutoRefreshWindow(
             startMinutes: startMinutes,
@@ -65,13 +74,44 @@ final class SettingsStore: ObservableObject {
     }
 
     func feedCategories(for museumID: MuseumID) -> [MuseumCategory] {
-        museumID.feedCategories(withStoredValue: defaults.string(forKey: feedCategoryKey(for: museumID)))
+        feedCategories(
+            for: museumID,
+            naraDataSource: museumID == .nnm ? naraMuseumDataSource : nil
+        )
+    }
+
+    func feedCategories(for museumID: MuseumID, naraDataSource: NaraMuseumDataSource?) -> [MuseumCategory] {
+        let key = SettingsKeys.feedCategoryKey(for: museumID, naraDataSource: naraDataSource)
+        let storedValue = defaults.string(forKey: key)
+        if museumID == .nnm, let naraDataSource {
+            return museumID.feedCategories(withStoredValue: storedValue, naraDataSource: naraDataSource)
+        }
+        return museumID.feedCategories(withStoredValue: storedValue)
     }
 
     func saveFeedCategories(_ categories: [MuseumCategory], for museumID: MuseumID) {
-        let normalized = museumID.normalizedFeedCategories(categories)
-        defaults.set(museumID.feedCategoryStorageValue(for: normalized), forKey: feedCategoryKey(for: museumID))
+        saveFeedCategories(
+            categories,
+            for: museumID,
+            naraDataSource: museumID == .nnm ? naraMuseumDataSource : nil
+        )
+    }
+
+    func saveFeedCategories(_ categories: [MuseumCategory], for museumID: MuseumID, naraDataSource: NaraMuseumDataSource?) {
+        let normalized: [MuseumCategory]
+        let storageValue: String
+        if museumID == .nnm, let naraDataSource {
+            normalized = museumID.normalizedFeedCategories(categories, naraDataSource: naraDataSource)
+            storageValue = museumID.feedCategoryStorageValue(for: normalized, naraDataSource: naraDataSource)
+        } else {
+            normalized = museumID.normalizedFeedCategories(categories)
+            storageValue = museumID.feedCategoryStorageValue(for: normalized)
+        }
+        defaults.set(storageValue, forKey: SettingsKeys.feedCategoryKey(for: museumID, naraDataSource: naraDataSource))
         defaults.synchronize()
+        if museumID == .nnm {
+            requestWidgetReload()
+        }
     }
 
     func feedCategory(for museumID: MuseumID) -> MuseumCategory {
@@ -89,10 +129,6 @@ final class SettingsStore: ObservableObject {
     func saveFeedDisplayModeRawValue(_ rawValue: String, for museumID: MuseumID) {
         defaults.set(rawValue, forKey: feedDisplayModeKey(for: museumID))
         defaults.synchronize()
-    }
-
-    private func feedCategoryKey(for museumID: MuseumID) -> String {
-        SettingsKeys.feedCategoryPrefix + museumID.rawValue
     }
 
     private func feedDisplayModeKey(for museumID: MuseumID) -> String {

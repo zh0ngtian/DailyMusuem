@@ -10,6 +10,7 @@ struct ArtworkDetailLoaderView: View {
 
     private let metAPI = MetMuseumAPI()
     private let japanSearchAPI = JapanSearchAPI()
+    private let naraMuseumAPI = NaraMuseumAPI()
     private let nationalMuseumChinaAPI = NationalMuseumChinaAPI()
     private let shanghaiMuseumAPI = ShanghaiMuseumAPI()
 
@@ -85,12 +86,22 @@ struct ArtworkDetailLoaderView: View {
                     loadedArtwork = loadedArtwork.withArtworkDescription(webDescription)
                 }
                 artwork = loadedArtwork
-            case .tnm, .nnm:
+            case .tnm:
                 let item = try await japanSearchAPI.fetchItem(
                     museumID: reference.museumID,
                     itemID: reference.objectID
                 )
                 artwork = item.toArtwork(museumID: reference.museumID)
+            case .nnm:
+                if NaraMuseumAPI.isOfficialObjectID(reference.objectID) {
+                    artwork = try await naraMuseumAPI.fetchArtwork(objectID: reference.objectID)
+                } else {
+                    let item = try await japanSearchAPI.fetchItem(
+                        museumID: reference.museumID,
+                        itemID: reference.objectID
+                    )
+                    artwork = item.toArtwork(museumID: reference.museumID)
+                }
             case .nmc:
                 guard let exhibitID = Int(reference.objectID) else {
                     throw URLError(.badURL)

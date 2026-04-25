@@ -20,6 +20,7 @@ struct MuseumCategory: Identifiable, Hashable {
         case all
         case metDepartment
         case japanSearchType
+        case naraMuseumOfficialDepartment
         case nationalMuseumChinaBucket
         case shanghaiMuseumSubtype
     }
@@ -37,6 +38,11 @@ struct MuseumCategory: Identifiable, Hashable {
 
     var japanSearchTypeCode: String? {
         guard kind == .japanSearchType else { return nil }
+        return remoteValue
+    }
+
+    var naraMuseumOfficialDepartment: String? {
+        guard kind == .naraMuseumOfficialDepartment else { return nil }
         return remoteValue
     }
 
@@ -242,8 +248,30 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
         availableFeedCategories.filter { !$0.isAll }
     }
 
+    func availableFeedCategories(naraDataSource: NaraMuseumDataSource) -> [MuseumCategory] {
+        guard self == .nnm, naraDataSource == .official else {
+            return availableFeedCategories
+        }
+
+        return [.all(museumID: self)] + NaraMuseumOfficialDepartment.allCases.map { department in
+            .naraMuseumOfficialDepartment(
+                museumID: self,
+                id: department.id,
+                displayName: department.displayName
+            )
+        }
+    }
+
+    func selectableFeedCategories(naraDataSource: NaraMuseumDataSource) -> [MuseumCategory] {
+        availableFeedCategories(naraDataSource: naraDataSource).filter { !$0.isAll }
+    }
+
     var defaultFeedCategories: [MuseumCategory] {
         selectableFeedCategories
+    }
+
+    func defaultFeedCategories(naraDataSource: NaraMuseumDataSource) -> [MuseumCategory] {
+        selectableFeedCategories(naraDataSource: naraDataSource)
     }
 
     func feedCategory(withID id: String?) -> MuseumCategory? {
@@ -253,6 +281,15 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
 
     func feedCategories(withStoredValue rawValue: String?) -> [MuseumCategory] {
         let selectable = selectableFeedCategories
+        return feedCategories(withStoredValue: rawValue, selectable: selectable)
+    }
+
+    func feedCategories(withStoredValue rawValue: String?, naraDataSource: NaraMuseumDataSource) -> [MuseumCategory] {
+        let selectable = selectableFeedCategories(naraDataSource: naraDataSource)
+        return feedCategories(withStoredValue: rawValue, selectable: selectable)
+    }
+
+    private func feedCategories(withStoredValue rawValue: String?, selectable: [MuseumCategory]) -> [MuseumCategory] {
         guard !selectable.isEmpty else { return [] }
         guard let rawValue, !rawValue.isEmpty else { return selectable }
 
@@ -271,6 +308,15 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
 
     func normalizedFeedCategories(_ categories: [MuseumCategory]) -> [MuseumCategory] {
         let selectable = selectableFeedCategories
+        return normalizedFeedCategories(categories, selectable: selectable)
+    }
+
+    func normalizedFeedCategories(_ categories: [MuseumCategory], naraDataSource: NaraMuseumDataSource) -> [MuseumCategory] {
+        let selectable = selectableFeedCategories(naraDataSource: naraDataSource)
+        return normalizedFeedCategories(categories, selectable: selectable)
+    }
+
+    private func normalizedFeedCategories(_ categories: [MuseumCategory], selectable: [MuseumCategory]) -> [MuseumCategory] {
         guard !selectable.isEmpty else { return [] }
 
         let selectedIDSet = Set(
@@ -287,9 +333,21 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
         normalizedFeedCategories(categories).count == selectableFeedCategories.count
     }
 
+    func areAllFeedCategoriesSelected(_ categories: [MuseumCategory], naraDataSource: NaraMuseumDataSource) -> Bool {
+        normalizedFeedCategories(categories, naraDataSource: naraDataSource).count == selectableFeedCategories(naraDataSource: naraDataSource).count
+    }
+
     func feedCategoryStorageValue(for categories: [MuseumCategory]) -> String {
         let normalized = normalizedFeedCategories(categories)
         if normalized.count == selectableFeedCategories.count {
+            return "all"
+        }
+        return normalized.map(\.id).joined(separator: ",")
+    }
+
+    func feedCategoryStorageValue(for categories: [MuseumCategory], naraDataSource: NaraMuseumDataSource) -> String {
+        let normalized = normalizedFeedCategories(categories, naraDataSource: naraDataSource)
+        if normalized.count == selectableFeedCategories(naraDataSource: naraDataSource).count {
             return "all"
         }
         return normalized.map(\.id).joined(separator: ",")
@@ -408,7 +466,7 @@ final class MuseumLatencyService: @unchecked Sendable {
         case .tnm:
             return try makeJapanSearchLatencyRequest(contributor: "東京国立博物館")
         case .nnm:
-            return try makeJapanSearchLatencyRequest(contributor: "Nara National Museum")
+            return try makeGETRequest(urlString: "https://www.narahaku.go.jp/chinese/collection/")
         case .nmc:
             var components = URLComponents(string: "https://appapi.chnmuseum.cn/api/exhibit_list")
             components?.queryItems = [
@@ -629,6 +687,16 @@ private extension MuseumCategory {
             displayName: displayName,
             kind: .japanSearchType,
             remoteValue: typeCode
+        )
+    }
+
+    static func naraMuseumOfficialDepartment(museumID: MuseumID, id: String, displayName: String) -> MuseumCategory {
+        MuseumCategory(
+            museumID: museumID,
+            id: id,
+            displayName: displayName,
+            kind: .naraMuseumOfficialDepartment,
+            remoteValue: displayName
         )
     }
 
