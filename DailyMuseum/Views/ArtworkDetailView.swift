@@ -437,7 +437,7 @@ struct ArtworkDetailView: View {
         switch museumID {
         case .met:
             return Locale.Language(identifier: "en")
-        case .tnm:
+        case .tnm, .nnm:
             return Locale.Language(identifier: "ja")
         case .nmc, .shm:
             return nil

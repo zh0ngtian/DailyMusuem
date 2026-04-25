@@ -171,16 +171,18 @@ final class ArtworkFeedViewModel: ObservableObject {
             categorySelectionKey: categorySelectionKey
         )
 
-        if museum.id == .tnm {
+        if museum.id == .tnm || museum.id == .nnm {
             if let typeCodes = selectedJapanSearchTypeCodes {
                 for typeCode in typeCodes {
                     await japanSearchAPI.resetSearchCache(
+                        museumID: museum.id,
                         preferHasImages: true,
                         categoryTypeCode: typeCode
                     )
                 }
             } else {
                 await japanSearchAPI.resetSearchCache(
+                    museumID: museum.id,
                     preferHasImages: true,
                     categoryTypeCode: nil
                 )
@@ -201,7 +203,7 @@ final class ArtworkFeedViewModel: ObservableObject {
         objectIDPool = []
         loadedObjectIDs = []
         hasMoreItems = true
-        hasMoreRemoteItemIDs = museum.id == .tnm || museum.id == .shm
+        hasMoreRemoteItemIDs = museum.id == .tnm || museum.id == .nnm || museum.id == .shm
         isLoadingMore = false
         loadingLogs = []
         appendLoadingLog("开始加载 \(museum.displayName) 展品，当前类别：\(selectedCategoriesLogLabel)。")

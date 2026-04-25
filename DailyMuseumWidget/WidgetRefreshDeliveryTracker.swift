@@ -758,7 +758,7 @@ enum WidgetPreferredImageURLDecision {
 
     static func resolveCandidates(for artwork: Artwork, museumID: MuseumID) -> [URL] {
         switch museumID {
-        case .tnm:
+        case .tnm, .nnm:
             return compactUniqueURLs([artwork.primaryImageSmallURL, artwork.primaryImageURL])
         case .met, .nmc, .shm:
             return compactUniqueURLs([artwork.primaryImageURL, artwork.primaryImageSmallURL])

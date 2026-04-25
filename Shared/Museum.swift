@@ -63,6 +63,7 @@ struct MuseumCategory: Identifiable, Hashable {
 enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
     case met
     case tnm
+    case nnm
     case nmc
     case shm
 
@@ -74,6 +75,8 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
             return "大都会艺术博物馆"
         case .tnm:
             return "东京国立博物馆"
+        case .nnm:
+            return "奈良国立博物馆"
         case .nmc:
             return "中国国家博物馆"
         case .shm:
@@ -85,7 +88,7 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
         switch self {
         case .met:
             return "美国"
-        case .tnm:
+        case .tnm, .nnm:
             return "日本"
         case .nmc, .shm:
             return "中国"
@@ -98,6 +101,8 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
             return "纽约"
         case .tnm:
             return "东京"
+        case .nnm:
+            return "奈良"
         case .nmc:
             return "北京"
         case .shm:
@@ -115,6 +120,8 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
             return "MetHomepageLogo"
         case .tnm:
             return "TnmHomepageLogo"
+        case .nnm:
+            return "NnmHomepageLogo"
         case .nmc:
             return "NmcHomepageLogo"
         case .shm:
@@ -128,7 +135,7 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
 
     var supportsTranslation: Bool {
         switch self {
-        case .met, .tnm:
+        case .met, .tnm, .nnm:
             return true
         case .nmc, .shm:
             return false
@@ -137,7 +144,7 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
 
     var supportsWidgetContent: Bool {
         switch self {
-        case .met, .tnm, .nmc, .shm:
+        case .met, .tnm, .nnm, .nmc, .shm:
             return true
         }
     }
@@ -146,7 +153,7 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
         switch self {
         case .nmc, .shm:
             return true
-        case .met, .tnm:
+        case .met, .tnm, .nnm:
             return false
         }
     }
@@ -190,6 +197,20 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
                 .japanSearchType(museumID: self, id: "sculpture", displayName: "雕刻", typeCode: "sculpture"),
                 .japanSearchType(museumID: self, id: "arts", displayName: "艺术与美术", typeCode: "arts"),
                 .japanSearchType(museumID: self, id: "architecture", displayName: "建筑", typeCode: "architecture")
+            ]
+        case .nnm:
+            return [
+                .all(museumID: self),
+                .japanSearchType(museumID: self, id: "archeology", displayName: "考古与历史资料", typeCode: "archeology"),
+                .japanSearchType(museumID: self, id: "ancdoc", displayName: "书迹与古文书", typeCode: "ancdoc"),
+                .japanSearchType(museumID: self, id: "paint", displayName: "绘画", typeCode: "paint"),
+                .japanSearchType(museumID: self, id: "craft", displayName: "工艺", typeCode: "craft"),
+                .japanSearchType(museumID: self, id: "sculpture", displayName: "雕刻", typeCode: "sculpture"),
+                .japanSearchType(museumID: self, id: "ceramic", displayName: "陶瓷", typeCode: "ceramic"),
+                .japanSearchType(museumID: self, id: "metal", displayName: "金属工艺", typeCode: "metal"),
+                .japanSearchType(museumID: self, id: "lacquer", displayName: "漆器", typeCode: "lacquer"),
+                .japanSearchType(museumID: self, id: "weaponry", displayName: "刀剑与兵器", typeCode: "weaponry"),
+                .japanSearchType(museumID: self, id: "daw", displayName: "染织", typeCode: "daw")
             ]
         case .nmc:
             return [
@@ -385,28 +406,9 @@ final class MuseumLatencyService: @unchecked Sendable {
                 urlString: "https://collectionapi.metmuseum.org/public/collection/v1/departments"
             )
         case .tnm:
-            var components = URLComponents(string: "https://jpsearch.go.jp/api/item/search/jps-cross")
-            components?.queryItems = [
-                URLQueryItem(name: "f-db", value: "cobas"),
-                URLQueryItem(name: "q-contributor", value: "東京国立博物館"),
-                URLQueryItem(name: "f-contents", value: "image"),
-                URLQueryItem(name: "from", value: "0"),
-                URLQueryItem(name: "size", value: "1")
-            ]
-            guard let url = components?.url else {
-                throw URLError(.badURL)
-            }
-
-            var request = URLRequest(url: url)
-            request.httpMethod = "GET"
-            request.timeoutInterval = timeoutInterval
-            request.cachePolicy = .reloadIgnoringLocalCacheData
-            request.setValue("curl/8.7.1", forHTTPHeaderField: "User-Agent")
-            request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
-            request.setValue("ja-JP,ja;q=0.9,en-US;q=0.8,zh-CN;q=0.7", forHTTPHeaderField: "Accept-Language")
-            request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
-            request.setValue("no-cache", forHTTPHeaderField: "Pragma")
-            return request
+            return try makeJapanSearchLatencyRequest(contributor: "東京国立博物館")
+        case .nnm:
+            return try makeJapanSearchLatencyRequest(contributor: "Nara National Museum")
         case .nmc:
             var components = URLComponents(string: "https://appapi.chnmuseum.cn/api/exhibit_list")
             components?.queryItems = [
@@ -459,6 +461,31 @@ final class MuseumLatencyService: @unchecked Sendable {
         request.httpMethod = "GET"
         request.timeoutInterval = timeoutInterval
         request.cachePolicy = .reloadIgnoringLocalCacheData
+        return request
+    }
+
+    private func makeJapanSearchLatencyRequest(contributor: String) throws -> URLRequest {
+        var components = URLComponents(string: "https://jpsearch.go.jp/api/item/search/jps-cross")
+        components?.queryItems = [
+            URLQueryItem(name: "f-db", value: "cobas"),
+            URLQueryItem(name: "q-contributor", value: contributor),
+            URLQueryItem(name: "f-contents", value: "image"),
+            URLQueryItem(name: "from", value: "0"),
+            URLQueryItem(name: "size", value: "1")
+        ]
+        guard let url = components?.url else {
+            throw URLError(.badURL)
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = timeoutInterval
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.setValue("curl/8.7.1", forHTTPHeaderField: "User-Agent")
+        request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
+        request.setValue("ja-JP,ja;q=0.9,en-US;q=0.8,zh-CN;q=0.7", forHTTPHeaderField: "Accept-Language")
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        request.setValue("no-cache", forHTTPHeaderField: "Pragma")
         return request
     }
 

@@ -70,8 +70,8 @@ final class CoreLogicTests: XCTestCase {
         let museums = MuseumRepository.museums(inPreferredOrder: [.tnm, .tnm, .met])
         let widgetMuseums = MuseumRepository.widgetMuseums(inPreferredOrder: [.tnm, .tnm, .met])
 
-        XCTAssertEqual(museums.map(\.id), [.tnm, .met, .nmc, .shm])
-        XCTAssertEqual(widgetMuseums.map(\.id), [.tnm, .met, .nmc, .shm])
+        XCTAssertEqual(museums.map(\.id), [.tnm, .met, .nnm, .nmc, .shm])
+        XCTAssertEqual(widgetMuseums.map(\.id), [.tnm, .met, .nnm, .nmc, .shm])
     }
 
     func testMuseumRepositoryHomepageCountrySectionsPlaceChinaFirst() {
@@ -80,14 +80,14 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertEqual(sections.map(\.country), ["中国", "美国", "日本"])
         XCTAssertEqual(sections[0].museums.map(\.id), [.nmc, .shm])
         XCTAssertEqual(sections[1].museums.map(\.id), [.met])
-        XCTAssertEqual(sections[2].museums.map(\.id), [.tnm])
-        XCTAssertEqual(MuseumRepository.homepageMuseumIDs, [.nmc, .shm, .met, .tnm])
+        XCTAssertEqual(sections[2].museums.map(\.id), [.tnm, .nnm])
+        XCTAssertEqual(MuseumRepository.homepageMuseumIDs, [.nmc, .shm, .met, .tnm, .nnm])
     }
 
     func testMuseumRepositoryWidgetMuseumsFollowHomepageOrderWithoutGrouping() {
         let widgetMuseums = MuseumRepository.widgetMuseums(inPreferredOrder: MuseumRepository.homepageMuseumIDs)
 
-        XCTAssertEqual(widgetMuseums.map(\.id), [.nmc, .shm, .met, .tnm])
+        XCTAssertEqual(widgetMuseums.map(\.id), [.nmc, .shm, .met, .tnm, .nnm])
     }
 
     func testMuseumMetadataUsesStableCountryAndCityFieldsForHomepageCopy() {
@@ -97,6 +97,9 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertEqual(MuseumRepository.museum(for: .tnm).country, "日本")
         XCTAssertEqual(MuseumRepository.museum(for: .tnm).city, "东京")
         XCTAssertEqual(MuseumRepository.museum(for: .tnm).subtitle, "东京")
+        XCTAssertEqual(MuseumRepository.museum(for: .nnm).country, "日本")
+        XCTAssertEqual(MuseumRepository.museum(for: .nnm).city, "奈良")
+        XCTAssertEqual(MuseumRepository.museum(for: .nnm).subtitle, "奈良")
         XCTAssertEqual(MuseumRepository.museum(for: .nmc).country, "中国")
         XCTAssertEqual(MuseumRepository.museum(for: .nmc).city, "北京")
         XCTAssertEqual(MuseumRepository.museum(for: .nmc).subtitle, "北京")
@@ -189,6 +192,7 @@ final class CoreLogicTests: XCTestCase {
     func testWidgetMuseumScopeRawValueRoundTrip() {
         XCTAssertEqual(WidgetMuseumScope(rawValue: WidgetMuseumScope.all.rawValue), .all)
         XCTAssertEqual(WidgetMuseumScope(rawValue: WidgetMuseumScope.single(.tnm).rawValue), .single(.tnm))
+        XCTAssertEqual(WidgetMuseumScope(rawValue: WidgetMuseumScope.single(.nnm).rawValue), .single(.nnm))
         XCTAssertNil(WidgetMuseumScope(rawValue: "single:unknown"))
     }
 
@@ -312,6 +316,7 @@ final class CoreLogicTests: XCTestCase {
     func testMuseumCopyrightNoticeUsesExpectedFormat() {
         XCTAssertEqual(MuseumID.met.copyrightNotice, "©大都会艺术博物馆 版权所有")
         XCTAssertEqual(MuseumID.tnm.copyrightNotice, "©东京国立博物馆 版权所有")
+        XCTAssertEqual(MuseumID.nnm.copyrightNotice, "©奈良国立博物馆 版权所有")
         XCTAssertEqual(MuseumID.nmc.copyrightNotice, "©中国国家博物馆 版权所有")
         XCTAssertEqual(MuseumID.shm.copyrightNotice, "©上海博物馆 版权所有")
     }
@@ -390,7 +395,7 @@ final class CoreLogicTests: XCTestCase {
             """
         )
 
-        let artwork = item.toArtwork()
+        let artwork = item.toArtwork(museumID: .tnm)
 
         XCTAssertEqual(item.sortValue, 20)
         XCTAssertEqual(artwork.objectID, "jpsearch-20")
@@ -400,6 +405,41 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertEqual(artwork.department, "刀剣")
         XCTAssertEqual(artwork.primaryImageURL?.absoluteString, "https://example.com/slideshow/full.jpg")
         XCTAssertEqual(artwork.primaryImageSmallURL?.absoluteString, "https://example.com/slideshow_s/thumb.jpg")
+    }
+
+    func testJapanSearchItemMapsNaraArtworkWithMuseumProfile() throws {
+        let item = try decodeJapanSearchItem(
+            """
+            {
+              "id": "cobas-16086",
+              "common": {
+                "id": "cobas-16086",
+                "title": "刺繍釈迦阿弥陀二尊像",
+                "linkUrl": "https://colbase.nich.go.jp/collection_items/narahaku/1266-0",
+                "thumbnailUrl": ["https://colbase.nich.go.jp/media/narahaku/1266-0/image/slideshow_s/H015391.jpg"],
+                "contentsUrl": ["https://colbase.nich.go.jp/media/narahaku/1266-0/image/slideshow_s/H015391.jpg"],
+                "contributor": ["奈良国立博物館", "Nara National Museum"],
+                "temporal": ["13～14世紀"],
+                "provider": "narahaku",
+                "database": "cobas"
+              },
+              "cobas-22-s": "16086",
+              "cobas-16-s": "奈良国立博物館",
+              "cobas-11-s": "13～14世紀",
+              "cobas-12-s": "刺繍",
+              "cobas-13-s": "縦127.0　横52.0",
+              "cobas-4-s": "工芸"
+            }
+            """
+        )
+
+        let artwork = item.toArtwork(museumID: .nnm)
+
+        XCTAssertEqual(artwork.id, "nnm-cobas-16086")
+        XCTAssertEqual(artwork.museumID, .nnm)
+        XCTAssertEqual(artwork.repository, "奈良国立博物館")
+        XCTAssertEqual(artwork.country, "日本")
+        XCTAssertEqual(artwork.primaryImageURL?.absoluteString, "https://colbase.nich.go.jp/media/narahaku/1266-0/image/slideshow/H015391.jpg")
     }
 
     func testJapanSearchItemSortValueFallsBackToItemIDSuffix() throws {

@@ -85,9 +85,12 @@ struct ArtworkDetailLoaderView: View {
                     loadedArtwork = loadedArtwork.withArtworkDescription(webDescription)
                 }
                 artwork = loadedArtwork
-            case .tnm:
-                let item = try await japanSearchAPI.fetchItem(itemID: reference.objectID)
-                artwork = item.toArtwork()
+            case .tnm, .nnm:
+                let item = try await japanSearchAPI.fetchItem(
+                    museumID: reference.museumID,
+                    itemID: reference.objectID
+                )
+                artwork = item.toArtwork(museumID: reference.museumID)
             case .nmc:
                 guard let exhibitID = Int(reference.objectID) else {
                     throw URLError(.badURL)

@@ -390,6 +390,71 @@ final class ParsingAndAPITests: XCTestCase {
         XCTAssertFalse(recordedURLs[1].absoluteString.contains("q-contributor"))
     }
 
+    func testJapanSearchAPINaraProfileFallsBackAndDoesNotShareTokyoCacheKey() async throws {
+        let categoryTypeCode = "nara-\(UUID().uuidString)"
+        let recorder = RequestRecorder()
+        let session = makeStubSession(testID: UUID().uuidString) { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+            recorder.record(url)
+            let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?
+                .reduce(into: [String: String]()) { partial, item in
+                    partial[item.name] = item.value ?? ""
+                } ?? [:]
+
+            if let contributor = query["q-contributor"] {
+                if contributor == "Nara National Museum" {
+                    return StubbedResponse(
+                        response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                        data: self.makeSearchResponse(list: [], hit: 0)
+                    )
+                }
+
+                XCTAssertEqual(contributor, "東京国立博物館")
+                let list = [
+                    self.makeJapanSearchItem(id: "tokyo-01", sortValue: "1", contributor: ["東京国立博物館"], provider: "tnm")
+                ]
+                return StubbedResponse(
+                    response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data: self.makeSearchResponse(list: list, hit: list.count)
+                )
+            }
+
+            let list = [
+                self.makeJapanSearchItem(id: "nara-20", sortValue: "20", contributor: ["奈良国立博物館"], provider: nil),
+                self.makeJapanSearchItem(id: "nara-10", sortValue: "10", contributor: ["Other"], provider: "narahaku"),
+                self.makeJapanSearchItem(id: "other-99", sortValue: "99", contributor: ["Other"], provider: "other")
+            ]
+            return StubbedResponse(
+                response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                data: self.makeSearchResponse(list: list, hit: list.count)
+            )
+        }
+        let api = JapanSearchAPI(session: session)
+        await api.resetSearchCache(museumID: .nnm, preferHasImages: true, categoryTypeCode: categoryTypeCode)
+        await api.resetSearchCache(museumID: .tnm, preferHasImages: true, categoryTypeCode: categoryTypeCode)
+
+        let naraSnapshot = try await api.searchItemIDs(
+            museumID: .nnm,
+            preferHasImages: true,
+            categoryTypeCode: categoryTypeCode
+        )
+        let tokyoSnapshot = try await api.searchItemIDs(
+            museumID: .tnm,
+            preferHasImages: true,
+            categoryTypeCode: categoryTypeCode
+        )
+
+        XCTAssertEqual(naraSnapshot.itemIDs, ["nara-10", "nara-20"])
+        XCTAssertEqual(tokyoSnapshot.itemIDs, ["tokyo-01"])
+        XCTAssertEqual(recorder.urls.count, 3)
+        XCTAssertEqual(queryValue("q-contributor", in: recorder.urls[0]), "Nara National Museum")
+        XCTAssertNil(queryValue("q-contributor", in: recorder.urls[1]))
+        XCTAssertEqual(queryValue("q-contributor", in: recorder.urls[2]), "東京国立博物館")
+    }
+
     func testJapanSearchAPIPaginatesAndDedupesAcrossPages() async throws {
         let categoryTypeCode = "pagination-\(UUID().uuidString)"
         let recorder = RequestRecorder()
@@ -523,6 +588,15 @@ final class ParsingAndAPITests: XCTestCase {
                 && request.url?.path == "/api/item/search/jps-cross"
                 && queryValue("size", in: request.url) == "1"
                 && queryValue("f-db", in: request.url) == "cobas"
+                && queryValue("q-contributor", in: request.url) == "東京国立博物館"
+        })
+        XCTAssertTrue(recorder.requests.contains { request in
+            request.httpMethod == "GET"
+                && request.url?.host == "jpsearch.go.jp"
+                && request.url?.path == "/api/item/search/jps-cross"
+                && queryValue("size", in: request.url) == "1"
+                && queryValue("f-db", in: request.url) == "cobas"
+                && queryValue("q-contributor", in: request.url) == "Nara National Museum"
         })
         XCTAssertTrue(recorder.requests.contains { request in
             request.httpMethod == "GET"

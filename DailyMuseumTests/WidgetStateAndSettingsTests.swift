@@ -564,10 +564,10 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertFalse(listPages.contains(15))
     }
 
-    func testWidgetPreferredImageURLDecisionUsesThumbnailForTokyoWidget() {
+    func testWidgetPreferredImageURLDecisionUsesThumbnailForColbaseWidgets() {
         let smallURL = URL(string: "https://example.com/small.jpg")
         let largeURL = URL(string: "https://example.com/large.jpg")
-        let artwork = Artwork(
+        let tokyoArtwork = Artwork(
             id: "tnm-1",
             museumID: .tnm,
             objectID: "1",
@@ -585,13 +585,35 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             primaryImageSmallURL: smallURL,
             objectURL: nil
         )
+        let naraArtwork = Artwork(
+            id: "nnm-1",
+            museumID: .nnm,
+            objectID: "1",
+            title: "Test",
+            artworkDescription: nil,
+            artistDisplayName: nil,
+            objectDate: nil,
+            medium: nil,
+            dimensions: nil,
+            department: nil,
+            culture: nil,
+            country: nil,
+            repository: nil,
+            primaryImageURL: largeURL,
+            primaryImageSmallURL: smallURL,
+            objectURL: nil
+        )
 
         XCTAssertEqual(
-            WidgetPreferredImageURLDecision.resolve(for: artwork, museumID: .tnm),
+            WidgetPreferredImageURLDecision.resolve(for: tokyoArtwork, museumID: .tnm),
             smallURL
         )
         XCTAssertEqual(
-            WidgetPreferredImageURLDecision.resolveCandidates(for: artwork, museumID: .tnm),
+            WidgetPreferredImageURLDecision.resolveCandidates(for: tokyoArtwork, museumID: .tnm),
+            [smallURL!, largeURL!]
+        )
+        XCTAssertEqual(
+            WidgetPreferredImageURLDecision.resolveCandidates(for: naraArtwork, museumID: .nnm),
             [smallURL!, largeURL!]
         )
     }
@@ -838,7 +860,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
                     return StubBatchLoader(batches: [[metArtwork]])
                 case .tnm:
                     return StubBatchLoader(batches: [[tnmArtwork]])
-                case .nmc, .shm:
+                case .nnm, .nmc, .shm:
                     return StubBatchLoader(batches: [])
                 }
             },

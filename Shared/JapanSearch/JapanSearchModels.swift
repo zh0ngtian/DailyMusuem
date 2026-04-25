@@ -1,5 +1,51 @@
 import Foundation
 
+struct JapanSearchMuseumProfile: Hashable, Sendable {
+    let museumID: MuseumID
+    let contributorQuery: String
+    let acceptedContributors: Set<String>
+    let provider: String
+    let countryName: String
+
+    var logName: String {
+        museumID.displayName
+    }
+
+    static func profile(for museumID: MuseumID) -> JapanSearchMuseumProfile? {
+        switch museumID {
+        case .tnm:
+            return JapanSearchMuseumProfile(
+                museumID: .tnm,
+                contributorQuery: "東京国立博物館",
+                acceptedContributors: ["東京国立博物館", "Tokyo National Museum"],
+                provider: "tnm",
+                countryName: "日本"
+            )
+        case .nnm:
+            return JapanSearchMuseumProfile(
+                museumID: .nnm,
+                contributorQuery: "Nara National Museum",
+                acceptedContributors: ["奈良国立博物館", "Nara National Museum"],
+                provider: "narahaku",
+                countryName: "日本"
+            )
+        case .met, .nmc, .shm:
+            return nil
+        }
+    }
+
+    func matches(_ item: JapanSearchItem) -> Bool {
+        if item.common.contributor.contains(where: { acceptedContributors.contains($0) }) {
+            return true
+        }
+        if let repository = item.fields["cobas-16-s"],
+           acceptedContributors.contains(repository) {
+            return true
+        }
+        return item.common.provider == provider
+    }
+}
+
 struct JapanSearchSearchResponse: Decodable {
     let list: [JapanSearchItem]
     let hit: Int
@@ -81,17 +127,28 @@ struct JapanSearchItem: Decodable {
         return .max
     }
 
-    func toArtwork() -> Artwork {
+    func toArtwork(museumID: MuseumID) -> Artwork {
+        let profile = JapanSearchMuseumProfile.profile(for: museumID) ?? JapanSearchMuseumProfile(
+            museumID: museumID,
+            contributorQuery: museumID.displayName,
+            acceptedContributors: [museumID.displayName],
+            provider: "",
+            countryName: museumID.country
+        )
         let imageURL = common.contentURLs.first.map(Self.highResolutionImageURL(for:)) ?? common.thumbnailURLs.first.map(Self.highResolutionImageURL(for:))
         let thumbnailURL = common.thumbnailURLs.first ?? common.contentURLs.first
-        let contributors = common.contributor.filter { !$0.contains("Tokyo National Museum") }
-        let artist = contributors.first(where: { $0 != "東京国立博物館" })
-        let repository = fields["cobas-16-s"] ?? common.contributor.first
+        let contributors = common.contributor.filter { contributor in
+            !profile.acceptedContributors.contains(contributor)
+        }
+        let artist = contributors.first
+        let repository = fields["cobas-16-s"]
+            ?? common.contributor.first(where: { profile.acceptedContributors.contains($0) })
+            ?? common.contributor.first
         let date = fields["cobas-11-s"] ?? common.temporal.first
 
         return Artwork(
-            id: "tnm-\(id)",
-            museumID: .tnm,
+            id: "\(museumID.rawValue)-\(id)",
+            museumID: museumID,
             objectID: id,
             title: common.title,
             artworkDescription: common.description,
@@ -101,7 +158,7 @@ struct JapanSearchItem: Decodable {
             dimensions: fields["cobas-13-s"],
             department: fields["cobas-4-s"],
             culture: nil,
-            country: "日本",
+            country: profile.countryName,
             repository: repository,
             primaryImageURL: imageURL,
             primaryImageSmallURL: thumbnailURL,

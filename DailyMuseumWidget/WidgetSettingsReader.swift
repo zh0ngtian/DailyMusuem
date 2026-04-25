@@ -229,8 +229,8 @@ actor ArtworkBatchLoader {
             objectIDPool = randomOrder ? ids.map(String.init).shuffled() : ids.sorted().map(String.init)
             hasMoreRemoteItemIDs = false
             await log("objectIDs 已就绪，当前可用 \(objectIDPool.count) 条。")
-        case .tnm:
-            try await ensureTokyoPool(targetCount: targetCount, reason: "首次进入")
+        case .tnm, .nnm:
+            try await ensureJapanSearchPool(targetCount: targetCount, reason: "首次进入")
         case .nmc:
             let ids: [Int]
             if let categoryIDs = selectedNationalMuseumChinaCategoryIDs {
@@ -274,8 +274,8 @@ actor ArtworkBatchLoader {
 
         let nextTargetCount = max(objectIDPool.count, loadedObjectIDs.count + minimumRemainingCount)
         switch museumID {
-        case .tnm:
-            try await ensureTokyoPool(targetCount: nextTargetCount, reason: "继续浏览")
+        case .tnm, .nnm:
+            try await ensureJapanSearchPool(targetCount: nextTargetCount, reason: "继续浏览")
         case .shm:
             try await ensureShanghaiPool(targetCount: nextTargetCount, reason: "继续浏览")
         case .met, .nmc:
@@ -283,7 +283,7 @@ actor ArtworkBatchLoader {
         }
     }
 
-    private func ensureTokyoPool(targetCount: Int, reason: String) async throws {
+    private func ensureJapanSearchPool(targetCount: Int, reason: String) async throws {
         let mergedResult: JapanSearchAPI.SearchPoolSnapshot
 
         if let typeCodes = selectedJapanSearchTypeCodes {
@@ -293,6 +293,7 @@ actor ArtworkBatchLoader {
             for (category, typeCode) in zip(categories, typeCodes) {
                 try Task.checkCancellation()
                 let categoryResult = try await japanSearchAPI.searchItemIDs(
+                    museumID: museumID,
                     preferHasImages: true,
                     categoryTypeCode: typeCode,
                     minimumCount: targetCount,
@@ -312,6 +313,7 @@ actor ArtworkBatchLoader {
             )
         } else {
             mergedResult = try await japanSearchAPI.searchItemIDs(
+                museumID: museumID,
                 preferHasImages: true,
                 categoryTypeCode: nil,
                 minimumCount: targetCount,
@@ -323,7 +325,7 @@ actor ArtworkBatchLoader {
         await log("\(reason)时按\(randomOrder ? "随机" : "ID 顺序")模式整理 itemIDs，类别：\(selectedCategoriesLogLabel)。")
         let uniqueIDs = Self.stableUniqueStrings(mergedResult.itemIDs)
         if uniqueIDs.count != mergedResult.itemIDs.count {
-            await log("东京国立博物馆搜索结果存在重复 itemID，已去重 \(mergedResult.itemIDs.count - uniqueIDs.count) 条。")
+            await log("\(museumID.displayName)搜索结果存在重复 itemID，已去重 \(mergedResult.itemIDs.count - uniqueIDs.count) 条。")
         }
 
         if objectIDPool.isEmpty {
@@ -393,15 +395,19 @@ actor ArtworkBatchLoader {
                 }
                 return await collectArtworks(from: &group)
             }
-        case .tnm:
+        case .tnm, .nnm:
             return await withTaskGroup(of: BatchLoadResult.self) { group in
                 for itemID in candidateIDs {
-                    group.addTask { [japanSearchAPI, cachePolicy, onArtworkReady] in
+                    group.addTask { [japanSearchAPI, cachePolicy, onArtworkReady, museumID] in
                         do {
                             try Task.checkCancellation()
-                            let item = try await japanSearchAPI.fetchItem(itemID: itemID, cachePolicy: cachePolicy)
+                            let item = try await japanSearchAPI.fetchItem(
+                                museumID: museumID,
+                                itemID: itemID,
+                                cachePolicy: cachePolicy
+                            )
                             try Task.checkCancellation()
-                            let artwork = item.toArtwork()
+                            let artwork = item.toArtwork(museumID: museumID)
                             await onArtworkReady?(artwork)
                             return .artwork(artwork)
                         } catch {
@@ -412,7 +418,7 @@ actor ArtworkBatchLoader {
                 let results = await collectBatchResults(from: &group)
                 let failures = results.compactMap(\.failureMessage)
                 if !failures.isEmpty {
-                    await log("东京国立博物馆本批详情失败 \(failures.count) 条。")
+                    await log("\(museumID.displayName)本批详情失败 \(failures.count) 条。")
                     for message in failures.prefix(3) {
                         await log(message)
                     }
