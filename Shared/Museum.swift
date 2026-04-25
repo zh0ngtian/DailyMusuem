@@ -60,7 +60,7 @@ struct MuseumCategory: Identifiable, Hashable {
     }
 }
 
-enum MuseumID: String, Codable, CaseIterable, Identifiable {
+enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
     case met
     case tnm
     case nmc
@@ -272,6 +272,235 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable {
             return "all"
         }
         return normalized.map(\.id).joined(separator: ",")
+    }
+}
+
+enum MuseumLatencyQuality: Equatable, Sendable {
+    case good
+    case warning
+    case poor
+}
+
+struct MuseumLatencyMeasurement: Equatable, Sendable {
+    enum Status: Equatable, Sendable {
+        case measured(milliseconds: Int)
+        case timeout
+    }
+
+    let museumID: MuseumID
+    let status: Status
+
+    var displayText: String {
+        switch status {
+        case .measured(let milliseconds):
+            return "\(milliseconds) ms"
+        case .timeout:
+            return "超时"
+        }
+    }
+
+    var quality: MuseumLatencyQuality {
+        switch status {
+        case .measured(let milliseconds):
+            return Self.quality(forMilliseconds: milliseconds)
+        case .timeout:
+            return .poor
+        }
+    }
+
+    static func measured(museumID: MuseumID, milliseconds: Int) -> MuseumLatencyMeasurement {
+        MuseumLatencyMeasurement(
+            museumID: museumID,
+            status: .measured(milliseconds: max(0, milliseconds))
+        )
+    }
+
+    static func timeout(museumID: MuseumID) -> MuseumLatencyMeasurement {
+        MuseumLatencyMeasurement(museumID: museumID, status: .timeout)
+    }
+
+    static func quality(forMilliseconds milliseconds: Int) -> MuseumLatencyQuality {
+        if milliseconds <= 500 {
+            return .good
+        }
+        if milliseconds <= 1_500 {
+            return .warning
+        }
+        return .poor
+    }
+}
+
+final class MuseumLatencyService: @unchecked Sendable {
+    private enum Constants {
+        static let timeoutInterval: TimeInterval = 5
+    }
+
+    private let session: URLSession
+    private let now: @Sendable () -> Date
+    private let timeoutInterval: TimeInterval
+
+    init(
+        session: URLSession = .shared,
+        timeoutInterval: TimeInterval = Constants.timeoutInterval,
+        now: @escaping @Sendable () -> Date = { Date() }
+    ) {
+        self.session = session
+        self.timeoutInterval = timeoutInterval
+        self.now = now
+    }
+
+    func measureLatencies(for museumIDs: [MuseumID]) async -> [MuseumID: MuseumLatencyMeasurement] {
+        await withTaskGroup(of: MuseumLatencyMeasurement.self) { group in
+            for museumID in museumIDs {
+                group.addTask {
+                    await self.measureLatency(for: museumID)
+                }
+            }
+
+            var measurements: [MuseumID: MuseumLatencyMeasurement] = [:]
+            for await measurement in group {
+                measurements[measurement.museumID] = measurement
+            }
+            return measurements
+        }
+    }
+
+    func measureLatency(for museumID: MuseumID) async -> MuseumLatencyMeasurement {
+        do {
+            let request = try makeRequest(for: museumID)
+            let start = now()
+            let (_, response) = try await session.data(for: request)
+            try validate(response: response)
+            let milliseconds = Int((now().timeIntervalSince(start) * 1_000).rounded())
+            return .measured(museumID: museumID, milliseconds: milliseconds)
+        } catch {
+            return .timeout(museumID: museumID)
+        }
+    }
+
+    private func makeRequest(for museumID: MuseumID) throws -> URLRequest {
+        switch museumID {
+        case .met:
+            return try makeGETRequest(
+                urlString: "https://collectionapi.metmuseum.org/public/collection/v1/departments"
+            )
+        case .tnm:
+            var components = URLComponents(string: "https://jpsearch.go.jp/api/item/search/jps-cross")
+            components?.queryItems = [
+                URLQueryItem(name: "f-db", value: "cobas"),
+                URLQueryItem(name: "q-contributor", value: "東京国立博物館"),
+                URLQueryItem(name: "f-contents", value: "image"),
+                URLQueryItem(name: "from", value: "0"),
+                URLQueryItem(name: "size", value: "1")
+            ]
+            guard let url = components?.url else {
+                throw URLError(.badURL)
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.timeoutInterval = timeoutInterval
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            request.setValue("curl/8.7.1", forHTTPHeaderField: "User-Agent")
+            request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
+            request.setValue("ja-JP,ja;q=0.9,en-US;q=0.8,zh-CN;q=0.7", forHTTPHeaderField: "Accept-Language")
+            request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+            request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+            return request
+        case .nmc:
+            var components = URLComponents(string: "https://appapi.chnmuseum.cn/api/exhibit_list")
+            components?.queryItems = [
+                URLQueryItem(name: "cate_id", value: "0"),
+                URLQueryItem(name: "limit", value: "1"),
+                URLQueryItem(name: "page", value: "1"),
+                URLQueryItem(name: "p", value: "i"),
+                URLQueryItem(name: "son_cate_id", value: "0")
+            ]
+            guard let url = components?.url else {
+                throw URLError(.badURL)
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.timeoutInterval = timeoutInterval
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            request.setValue(Self.mobileUserAgent, forHTTPHeaderField: "User-Agent")
+            request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
+            request.setValue("zh-CN,zh-Hans;q=0.9,en;q=0.8", forHTTPHeaderField: "Accept-Language")
+            request.setValue("gzip, deflate, br", forHTTPHeaderField: "Accept-Encoding")
+            return request
+        case .shm:
+            let url = URL(string: "https://www.shanghaimuseum.net/mu/frontend/pg/collection/search-antique")!
+            let collectionURL = "https://www.shanghaimuseum.net/mu/frontend/pg/collection/antique"
+            let body = try JSONSerialization.data(withJSONObject: shanghaiMuseumLatencyPayload(), options: [])
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.httpBody = body
+            request.timeoutInterval = timeoutInterval
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
+            request.setValue("zh-CN,zh-Hans;q=0.9,en;q=0.8", forHTTPHeaderField: "Accept-Language")
+            request.setValue(Self.mobileUserAgent, forHTTPHeaderField: "User-Agent")
+            request.setValue(collectionURL, forHTTPHeaderField: "Referer")
+            request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+            request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+            return request
+        }
+    }
+
+    private func makeGETRequest(urlString: String) throws -> URLRequest {
+        guard let url = URL(string: urlString) else {
+            throw URLError(.badURL)
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = timeoutInterval
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        return request
+    }
+
+    private func validate(response: URLResponse) throws {
+        guard let http = response as? HTTPURLResponse else { return }
+        guard (200..<300).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+    }
+
+    private static let mobileUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+
+    private func shanghaiMuseumLatencyPayload() -> [String: Any] {
+        [
+            "params": [
+                "langCode": "CHINESE",
+                "antiqueSourceCode": "ANTIQUE_SOURCE_1",
+                "esFlag": true,
+                "ai0": "1",
+                "ai1": "1",
+                "keywords": NSNull(),
+                "types": NSNull(),
+                "ages": NSNull(),
+                "year": NSNull(),
+                "place": NSNull(),
+                "author": NSNull(),
+                "matter": NSNull(),
+                "shape": NSNull(),
+                "style": NSNull(),
+                "subject": NSNull(),
+                "subtype": NSNull(),
+                "tech": NSNull(),
+                "objectFlag": NSNull(),
+                "videoFlag": NSNull(),
+                "stampFlag": NSNull(),
+                "prefaceFlag": NSNull(),
+                "donateFlag": NSNull(),
+                "unearthFlag": NSNull()
+            ],
+            "page": 1,
+            "limit": 1
+        ]
     }
 }
 

@@ -493,6 +493,62 @@ final class ParsingAndAPITests: XCTestCase {
         XCTAssertEqual(callCounter.value, 4)
     }
 
+    func testMuseumLatencyServiceUsesOneLightweightEndpointPerMuseum() async throws {
+        let recorder = RequestRecorder()
+        let session = makeStubSession(testID: UUID().uuidString) { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+            recorder.record(request)
+            return StubbedResponse(
+                response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                data: Data("{}".utf8)
+            )
+        }
+        let service = MuseumLatencyService(session: session)
+
+        let measurements = await service.measureLatencies(for: MuseumRepository.homepageMuseumIDs)
+
+        XCTAssertEqual(Set(measurements.keys), Set(MuseumRepository.homepageMuseumIDs))
+        XCTAssertEqual(recorder.requests.count, MuseumRepository.homepageMuseumIDs.count)
+
+        XCTAssertTrue(recorder.requests.contains { request in
+            request.httpMethod == "GET"
+                && request.url?.host == "collectionapi.metmuseum.org"
+                && request.url?.path == "/public/collection/v1/departments"
+        })
+        XCTAssertTrue(recorder.requests.contains { request in
+            request.httpMethod == "GET"
+                && request.url?.host == "jpsearch.go.jp"
+                && request.url?.path == "/api/item/search/jps-cross"
+                && queryValue("size", in: request.url) == "1"
+                && queryValue("f-db", in: request.url) == "cobas"
+        })
+        XCTAssertTrue(recorder.requests.contains { request in
+            request.httpMethod == "GET"
+                && request.url?.host == "appapi.chnmuseum.cn"
+                && request.url?.path == "/api/exhibit_list"
+                && queryValue("cate_id", in: request.url) == "0"
+                && queryValue("limit", in: request.url) == "1"
+        })
+        XCTAssertTrue(recorder.requests.contains { request in
+            request.httpMethod == "POST"
+                && request.url?.host == "www.shanghaimuseum.net"
+                && request.url?.path == "/mu/frontend/pg/collection/search-antique"
+        })
+    }
+
+    func testMuseumLatencyServiceTreatsRequestFailureAsTimeout() async throws {
+        let session = makeStubSession(testID: UUID().uuidString) { _ in
+            throw URLError(.notConnectedToInternet)
+        }
+        let service = MuseumLatencyService(session: session)
+
+        let measurement = await service.measureLatency(for: .met)
+
+        XCTAssertEqual(measurement, .timeout(museumID: .met))
+    }
+
     private func loadFixture(named fileName: String) throws -> String {
         let fileName = fileName as NSString
         let resourceURL = try XCTUnwrap(
@@ -522,6 +578,14 @@ final class ParsingAndAPITests: XCTestCase {
             "from": from
         ]
         return try! JSONSerialization.data(withJSONObject: payload)
+    }
+
+    private func queryValue(_ name: String, in url: URL?) -> String? {
+        guard let url,
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+        return components.queryItems?.first(where: { $0.name == name })?.value
     }
 
     private func makeJapanSearchItem(
@@ -609,6 +673,7 @@ private final class StubURLProtocol: URLProtocol {
 private final class RequestRecorder {
     private let lock = NSLock()
     private var storage: [URL] = []
+    private var requestStorage: [URLRequest] = []
 
     var urls: [URL] {
         lock.lock()
@@ -616,9 +681,24 @@ private final class RequestRecorder {
         return storage
     }
 
+    var requests: [URLRequest] {
+        lock.lock()
+        defer { lock.unlock() }
+        return requestStorage
+    }
+
     func record(_ url: URL) {
         lock.lock()
         storage.append(url)
+        lock.unlock()
+    }
+
+    func record(_ request: URLRequest) {
+        lock.lock()
+        if let url = request.url {
+            storage.append(url)
+        }
+        requestStorage.append(request)
         lock.unlock()
     }
 }

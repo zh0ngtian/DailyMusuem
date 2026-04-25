@@ -2,6 +2,12 @@ import SwiftUI
 
 struct MuseumListView: View {
     @State private var selectedMuseum: Museum?
+    @State private var latencyMeasurements: [MuseumID: MuseumLatencyMeasurement] = [:]
+    @State private var isLatencyTesting = false
+    @State private var latencyRunToken = UUID()
+    @State private var latencyTask: Task<Void, Never>?
+
+    private let latencyService = MuseumLatencyService()
 
     private var countrySections: [MuseumCountrySection] {
         MuseumRepository.homepageCountrySections
@@ -35,6 +41,12 @@ struct MuseumListView: View {
         .scrollContentBackground(.hidden)
         .background(Color(.systemGroupedBackground))
         .navigationBarTitleDisplayMode(.inline)
+        .refreshable {
+            await refreshLatencyMeasurements(cancelInFlight: true)
+        }
+        .onAppear {
+            startLatencyMeasurements()
+        }
         .navigationDestination(item: $selectedMuseum) { museum in
             ArtworkFeedView(museum: museum)
         }
@@ -55,22 +67,24 @@ struct MuseumListView: View {
 
     @ViewBuilder
     private func museumCard(_ museum: Museum, showsChevron: Bool) -> some View {
-        HStack(spacing: 16) {
+        HStack(alignment: .center, spacing: 16) {
             museumLogoBadge(for: museum)
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
+                latencyBadge(for: museum)
+
                 Text(museum.displayName)
                     .font(.headline)
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
+
                 Text(museum.subtitle)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-
-            Spacer(minLength: 0)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             if showsChevron {
                 Image(systemName: "chevron.right")
@@ -104,5 +118,58 @@ struct MuseumListView: View {
                     .padding(.vertical, 9)
             }
             .frame(width: 112, height: 68)
+    }
+
+    @ViewBuilder
+    private func latencyBadge(for museum: Museum) -> some View {
+        if let measurement = latencyMeasurements[museum.id] {
+            Text(measurement.displayText)
+                .font(.caption.weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(latencyColor(for: measurement.quality))
+                .frame(minHeight: 16, alignment: .leading)
+                .accessibilityLabel("\(museum.displayName)延迟\(measurement.displayText)")
+        } else if isLatencyTesting {
+            ProgressView()
+                .controlSize(.mini)
+                .frame(height: 16, alignment: .leading)
+                .accessibilityLabel("\(museum.displayName)延迟测试中")
+        }
+    }
+
+    private func latencyColor(for quality: MuseumLatencyQuality) -> Color {
+        switch quality {
+        case .good:
+            return .green
+        case .warning:
+            return .yellow
+        case .poor:
+            return .red
+        }
+    }
+
+    private func startLatencyMeasurements() {
+        latencyTask?.cancel()
+        latencyTask = Task {
+            await refreshLatencyMeasurements(cancelInFlight: false)
+        }
+    }
+
+    @MainActor
+    private func refreshLatencyMeasurements(cancelInFlight: Bool) async {
+        if cancelInFlight {
+            latencyTask?.cancel()
+            latencyTask = nil
+        }
+        let runToken = UUID()
+        latencyRunToken = runToken
+        isLatencyTesting = true
+
+        let measurements = await latencyService.measureLatencies(for: MuseumRepository.homepageMuseumIDs)
+
+        guard !Task.isCancelled, runToken == latencyRunToken else { return }
+        latencyMeasurements = measurements
+        isLatencyTesting = false
+        latencyTask = nil
     }
 }
