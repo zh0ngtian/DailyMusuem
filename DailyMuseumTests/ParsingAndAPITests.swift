@@ -420,6 +420,42 @@ final class ParsingAndAPITests: XCTestCase {
         XCTAssertEqual(artwork.objectURL, detailURL)
     }
 
+    func testNaraMuseumOfficialDetailPageParserCleansDescriptionSegments() throws {
+        let html = """
+        <div id="content" class="gallery-detail">
+          <div class="description">
+            <h2>阿弥陀如来坐像</h2>
+            <p><br>
+              木造<br>
+              高42.0cm<br>
+              日本　奈良时代　8世纪<br>
+            </p>
+            <div class="btnOperation"></div>
+          </div>
+          <div class="text" id="kaisetsu">
+            <p>　　该造像平稳柔和、姿态优美。像体的立体感和衣褶处都表现出下一个 时代的要素。造像体内空洞，密密麻麻写着阿弥陀佛的种子，应该是受到了密宗的影响。<br />&nbsp;<br /><span style="display:block; text-align:right;">内藤航</span><span style="display:block; text-align:right;">(翻译： 张小娟)</span>奈良博三昧 －佛教美术品精选－. 奈良国立博物馆, 2021.7, 317</p>
+            <p>　　该像明显具有平安时代后期造像稳健的作风。双手交叠腹前，拇指和食指相捻，呈阿弥陀定印。像内中空部分，以墨书密密麻麻地写着阿弥陀佛的种子符号（象征佛的梵文）。语音导览</p>
+          </div>
+          <table class="dbdetail">
+            <tr><th>门类</th><td>雕刻</td></tr>
+          </table>
+        </div>
+        """
+        let detailURL = URL(string: "https://www.narahaku.go.jp/chinese/collection/1324-0.html")!
+
+        let artwork = try NaraMuseumAPI.parseDetailPage(html, rawID: "1324-0", detailURL: detailURL)
+
+        XCTAssertEqual(
+            artwork.normalizedDescriptionText,
+            """
+            该造像平稳柔和、姿态优美。像体的立体感和衣褶处都表现出下一个 时代的要素。造像体内空洞，密密麻麻写着阿弥陀佛的种子，应该是受到了密宗的影响。
+            该像明显具有平安时代后期造像稳健的作风。双手交叠腹前，拇指和食指相捻，呈阿弥陀定印。像内中空部分，以墨书密密麻麻地写着阿弥陀佛的种子符号（象征佛的梵文）。
+            """
+        )
+        XCTAssertFalse(artwork.normalizedDescriptionText?.contains("翻译") ?? true)
+        XCTAssertFalse(artwork.normalizedDescriptionText?.contains("语音导览") ?? true)
+    }
+
     func testNaraMuseumOfficialDetailPageParserHandlesMissingMediumLine() throws {
         let html = """
         <div id="content" class="gallery-detail">

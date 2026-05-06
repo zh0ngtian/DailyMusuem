@@ -227,7 +227,7 @@ final class NaraMuseumAPI {
         let objectDate = placeAndDateParts.dropFirst().isEmpty ? placeAndDate : placeAndDateParts.dropFirst().joined(separator: " ")
         let department = parseTableValue(label: "门类", html: html)
         let description = firstCapture(in: html, pattern: #"<div class=["']text["']\s+id=["']kaisetsu["'][^>]*>([\s\S]*?)</div>"#)
-            .flatMap(cleanText)
+            .flatMap(cleanDescriptionText)
         let mainImageTag = matches(in: html, pattern: #"<img\b[^>]*class=["']mainPicture["'][^>]*>"#).first
             ?? matches(in: html, pattern: #"<img\b[^>]*data-id=["']\#(NSRegularExpression.escapedPattern(for: rawID))["'][^>]*>"#).first
         let primaryURL = mainImageTag
@@ -385,6 +385,38 @@ final class NaraMuseumAPI {
             .joined(separator: "\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return cleaned.isEmpty ? nil : cleaned
+    }
+
+    private static func cleanDescriptionText(_ html: String) -> String? {
+        let paragraphHTMLs = matches(in: html, pattern: #"(?i)<p\b[^>]*>[\s\S]*?</p>"#)
+        let sourceHTMLs = paragraphHTMLs.isEmpty ? [html] : paragraphHTMLs
+
+        let cleaned = sourceHTMLs
+            .flatMap(descriptionTextSegments)
+            .filter { !$0.contains("翻译") }
+            .map(removingTextAfterFinalChinesePeriod)
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.isEmpty ? nil : cleaned
+    }
+
+    private static func descriptionTextSegments(from html: String) -> [String] {
+        html
+            .replacingOccurrences(of: "(?i)<br\\s*/?>", with: "\n", options: .regularExpression)
+            .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+            .decodingCommonHTMLEntities(punctuationStyle: .chinese)
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private static func removingTextAfterFinalChinesePeriod(_ text: String) -> String {
+        guard let finalPeriodIndex = text.lastIndex(of: "。") else {
+            return text
+        }
+
+        return String(text[...finalPeriodIndex])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func absoluteURL(from rawValue: String, baseURL: URL) -> URL? {
