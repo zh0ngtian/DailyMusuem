@@ -68,6 +68,7 @@ struct ArtworkDetailView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @ScaledMetric(relativeTo: .body) private var compactToolbarIconPointSize: CGFloat = 18
     @ScaledMetric(relativeTo: .body) private var regularToolbarIconPointSize: CGFloat = 20
+    @ScaledMetric(relativeTo: .body) private var translationToolbarIconPointSizeAdjustment: CGFloat = 2
 
     @State private var isShowingImagePreview = false
     @State private var translatedArtwork: Artwork?
@@ -245,10 +246,17 @@ struct ArtworkDetailView: View {
         horizontalSizeClass == .compact ? compactToolbarIconPointSize : regularToolbarIconPointSize
     }
 
-    private func toolbarIconLabel(_ title: String, systemImage: String) -> some View {
+    private var translationToolbarIconFont: Font {
+        .system(
+            size: toolbarIconPointSize + translationToolbarIconPointSizeAdjustment,
+            weight: .medium
+        )
+    }
+
+    private func toolbarIconLabel(_ title: String, systemImage: String, iconFont: Font? = nil) -> some View {
         Label(title, systemImage: systemImage)
             .labelStyle(.iconOnly)
-            .font(toolbarIconFont)
+            .font(iconFont ?? toolbarIconFont)
             .imageScale(.medium)
     }
 
@@ -296,9 +304,11 @@ struct ArtworkDetailView: View {
         let button = Button {
             handleTranslationButtonTap()
         } label: {
-            Image(systemName: state.systemImageName)
-                .font(toolbarIconFont)
-                .imageScale(.medium)
+            toolbarIconLabel(
+                state.accessibilityLabel,
+                systemImage: state.systemImageName,
+                iconFont: translationToolbarIconFont
+            )
         }
         .disabled(state.isDisabled)
         .accessibilityLabel(state.accessibilityLabel)
