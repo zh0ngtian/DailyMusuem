@@ -13,12 +13,12 @@
 		048A14DA9BBF5DC796231307 /* MuseumListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB101B5E24D3739851DC6A22 /* MuseumListView.swift */; };
 		076F9714F7BD5FF4BB3C9548 /* DailyMuseumWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 677E368A7DD1F542B480E2C3 /* DailyMuseumWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		07D7736A77F39CB6028E891B /* ArtworkFeedItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71CBDD45FB2452D4E907C758 /* ArtworkFeedItem.swift */; };
-		0B5F10A5A1B44D74885A5E01 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 0B5F10A5A1B44D74885A5E04 /* InfoPlist.strings */; };
 		090F68A2DF9313C3F0E986FC /* RequestLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0773F3ED0D9C2C7D00381424 /* RequestLogger.swift */; };
 		09B43AA4EB71B869B66F2569 /* MetMuseumPersistentCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B767DED860727F7B1D106D3E /* MetMuseumPersistentCache.swift */; };
 		0A1100030000000000000003 /* NaraMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1100010000000000000001 /* NaraMuseumAPI.swift */; };
 		0A1100040000000000000004 /* NaraMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1100010000000000000001 /* NaraMuseumAPI.swift */; };
 		0A1100050000000000000005 /* NaraMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1100010000000000000001 /* NaraMuseumAPI.swift */; };
+		0B5F10A5A1B44D74885A5E01 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 0B5F10A5A1B44D74885A5E04 /* InfoPlist.strings */; };
 		0C29EBB7118BA7DA8620B6F1 /* ArtworkCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3069A0CBA34322E131468A6 /* ArtworkCardView.swift */; };
 		10425B44D3DC479F9D20FE9C /* MetMuseumModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63E587269ECC706F1F22C266 /* MetMuseumModels.swift */; };
 		10BFA44C9A4240C5EBF57018 /* SettingsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD5690663479FBDA165A96B /* SettingsKeys.swift */; };
@@ -167,6 +167,8 @@
 		090F116BD2F05BC2CB7C3DC7 /* FavoritesStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesStoreTests.swift; sourceTree = "<group>"; };
 		0A1100010000000000000001 /* NaraMuseumAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NaraMuseumAPI.swift; sourceTree = "<group>"; };
 		0ACA67A0EFEEB5748BD15991 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		0B5F10A5A1B44D74885A5E02 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		0B5F10A5A1B44D74885A5E03 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		15CC322130D2C36A4D586EC3 /* met-overview.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "met-overview.html"; sourceTree = "<group>"; };
 		197FEFC5FEC3B51DB5E4F537 /* NationalMuseumChinaAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NationalMuseumChinaAPI.swift; sourceTree = "<group>"; };
 		1B7AF25AA60373F1FEF52146 /* DailyMuseumWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DailyMuseumWidget.entitlements; sourceTree = "<group>"; };
@@ -218,8 +220,6 @@
 		BD550F604C3CC2B156729689 /* nmc-detail.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "nmc-detail.html"; sourceTree = "<group>"; };
 		BDB91ABFDF5059FE1FCE0687 /* WidgetArtworkService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetArtworkService.swift; sourceTree = "<group>"; };
 		BE28917A141154DC14C0AD37 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		0B5F10A5A1B44D74885A5E02 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
-		0B5F10A5A1B44D74885A5E03 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		BE9F9F5A9C19616F19DCE43E /* DailyMuseumWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyMuseumWidget.swift; sourceTree = "<group>"; };
 		C48CE0EBDA0C27F939506A95 /* met-meta-fallback.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "met-meta-fallback.html"; sourceTree = "<group>"; };
 		C5BCD57FB86FC7D9454A8587 /* WidgetManualRefreshRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetManualRefreshRunner.swift; sourceTree = "<group>"; };
@@ -453,18 +453,6 @@
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
-
-/* Begin PBXVariantGroup section */
-		0B5F10A5A1B44D74885A5E04 /* InfoPlist.strings */ = {
-			isa = PBXVariantGroup;
-			children = (
-				0B5F10A5A1B44D74885A5E02 /* InfoPlist.strings */,
-				0B5F10A5A1B44D74885A5E03 /* InfoPlist.strings */,
-			);
-			name = InfoPlist.strings;
-			sourceTree = "<group>";
-		};
-/* End PBXVariantGroup section */
 
 /* Begin PBXNativeTarget section */
 		3C0138DA5FFF9A45268F5E51 /* DailyMuseumTests */ = {
@@ -742,6 +730,18 @@
 			targetProxy = CC8429AF7691D46CA42F0669 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		0B5F10A5A1B44D74885A5E04 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				0B5F10A5A1B44D74885A5E02 /* InfoPlist.strings */,
+				0B5F10A5A1B44D74885A5E03 /* InfoPlist.strings */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
 		09CB9CBFBA3832D85CDB2E5F /* Release */ = {

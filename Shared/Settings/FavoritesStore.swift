@@ -97,6 +97,10 @@ final class FavoritesStore: ObservableObject {
         removeFavorite(museumID: snapshot.museumID, objectID: snapshot.objectID)
     }
 
+    func reloadFromDefaults() {
+        favorites = loadFavorites()
+    }
+
     func groupedFavorites(orderedMuseumIDs: [MuseumID]) -> [FavoriteSection] {
         let grouped = Dictionary(grouping: favorites, by: \.museumID)
         let museumOrder = orderedMuseumIDs + MuseumID.allCases.filter { !orderedMuseumIDs.contains($0) }

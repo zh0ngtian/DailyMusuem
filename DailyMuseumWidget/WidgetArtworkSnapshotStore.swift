@@ -24,6 +24,7 @@ actor WidgetArtworkSnapshotStore {
     private enum Constants {
         static let directoryName = "WidgetInstances"
         static let stateFileName = "instances.json"
+        static let displayedHistoryFileName = "displayed-history.json"
         static let imagesDirectoryName = "images"
         static let widgetImageMaximumDimension: CGFloat = 1200
         static let storedImageCompressionQuality: CGFloat = 0.85
@@ -127,6 +128,10 @@ actor WidgetArtworkSnapshotStore {
 
     private struct PersistedState: Codable {
         let instances: [InstanceState]
+    }
+
+    private struct PersistedDisplayedArtworkHistory: Codable, Equatable {
+        var artworkKeysByMuseum: [String: [String]]
     }
 
     private let baseURL: URL
@@ -319,6 +324,36 @@ actor WidgetArtworkSnapshotStore {
         }
     }
 
+    func displayedArtworkKeys(for museumID: MuseumID) -> Set<String> {
+        Set(loadDisplayedArtworkHistory().artworkKeysByMuseum[museumID.rawValue] ?? [])
+    }
+
+    func resetDisplayedArtworkHistory(
+        for museumIDs: [MuseumID],
+        now: Date = .now
+    ) {
+        _ = now
+        var history = loadDisplayedArtworkHistory()
+        var didChange = false
+        for museumID in museumIDs where history.artworkKeysByMuseum[museumID.rawValue] != nil {
+            history.artworkKeysByMuseum[museumID.rawValue] = []
+            didChange = true
+        }
+        guard didChange else {
+            return
+        }
+        persistDisplayedArtworkHistory(normalizedDisplayedArtworkHistory(history))
+    }
+
+    func exportDisplayedArtworkHistory() -> [String: [String]] {
+        loadDisplayedArtworkHistory().artworkKeysByMuseum
+    }
+
+    func replaceDisplayedArtworkHistory(_ artworkKeysByMuseum: [String: [String]]) {
+        let history = PersistedDisplayedArtworkHistory(artworkKeysByMuseum: artworkKeysByMuseum)
+        persistDisplayedArtworkHistory(normalizedDisplayedArtworkHistory(history))
+    }
+
     func displayedArtworkKeys(
         for instanceToken: String,
         scopeRawValue: String? = nil
@@ -409,8 +444,8 @@ actor WidgetArtworkSnapshotStore {
             state.familyToken = familyToken
         }
         if let artworkKey = storedPayload.artworkKey,
-           !state.displayedArtworkKeys.contains(artworkKey) {
-            state.displayedArtworkKeys.append(artworkKey)
+           !artworkKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            recordDisplayedArtworkKey(artworkKey, museumID: storedPayload.museumID)
         }
         state.failureMessage = nil
         state.lastUpdatedAt = now.timeIntervalSince1970
@@ -456,6 +491,7 @@ actor WidgetArtworkSnapshotStore {
     }
 
     private func loadInstances() -> [String: InstanceState] {
+        _ = loadDisplayedArtworkHistory()
         guard let data = try? Data(contentsOf: stateFileURL),
               let persisted = try? decoder.decode(PersistedState.self, from: data) else {
             return [:]
@@ -544,6 +580,7 @@ actor WidgetArtworkSnapshotStore {
             scopeRawValue: state.scopeRawValue,
             familyToken: normalized.familyToken ?? ""
         )
+        normalized.displayedArtworkKeys = []
         return normalized
     }
 
@@ -565,7 +602,7 @@ actor WidgetArtworkSnapshotStore {
         merged.familyToken = primary.familyToken ?? fallback.familyToken
         merged.nonce = max(lhs.nonce, rhs.nonce)
         merged.artwork = primary.artwork ?? fallback.artwork
-        merged.displayedArtworkKeys = mergedDisplayedArtworkKeys(from: orderedStates)
+        merged.displayedArtworkKeys = []
         merged.failureMessage = primary.failureMessage ?? fallback.failureMessage
         merged.lastUpdatedAt = max(lhs.lastUpdatedAt, rhs.lastUpdatedAt)
         let latestScheduleState = [lhs, rhs]
@@ -573,19 +610,6 @@ actor WidgetArtworkSnapshotStore {
             .first { $0.nextAutomaticRefreshAt != nil || $0.automaticRefreshScheduleSignature != nil }
         merged.nextAutomaticRefreshAt = latestScheduleState?.nextAutomaticRefreshAt
         merged.automaticRefreshScheduleSignature = latestScheduleState?.automaticRefreshScheduleSignature
-        return merged
-    }
-
-    private func mergedDisplayedArtworkKeys(from states: [InstanceState]) -> [String] {
-        var seen: Set<String> = []
-        var merged: [String] = []
-
-        for state in states {
-            for key in state.displayedArtworkKeys where seen.insert(key).inserted {
-                merged.append(key)
-            }
-        }
-
         return merged
     }
 
@@ -677,6 +701,104 @@ actor WidgetArtworkSnapshotStore {
 
     private var stateFileURL: URL {
         directoryURL.appendingPathComponent(Constants.stateFileName)
+    }
+
+    private var displayedHistoryFileURL: URL {
+        directoryURL.appendingPathComponent(Constants.displayedHistoryFileName)
+    }
+
+    private func loadDisplayedArtworkHistory() -> PersistedDisplayedArtworkHistory {
+        if let data = try? Data(contentsOf: displayedHistoryFileURL),
+           let persisted = try? decoder.decode(PersistedDisplayedArtworkHistory.self, from: data) {
+            return normalizedDisplayedArtworkHistory(persisted)
+        }
+
+        let migrated = migratedDisplayedArtworkHistoryFromInstanceState()
+        if !migrated.artworkKeysByMuseum.isEmpty {
+            persistDisplayedArtworkHistory(migrated)
+        }
+        return migrated
+    }
+
+    private func migratedDisplayedArtworkHistoryFromInstanceState() -> PersistedDisplayedArtworkHistory {
+        guard let data = try? Data(contentsOf: stateFileURL),
+              let persisted = try? decoder.decode(PersistedState.self, from: data) else {
+            return PersistedDisplayedArtworkHistory(artworkKeysByMuseum: [:])
+        }
+
+        var history = PersistedDisplayedArtworkHistory(artworkKeysByMuseum: [:])
+        for state in persisted.instances {
+            for artworkKey in state.displayedArtworkKeys {
+                guard let museumID = museumID(forArtworkKey: artworkKey, fallback: state.artwork?.museumID) else {
+                    continue
+                }
+                appendDisplayedArtworkKey(artworkKey, museumID: museumID, to: &history)
+            }
+        }
+        return normalizedDisplayedArtworkHistory(history)
+    }
+
+    private func persistDisplayedArtworkHistory(_ history: PersistedDisplayedArtworkHistory) {
+        do {
+            try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+            let data = try encoder.encode(history)
+            try data.write(to: displayedHistoryFileURL, options: [.atomic])
+        } catch {
+            // Ignore history persistence failures and allow the refresh flow to keep running.
+        }
+    }
+
+    private func recordDisplayedArtworkKey(_ artworkKey: String, museumID: MuseumID) {
+        var history = loadDisplayedArtworkHistory()
+        appendDisplayedArtworkKey(artworkKey, museumID: museumID, to: &history)
+        persistDisplayedArtworkHistory(normalizedDisplayedArtworkHistory(history))
+    }
+
+    private func appendDisplayedArtworkKey(
+        _ artworkKey: String,
+        museumID: MuseumID,
+        to history: inout PersistedDisplayedArtworkHistory
+    ) {
+        let trimmedKey = artworkKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedKey.isEmpty else {
+            return
+        }
+
+        var keys = history.artworkKeysByMuseum[museumID.rawValue] ?? []
+        guard !keys.contains(trimmedKey) else {
+            return
+        }
+        keys.append(trimmedKey)
+        history.artworkKeysByMuseum[museumID.rawValue] = keys
+    }
+
+    private func normalizedDisplayedArtworkHistory(
+        _ history: PersistedDisplayedArtworkHistory
+    ) -> PersistedDisplayedArtworkHistory {
+        var normalized: [String: [String]] = [:]
+        for (museumRawValue, artworkKeys) in history.artworkKeysByMuseum {
+            guard MuseumID(rawValue: museumRawValue) != nil else {
+                continue
+            }
+
+            var seen: Set<String> = []
+            let keys = artworkKeys.compactMap { key -> String? in
+                let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmedKey.isEmpty, seen.insert(trimmedKey).inserted else {
+                    return nil
+                }
+                return trimmedKey
+            }
+            if !keys.isEmpty {
+                normalized[museumRawValue] = keys
+            }
+        }
+        return PersistedDisplayedArtworkHistory(artworkKeysByMuseum: normalized)
+    }
+
+    private func museumID(forArtworkKey artworkKey: String, fallback: MuseumID?) -> MuseumID? {
+        let rawValue = artworkKey.split(separator: "|", maxSplits: 1).first.map(String.init)
+        return rawValue.flatMap(MuseumID.init(rawValue:)) ?? fallback
     }
 
     static func imageURL(for fileName: String) -> URL? {

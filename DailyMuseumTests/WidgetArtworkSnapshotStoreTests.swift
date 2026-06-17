@@ -67,7 +67,9 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
             .appendingPathComponent(imageFileName)
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: imageURL.path))
-        XCTAssertEqual(successState?.displayedArtworkKeys, [WidgetDisplayedArtworkKey.make(museumID: .tnm, objectID: "1")])
+        XCTAssertEqual(successState?.displayedArtworkKeys, [])
+        let displayedHistory = await store.displayedArtworkKeys(for: .tnm)
+        XCTAssertEqual(displayedHistory, [WidgetDisplayedArtworkKey.make(museumID: .tnm, objectID: "1")])
 
         _ = await store.beginRefresh(
             instanceToken: refreshKey,
@@ -196,6 +198,8 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
         XCTAssertEqual(rendered.familyToken, familyToken)
         XCTAssertEqual(rendered.phase, .success)
         XCTAssertEqual(rendered.artwork?.title, "Recovered")
+        let displayedHistory = await store.displayedArtworkKeys(for: .met)
+        XCTAssertEqual(displayedHistory, [WidgetDisplayedArtworkKey.make(museumID: .met, objectID: "1")])
         let migratedState = await store.state(for: sharedKey)
         let originalState = await store.state(for: "initial-token")
         XCTAssertEqual(migratedState?.phase, .success)
@@ -578,6 +582,33 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
         XCTAssertEqual(state?.instanceToken, refreshKey)
         XCTAssertEqual(state?.displayedArtworkKeys, [])
         XCTAssertEqual(state?.artwork?.title, "旧展品")
+    }
+
+    func testDisplayedHistoryPersistsAfterWidgetInstanceStateIsRemoved() async throws {
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let refreshKey = WidgetRefreshGroupKey.make(scope: .single(.met), family: nil)
+        _ = await store.beginRefresh(
+            instanceToken: refreshKey,
+            scopeRawValue: WidgetMuseumScope.single(.met).rawValue
+        )
+        _ = await store.markSuccess(
+            instanceToken: refreshKey,
+            expectedNonce: 1,
+            payload: makePayload(
+                museumID: .met,
+                museumName: "大都会艺术博物馆",
+                title: "旧实例展品"
+            ),
+            imageData: nil
+        )
+
+        await store.removeInstances(excludingRefreshKeys: [])
+
+        let removedState = await store.state(for: refreshKey)
+        let displayedHistory = await store.displayedArtworkKeys(for: .met)
+
+        XCTAssertNil(removedState)
+        XCTAssertEqual(displayedHistory, [WidgetDisplayedArtworkKey.make(museumID: .met, objectID: "1")])
     }
 
     func testMarkSuccessDownsamplesStoredImageBeforeWritingToAppGroup() async throws {

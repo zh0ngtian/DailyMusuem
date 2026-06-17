@@ -143,6 +143,58 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testSettingsStoreExportsAndImportsConfiguration() async throws {
+        let sourceWidgetStore = WidgetArtworkSnapshotStore(baseURL: temporaryBaseURL())
+        await sourceWidgetStore.replaceDisplayedArtworkHistory([
+            MuseumID.met.rawValue: [WidgetDisplayedArtworkKey.make(museumID: .met, objectID: "seen")]
+        ])
+        defaults.set(true, forKey: SettingsKeys.museumLatencyTestEnabled)
+        defaults.set(6, forKey: SettingsKeys.widgetRefreshIntervalHours)
+        defaults.set(8 * 60, forKey: SettingsKeys.widgetAutoRefreshStartMinutes)
+        defaults.set(20 * 60, forKey: SettingsKeys.widgetAutoRefreshEndMinutes)
+        defaults.set(NaraMuseumDataSource.colbase.rawValue, forKey: SettingsKeys.naraMuseumDataSource)
+        defaults.set(
+            "american-decorative-arts,modern-art",
+            forKey: SettingsKeys.feedCategoryKey(for: .met)
+        )
+        defaults.set("list", forKey: SettingsKeys.feedDisplayModePrefix + MuseumID.met.rawValue)
+        defaults.set(Data([1, 2, 3]), forKey: SettingsKeys.favoritesArtworks)
+
+        let sourceStore = SettingsStore(defaults: defaults, widgetSnapshotStore: sourceWidgetStore)
+        let exportedConfiguration = await sourceStore.makeConfigurationExport()
+
+        let targetSuiteName = "WidgetStateAndSettingsTests.import.\(UUID().uuidString)"
+        let targetDefaults = try XCTUnwrap(UserDefaults(suiteName: targetSuiteName))
+        defer {
+            targetDefaults.removePersistentDomain(forName: targetSuiteName)
+        }
+        targetDefaults.set(false, forKey: SettingsKeys.museumLatencyTestEnabled)
+        targetDefaults.set(1, forKey: SettingsKeys.widgetRefreshIntervalHours)
+        targetDefaults.set("photographs", forKey: SettingsKeys.feedCategoryKey(for: .met))
+        let targetWidgetStore = WidgetArtworkSnapshotStore(baseURL: temporaryBaseURL())
+        await targetWidgetStore.replaceDisplayedArtworkHistory([
+            MuseumID.tnm.rawValue: [WidgetDisplayedArtworkKey.make(museumID: .tnm, objectID: "old")]
+        ])
+        let targetStore = SettingsStore(defaults: targetDefaults, widgetSnapshotStore: targetWidgetStore)
+
+        await targetStore.importConfiguration(exportedConfiguration)
+
+        XCTAssertTrue(targetStore.isMuseumLatencyTestEnabled)
+        XCTAssertEqual(targetStore.widgetRefreshInterval, .sixHours)
+        XCTAssertEqual(targetStore.widgetAutoRefreshStartMinutes, 8 * 60)
+        XCTAssertEqual(targetStore.widgetAutoRefreshEndMinutes, 20 * 60)
+        XCTAssertEqual(targetStore.naraMuseumDataSource, .colbase)
+        XCTAssertEqual(targetStore.feedCategories(for: .met).map(\.id), ["american-decorative-arts", "modern-art"])
+        XCTAssertEqual(targetStore.feedDisplayModeRawValue(for: .met), "list")
+        XCTAssertEqual(targetDefaults.data(forKey: SettingsKeys.favoritesArtworks), Data([1, 2, 3]))
+        let importedMetHistory = await targetWidgetStore.displayedArtworkKeys(for: .met)
+        let importedTokyoHistory = await targetWidgetStore.displayedArtworkKeys(for: .tnm)
+
+        XCTAssertEqual(importedMetHistory, [WidgetDisplayedArtworkKey.make(museumID: .met, objectID: "seen")])
+        XCTAssertEqual(importedTokyoHistory, [])
+    }
+
     func testWidgetAutoRefreshWindowNormalizesEndNotEarlierThanStart() {
         let window = WidgetAutoRefreshWindow(startMinutes: 18 * 60, endMinutes: 9 * 60)
 
@@ -904,7 +956,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(requestedCandidates, 1)
     }
 
-    func testWidgetRefreshEngineSkipsPreviouslyDisplayedArtworkForSameInstance() async throws {
+    func testWidgetRefreshEngineSkipsPreviouslyDisplayedArtworkForSameMuseumAfterInstanceRemoval() async throws {
         let baseURL = temporaryBaseURL()
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
         let scope = WidgetMuseumScope.single(.met)
@@ -924,6 +976,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             ).storedPayload(),
             imageData: nil
         )
+        await store.removeInstances(excludingRefreshKeys: [])
 
         let loader = StubBatchLoader(
             batches: [[
@@ -1010,10 +1063,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
 
         XCTAssertEqual(payload.title, "Repeat")
         XCTAssertEqual(loaderFactoryCount.value, 2)
-        let displayedKeys = await store.displayedArtworkKeys(
-            for: refreshKey,
-            scopeRawValue: scope.rawValue
-        )
+        let displayedKeys = await store.displayedArtworkKeys(for: .met)
         XCTAssertEqual(displayedKeys, [])
     }
 

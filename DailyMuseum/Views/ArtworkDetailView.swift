@@ -65,6 +65,10 @@ struct ArtworkDetailView: View {
     let onFavoriteButtonTap: () -> Void
     let onRefresh: () async -> Void
 
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @ScaledMetric(relativeTo: .body) private var compactToolbarIconPointSize: CGFloat = 18
+    @ScaledMetric(relativeTo: .body) private var regularToolbarIconPointSize: CGFloat = 20
+
     @State private var isShowingImagePreview = false
     @State private var translatedArtwork: Artwork?
     @State private var showsTranslatedArtwork = false
@@ -77,8 +81,12 @@ struct ArtworkDetailView: View {
     @State private var shareSheetItem: SharedImageSheetItem?
     @State private var pendingShareSheetItem: SharedImageSheetItem?
     @State private var isPreparingShareImage = false
+    @State private var isShowingSecondaryActionsPopover = false
+    @State private var detailFontScaleStep = 0
 
     var body: some View {
+        let typography = ArtworkDetailTypography(scaleStep: detailFontScaleStep)
+
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 CachedAsyncImage(
@@ -119,7 +127,7 @@ struct ArtworkDetailView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     SelectableTextBlock(
                         text: displayedArtwork.title,
-                        font: ArtworkDetailTypography.titleFont,
+                        font: typography.titleFont,
                         textColor: .label
                     )
 
@@ -127,25 +135,25 @@ struct ArtworkDetailView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             SelectableTextBlock(
                                 text: description,
-                                font: ArtworkDetailTypography.bodyFont,
+                                font: typography.bodyFont,
                                 textColor: .label,
-                                lineSpacing: ArtworkDetailTypography.descriptionLineSpacing
+                                lineSpacing: typography.descriptionLineSpacing
                             )
                         }
                         .padding(.top, 4)
                         .padding(.bottom, 4)
                     }
 
-                    InfoRow(label: "作者", value: displayedArtwork.artistDisplayName)
-                    InfoRow(label: "年代", value: displayedArtwork.objectDate)
-                    InfoRow(label: "材质", value: displayedArtwork.medium)
-                    InfoRow(label: "尺寸", value: displayedArtwork.dimensions)
-                    InfoRow(label: "类别", value: displayedArtwork.department)
-                    InfoRow(label: "文化", value: displayedArtwork.culture)
-                    InfoRow(label: "国家", value: displayedArtwork.country)
+                    InfoRow(label: "作者", value: displayedArtwork.artistDisplayName, typography: typography)
+                    InfoRow(label: "年代", value: displayedArtwork.objectDate, typography: typography)
+                    InfoRow(label: "材质", value: displayedArtwork.medium, typography: typography)
+                    InfoRow(label: "尺寸", value: displayedArtwork.dimensions, typography: typography)
+                    InfoRow(label: "类别", value: displayedArtwork.department, typography: typography)
+                    InfoRow(label: "文化", value: displayedArtwork.culture, typography: typography)
+                    InfoRow(label: "国家", value: displayedArtwork.country, typography: typography)
                     SelectableTextBlock(
                         text: displayedArtwork.museumID.copyrightNotice,
-                        font: ArtworkDetailTypography.footnoteFont,
+                        font: typography.footnoteFont,
                         textColor: .secondaryLabel,
                         alignment: .center
                     )
@@ -163,16 +171,14 @@ struct ArtworkDetailView: View {
                     Button {
                         handleAIAssistantButtonTap(officialURL: officialURL)
                     } label: {
-                        Label("AI 解读", systemImage: "apple.intelligence")
-                            .labelStyle(.iconOnly)
+                        toolbarIconLabel("AI 解读", systemImage: "apple.intelligence")
                     }
                     .accessibilityLabel("AI 解读")
                 }
 
                 if let url = artwork.objectURL {
                     Link(destination: url) {
-                        Label("官网", systemImage: "safari")
-                            .labelStyle(.iconOnly)
+                        toolbarIconLabel("官网", systemImage: "safari")
                     }
                     .accessibilityLabel("打开官网")
                 }
@@ -181,19 +187,9 @@ struct ArtworkDetailView: View {
                     translationToolbarButton
                 }
 
-                Button {
-                    handleShareButtonTap()
-                } label: {
-                    Label("分享", systemImage: "square.and.arrow.up")
-                        .labelStyle(.iconOnly)
-                }
-                .disabled(isPreparingShareImage)
-                .accessibilityLabel("分享当前详情页截图")
+                favoriteToolbarButton
 
-                Button(action: onFavoriteButtonTap) {
-                    Image(systemName: isFavorite ? "star.fill" : "star")
-                }
-                .accessibilityLabel(isFavorite ? "取消收藏" : "收藏")
+                secondaryActionsMenu
             }
         }
         .fullScreenCover(isPresented: $isShowingImagePreview) {
@@ -238,6 +234,62 @@ struct ArtworkDetailView: View {
         }
     }
 
+    private var toolbarIconFont: Font {
+        .system(
+            size: toolbarIconPointSize,
+            weight: .medium
+        )
+    }
+
+    private var toolbarIconPointSize: CGFloat {
+        horizontalSizeClass == .compact ? compactToolbarIconPointSize : regularToolbarIconPointSize
+    }
+
+    private func toolbarIconLabel(_ title: String, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
+            .labelStyle(.iconOnly)
+            .font(toolbarIconFont)
+            .imageScale(.medium)
+    }
+
+    private var favoriteToolbarButton: some View {
+        Button(action: onFavoriteButtonTap) {
+            toolbarIconLabel(isFavorite ? "取消收藏" : "收藏", systemImage: isFavorite ? "star.fill" : "star")
+        }
+        .accessibilityLabel(isFavorite ? "取消收藏" : "收藏")
+    }
+
+    private var secondaryActionsMenu: some View {
+        Button {
+            isShowingSecondaryActionsPopover = true
+        } label: {
+            toolbarIconLabel("更多", systemImage: "ellipsis")
+        }
+        .popover(
+            isPresented: $isShowingSecondaryActionsPopover,
+            attachmentAnchor: .rect(.bounds),
+            arrowEdge: .top
+        ) {
+            ArtworkDetailMoreActionsPopover(
+                isShareDisabled: isPreparingShareImage,
+                isIncreaseDisabled: detailFontScaleStep >= ArtworkDetailTypography.maximumScaleStep,
+                isDecreaseDisabled: detailFontScaleStep <= ArtworkDetailTypography.minimumScaleStep,
+                onShare: {
+                    isShowingSecondaryActionsPopover = false
+                    handleShareButtonTap()
+                },
+                onIncrease: {
+                    adjustDetailFontScale(by: 1)
+                },
+                onDecrease: {
+                    adjustDetailFontScale(by: -1)
+                }
+            )
+            .presentationCompactAdaptation(.popover)
+        }
+        .accessibilityLabel("更多操作")
+    }
+
     @ViewBuilder
     private var translationToolbarButton: some View {
         let state = translationToolbarState
@@ -245,6 +297,8 @@ struct ArtworkDetailView: View {
             handleTranslationButtonTap()
         } label: {
             Image(systemName: state.systemImageName)
+                .font(toolbarIconFont)
+                .imageScale(.medium)
         }
         .disabled(state.isDisabled)
         .accessibilityLabel(state.accessibilityLabel)
@@ -514,6 +568,10 @@ struct ArtworkDetailView: View {
         sharePreviewItem = SharedImageSheetItem(image: image)
     }
 
+    private func adjustDetailFontScale(by delta: Int) {
+        detailFontScaleStep = ArtworkDetailTypography.clampedScaleStep(detailFontScaleStep + delta)
+    }
+
     private func presentPendingShareSheetIfNeeded() {
         guard let pendingShareSheetItem else {
             return
@@ -601,6 +659,73 @@ private struct ActivityView: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+private struct ArtworkDetailMoreActionsPopover: View {
+    let isShareDisabled: Bool
+    let isIncreaseDisabled: Bool
+    let isDecreaseDisabled: Bool
+    let onShare: () -> Void
+    let onIncrease: () -> Void
+    let onDecrease: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            actionRow(
+                title: "分享",
+                systemImage: "square.and.arrow.up",
+                isDisabled: isShareDisabled,
+                action: onShare
+            )
+
+            Divider()
+
+            actionRow(
+                title: "更大字号",
+                systemImage: "plus.magnifyingglass",
+                isDisabled: isIncreaseDisabled,
+                action: onIncrease
+            )
+
+            Divider()
+
+            actionRow(
+                title: "更小字号",
+                systemImage: "minus.magnifyingglass",
+                isDisabled: isDecreaseDisabled,
+                action: onDecrease
+            )
+        }
+        .padding(.vertical, 6)
+        .frame(minWidth: 210)
+        .presentationBackground(Color(.systemBackground))
+    }
+
+    private func actionRow(
+        title: String,
+        systemImage: String,
+        isDisabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 20, weight: .regular))
+                    .frame(width: 26, alignment: .center)
+
+                Text(title)
+                    .font(.body)
+
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(isDisabled ? Color(.tertiaryLabel) : Color(.label))
+            .padding(.horizontal, 18)
+            .frame(height: 48)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+    }
 }
 
 private struct ArtworkSharePreviewSheet: View {
@@ -872,7 +997,7 @@ private struct ZoomableArtworkImageView: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> UIScrollView {
-        let scrollView = UIScrollView()
+        let scrollView = ImageScrollView()
         scrollView.backgroundColor = .clear
         scrollView.delegate = context.coordinator
         scrollView.minimumZoomScale = 1
@@ -880,30 +1005,82 @@ private struct ZoomableArtworkImageView: UIViewRepresentable {
         scrollView.bouncesZoom = true
         scrollView.showsHorizontalScrollIndicator = false
         scrollView.showsVerticalScrollIndicator = false
+        scrollView.zoomCoordinator = context.coordinator
 
         let imageView = context.coordinator.imageView
         imageView.contentMode = .scaleAspectFit
         imageView.clipsToBounds = true
         imageView.frame = scrollView.bounds
-        imageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        imageView.image = image
         scrollView.addSubview(imageView)
+        context.coordinator.scrollView = scrollView
+        context.coordinator.updateImage(image, in: scrollView)
+
+        let oneFingerZoomPanRecognizer = UIPanGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleOneFingerZoomPan(_:))
+        )
+        oneFingerZoomPanRecognizer.minimumNumberOfTouches = 1
+        oneFingerZoomPanRecognizer.maximumNumberOfTouches = 1
+        oneFingerZoomPanRecognizer.delegate = context.coordinator
+        scrollView.addGestureRecognizer(oneFingerZoomPanRecognizer)
+        scrollView.panGestureRecognizer.require(toFail: oneFingerZoomPanRecognizer)
+        context.coordinator.oneFingerZoomPanRecognizer = oneFingerZoomPanRecognizer
+
         return scrollView
     }
 
     func updateUIView(_ scrollView: UIScrollView, context: Context) {
-        context.coordinator.imageView.image = image
-        if context.coordinator.lastRenderedImageIdentifier != ObjectIdentifier(image) {
-            context.coordinator.lastRenderedImageIdentifier = ObjectIdentifier(image)
-            scrollView.zoomScale = 1
-            context.coordinator.imageView.frame = scrollView.bounds
-        }
+        context.coordinator.updateImage(image, in: scrollView)
+        context.coordinator.updateImageLayoutIfNeeded(in: scrollView)
         context.coordinator.centerImage(in: scrollView)
     }
 
-    final class Coordinator: NSObject, UIScrollViewDelegate {
+    final class ImageScrollView: UIScrollView {
+        weak var zoomCoordinator: Coordinator?
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            zoomCoordinator?.updateImageLayoutIfNeeded(in: self)
+            zoomCoordinator?.centerImage(in: self)
+        }
+    }
+
+    final class Coordinator: NSObject, UIScrollViewDelegate, UIGestureRecognizerDelegate {
         let imageView = UIImageView()
-        var lastRenderedImageIdentifier: ObjectIdentifier?
+        weak var scrollView: UIScrollView?
+        weak var oneFingerZoomPanRecognizer: UIPanGestureRecognizer?
+        private var renderedImage: UIImage?
+        private var pendingImage: UIImage?
+        private var isHandlingOneFingerZoom = false
+        private var oneFingerZoomStartScale: CGFloat = 1
+        private var oneFingerZoomStartTouchLocation: CGPoint = .zero
+        private var oneFingerZoomAnchor: CGPoint = .zero
+        private var oneFingerZoomBouncesZoomWasEnabled = true
+
+        func updateImage(_ image: UIImage, in scrollView: UIScrollView) {
+            guard renderedImage !== image else {
+                return
+            }
+            guard !isHandlingOneFingerZoom else {
+                pendingImage = image
+                return
+            }
+            applyImage(image, in: scrollView, resetZoom: renderedImage == nil)
+        }
+
+        func updateImageLayoutIfNeeded(in scrollView: UIScrollView) {
+            guard !isHandlingOneFingerZoom else {
+                return
+            }
+            guard scrollView.zoomScale == scrollView.minimumZoomScale else {
+                return
+            }
+            guard imageView.frame.size != scrollView.bounds.size else {
+                return
+            }
+            imageView.frame = scrollView.bounds
+            scrollView.contentSize = scrollView.bounds.size
+        }
 
         func viewForZooming(in scrollView: UIScrollView) -> UIView? {
             imageView
@@ -919,6 +1096,113 @@ private struct ZoomableArtworkImageView: UIViewRepresentable {
             frame.origin.x = frame.width < boundsSize.width ? (boundsSize.width - frame.width) / 2 : 0
             frame.origin.y = frame.height < boundsSize.height ? (boundsSize.height - frame.height) / 2 : 0
             imageView.frame = frame
+        }
+
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard gestureRecognizer === oneFingerZoomPanRecognizer,
+                  let panRecognizer = gestureRecognizer as? UIPanGestureRecognizer else {
+                return true
+            }
+
+            let velocity = panRecognizer.velocity(in: scrollView)
+            return abs(velocity.y) >= abs(velocity.x)
+        }
+
+        @objc func handleOneFingerZoomPan(_ recognizer: UIPanGestureRecognizer) {
+            guard let scrollView else {
+                return
+            }
+
+            switch recognizer.state {
+            case .began:
+                isHandlingOneFingerZoom = true
+                oneFingerZoomStartScale = scrollView.zoomScale
+                oneFingerZoomStartTouchLocation = recognizer.location(in: scrollView)
+                oneFingerZoomAnchor = contentPoint(for: oneFingerZoomStartTouchLocation, in: scrollView)
+                oneFingerZoomBouncesZoomWasEnabled = scrollView.bouncesZoom
+                scrollView.bouncesZoom = false
+            case .changed:
+                let verticalDelta = recognizer.translation(in: scrollView).y
+                let scaleMultiplier = pow(2, -verticalDelta / 180)
+                let nextScale = min(
+                    scrollView.maximumZoomScale,
+                    max(scrollView.minimumZoomScale, oneFingerZoomStartScale * scaleMultiplier)
+                )
+                guard nextScale.isFinite else {
+                    return
+                }
+
+                applyOneFingerZoom(
+                    scale: nextScale,
+                    anchoredAt: oneFingerZoomAnchor,
+                    touchLocation: oneFingerZoomStartTouchLocation,
+                    in: scrollView
+                )
+            case .ended, .cancelled, .failed:
+                scrollView.bouncesZoom = oneFingerZoomBouncesZoomWasEnabled
+                isHandlingOneFingerZoom = false
+                oneFingerZoomStartScale = scrollView.zoomScale
+                oneFingerZoomStartTouchLocation = .zero
+                oneFingerZoomAnchor = .zero
+                applyPendingImageIfNeeded(in: scrollView)
+            default:
+                return
+            }
+        }
+
+        private func applyImage(_ image: UIImage, in scrollView: UIScrollView, resetZoom: Bool) {
+            renderedImage = image
+            pendingImage = nil
+            imageView.image = image
+            if resetZoom {
+                scrollView.zoomScale = scrollView.minimumZoomScale
+                imageView.frame = scrollView.bounds
+            }
+            centerImage(in: scrollView)
+        }
+
+        private func applyPendingImageIfNeeded(in scrollView: UIScrollView) {
+            guard let pendingImage else {
+                return
+            }
+            applyImage(pendingImage, in: scrollView, resetZoom: false)
+        }
+
+        private func contentPoint(for touchLocation: CGPoint, in scrollView: UIScrollView) -> CGPoint {
+            let zoomScale = max(scrollView.zoomScale, .leastNonzeroMagnitude)
+            return CGPoint(
+                x: (touchLocation.x + scrollView.contentOffset.x - imageView.frame.minX) / zoomScale,
+                y: (touchLocation.y + scrollView.contentOffset.y - imageView.frame.minY) / zoomScale
+            )
+        }
+
+        private func applyOneFingerZoom(
+            scale: CGFloat,
+            anchoredAt anchor: CGPoint,
+            touchLocation: CGPoint,
+            in scrollView: UIScrollView
+        ) {
+            UIView.performWithoutAnimation {
+                scrollView.setZoomScale(scale, animated: false)
+                centerImage(in: scrollView)
+                let appliedScale = scrollView.zoomScale
+                scrollView.contentOffset = clampedContentOffset(
+                    CGPoint(
+                        x: imageView.frame.minX + anchor.x * appliedScale - touchLocation.x,
+                        y: imageView.frame.minY + anchor.y * appliedScale - touchLocation.y
+                    ),
+                    in: scrollView
+                )
+            }
+        }
+
+        private func clampedContentOffset(_ offset: CGPoint, in scrollView: UIScrollView) -> CGPoint {
+            let maxX = max(0, scrollView.contentSize.width - scrollView.bounds.width)
+            let maxY = max(0, scrollView.contentSize.height - scrollView.bounds.height)
+            return CGPoint(
+                x: min(max(offset.x, 0), maxX),
+                y: min(max(offset.y, 0), maxY)
+            )
         }
     }
 }
@@ -1067,18 +1351,42 @@ private struct ArtworkDetailShareSnapshotView: View {
     }
 }
 
-private enum ArtworkDetailTypography {
-    static let titleFont = scaledFont(textStyle: .title2, weight: .semibold)
-    static let bodyFont = scaledFont(textStyle: .body)
-    static let infoLabelFont = scaledFont(textStyle: .subheadline, weight: .semibold)
-    static let infoValueFont = scaledFont(textStyle: .subheadline)
-    static let footnoteFont = scaledFont(textStyle: .footnote)
-    static let descriptionLineSpacing: CGFloat = 5
-    static let infoLabelWidth: CGFloat = 44
+private struct ArtworkDetailTypography {
+    static let minimumScaleStep = -2
+    static let maximumScaleStep = 3
+    static let `default` = ArtworkDetailTypography()
 
-    private static func scaledFont(textStyle: UIFont.TextStyle, weight: UIFont.Weight = .regular) -> UIFont {
+    let titleFont: UIFont
+    let bodyFont: UIFont
+    let infoLabelFont: UIFont
+    let infoValueFont: UIFont
+    let footnoteFont: UIFont
+    let descriptionLineSpacing: CGFloat
+    let infoLabelWidth: CGFloat
+
+    init(scaleStep: Int = 0) {
+        let clampedStep = Self.clampedScaleStep(scaleStep)
+        let multiplier = 1 + CGFloat(clampedStep) * 0.12
+        titleFont = Self.scaledFont(textStyle: .title2, weight: .semibold, multiplier: multiplier)
+        bodyFont = Self.scaledFont(textStyle: .body, multiplier: multiplier)
+        infoLabelFont = Self.scaledFont(textStyle: .subheadline, weight: .semibold, multiplier: multiplier)
+        infoValueFont = Self.scaledFont(textStyle: .subheadline, multiplier: multiplier)
+        footnoteFont = Self.scaledFont(textStyle: .footnote, multiplier: multiplier)
+        descriptionLineSpacing = 5 * multiplier
+        infoLabelWidth = 44
+    }
+
+    static func clampedScaleStep(_ step: Int) -> Int {
+        min(max(step, minimumScaleStep), maximumScaleStep)
+    }
+
+    private static func scaledFont(
+        textStyle: UIFont.TextStyle,
+        weight: UIFont.Weight = .regular,
+        multiplier: CGFloat
+    ) -> UIFont {
         let pointSize = UIFont.preferredFont(forTextStyle: textStyle).pointSize
-        let baseFont = UIFont.systemFont(ofSize: pointSize, weight: weight)
+        let baseFont = UIFont.systemFont(ofSize: pointSize * multiplier, weight: weight)
         return UIFontMetrics(forTextStyle: textStyle).scaledFont(for: baseFont)
     }
 }
@@ -1152,18 +1460,19 @@ private struct SelectableAttributedTextView: UIViewRepresentable {
 private struct InfoRow: View {
     let label: String
     let value: String?
+    let typography: ArtworkDetailTypography
 
     var body: some View {
         if let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             HStack(alignment: .top, spacing: 14) {
                 Text(label)
-                    .font(Font(ArtworkDetailTypography.infoLabelFont))
+                    .font(Font(typography.infoLabelFont))
                     .foregroundStyle(Color(.secondaryLabel))
-                    .frame(width: ArtworkDetailTypography.infoLabelWidth, alignment: .leading)
+                    .frame(width: typography.infoLabelWidth, alignment: .leading)
 
                 SelectableTextBlock(
                     text: value,
-                    font: ArtworkDetailTypography.infoValueFont,
+                    font: typography.infoValueFont,
                     textColor: .label
                 )
             }

@@ -2,19 +2,120 @@ import Foundation
 import SwiftUI
 import WidgetKit
 
+struct AppConfigurationExport: Codable, Equatable, Sendable {
+    static let currentVersion = 1
+
+    let version: Int
+    let exportedAt: Date
+    let userDefaults: [String: AppConfigurationValue]
+    let widgetDisplayedArtworkHistory: [String: [String]]
+
+    init(
+        version: Int = Self.currentVersion,
+        exportedAt: Date = .now,
+        userDefaults: [String: AppConfigurationValue],
+        widgetDisplayedArtworkHistory: [String: [String]]
+    ) {
+        self.version = version
+        self.exportedAt = exportedAt
+        self.userDefaults = userDefaults
+        self.widgetDisplayedArtworkHistory = widgetDisplayedArtworkHistory
+    }
+}
+
+enum AppConfigurationValue: Codable, Equatable, Sendable {
+    case bool(Bool)
+    case int(Int)
+    case double(Double)
+    case string(String)
+    case stringArray([String])
+    case data(Data)
+
+    init?(userDefaultsObject object: Any) {
+        if let value = object as? Bool {
+            self = .bool(value)
+            return
+        }
+
+        if let value = object as? Int {
+            self = .int(value)
+            return
+        }
+
+        if let value = object as? Double {
+            self = .double(value)
+            return
+        }
+
+        if let number = object as? NSNumber {
+            if CFGetTypeID(number) == CFBooleanGetTypeID() {
+                self = .bool(number.boolValue)
+                return
+            }
+
+            let doubleValue = number.doubleValue
+            if doubleValue.rounded() == doubleValue {
+                self = .int(number.intValue)
+            } else {
+                self = .double(doubleValue)
+            }
+            return
+        }
+
+        if let value = object as? String {
+            self = .string(value)
+            return
+        }
+
+        if let value = object as? [String] {
+            self = .stringArray(value)
+            return
+        }
+
+        if let value = object as? Data {
+            self = .data(value)
+            return
+        }
+
+        return nil
+    }
+
+    func write(to defaults: UserDefaults, key: String) {
+        switch self {
+        case .bool(let value):
+            defaults.set(value, forKey: key)
+        case .int(let value):
+            defaults.set(value, forKey: key)
+        case .double(let value):
+            defaults.set(value, forKey: key)
+        case .string(let value):
+            defaults.set(value, forKey: key)
+        case .stringArray(let value):
+            defaults.set(value, forKey: key)
+        case .data(let value):
+            defaults.set(value, forKey: key)
+        }
+    }
+}
+
 @MainActor
 final class SettingsStore: ObservableObject {
     static let shared = SettingsStore()
 
     private let defaults: UserDefaults
+    private let widgetSnapshotStore: WidgetArtworkSnapshotStore
     @Published private(set) var widgetRefreshInterval: WidgetRefreshInterval
     @Published private(set) var widgetAutoRefreshStartMinutes: Int
     @Published private(set) var widgetAutoRefreshEndMinutes: Int
     @Published private(set) var isMuseumLatencyTestEnabled: Bool
     @Published private(set) var naraMuseumDataSource: NaraMuseumDataSource
 
-    init(defaults resolvedDefaults: UserDefaults = UserDefaults(suiteName: SettingsKeys.appGroupID) ?? .standard) {
+    init(
+        defaults resolvedDefaults: UserDefaults = UserDefaults(suiteName: SettingsKeys.appGroupID) ?? .standard,
+        widgetSnapshotStore: WidgetArtworkSnapshotStore = .shared
+    ) {
         defaults = resolvedDefaults
+        self.widgetSnapshotStore = widgetSnapshotStore
         widgetRefreshInterval = WidgetRefreshInterval.storedValue(in: resolvedDefaults)
         let autoRefreshWindow = WidgetAutoRefreshWindow.storedValue(in: resolvedDefaults)
         widgetAutoRefreshStartMinutes = autoRefreshWindow.startMinutes
@@ -24,6 +125,7 @@ final class SettingsStore: ObservableObject {
     }
 
     func requestWidgetReload(invalidateContent: Bool = false) {
+        _ = invalidateContent
         defaults.synchronize()
         WidgetCenter.shared.reloadTimelines(ofKind: SettingsKeys.widgetKind)
     }
@@ -71,6 +173,35 @@ final class SettingsStore: ObservableObject {
         defaults.set(normalizedWindow.startMinutes, forKey: SettingsKeys.widgetAutoRefreshStartMinutes)
         defaults.set(normalizedWindow.endMinutes, forKey: SettingsKeys.widgetAutoRefreshEndMinutes)
         requestWidgetReload()
+    }
+
+    func makeConfigurationExport() async -> AppConfigurationExport {
+        AppConfigurationExport(
+            userDefaults: exportedUserDefaults(),
+            widgetDisplayedArtworkHistory: await widgetSnapshotStore.exportDisplayedArtworkHistory()
+        )
+    }
+
+    func importConfiguration(_ configuration: AppConfigurationExport) async {
+        let removableKeys = configurationUserDefaultsKeys()
+            .union(configuration.userDefaults.keys)
+            .filter(Self.isExportableUserDefaultsKey)
+
+        for key in removableKeys {
+            defaults.removeObject(forKey: key)
+        }
+
+        for (key, value) in configuration.userDefaults where Self.isExportableUserDefaultsKey(key) {
+            value.write(to: defaults, key: key)
+        }
+
+        defaults.synchronize()
+        await widgetSnapshotStore.replaceDisplayedArtworkHistory(
+            configuration.widgetDisplayedArtworkHistory
+        )
+        reloadPublishedValues()
+        FavoritesStore.shared.reloadFromDefaults()
+        requestWidgetReload(invalidateContent: true)
     }
 
     func feedCategories(for museumID: MuseumID) -> [MuseumCategory] {
@@ -132,6 +263,71 @@ final class SettingsStore: ObservableObject {
     }
 
     private func feedDisplayModeKey(for museumID: MuseumID) -> String {
+        SettingsKeys.feedDisplayModePrefix + museumID.rawValue
+    }
+
+    private func reloadPublishedValues() {
+        widgetRefreshInterval = WidgetRefreshInterval.storedValue(in: defaults)
+        let autoRefreshWindow = WidgetAutoRefreshWindow.storedValue(in: defaults)
+        widgetAutoRefreshStartMinutes = autoRefreshWindow.startMinutes
+        widgetAutoRefreshEndMinutes = autoRefreshWindow.endMinutes
+        isMuseumLatencyTestEnabled = defaults.bool(forKey: SettingsKeys.museumLatencyTestEnabled)
+        naraMuseumDataSource = NaraMuseumDataSource.storedValue(in: defaults)
+    }
+
+    private func exportedUserDefaults() -> [String: AppConfigurationValue] {
+        var exported: [String: AppConfigurationValue] = [:]
+
+        for key in configurationUserDefaultsKeys() {
+            guard let object = defaults.object(forKey: key),
+                  let value = AppConfigurationValue(userDefaultsObject: object) else {
+                continue
+            }
+            exported[key] = value
+        }
+
+        return exported
+    }
+
+    private func configurationUserDefaultsKeys() -> Set<String> {
+        var keys = Self.baseExportedUserDefaultsKeys
+
+        for museumID in MuseumID.allCases {
+            keys.insert(SettingsKeys.feedCategoryKey(for: museumID))
+            keys.insert(Self.feedDisplayModeKey(for: museumID))
+        }
+
+        keys.insert(SettingsKeys.feedCategoryKey(for: .nnm, naraDataSource: .official))
+        keys.insert(SettingsKeys.feedCategoryKey(for: .nnm, naraDataSource: .colbase))
+
+        for key in defaults.dictionaryRepresentation().keys where Self.isExportableUserDefaultsKey(key) {
+            keys.insert(key)
+        }
+
+        return keys
+    }
+
+    private static var baseExportedUserDefaultsKeys: Set<String> {
+        [
+            SettingsKeys.naraMuseumDataSource,
+            SettingsKeys.widgetRefreshIntervalHours,
+            SettingsKeys.widgetAutoRefreshStartMinutes,
+            SettingsKeys.widgetAutoRefreshEndMinutes,
+            SettingsKeys.museumLatencyTestEnabled,
+            SettingsKeys.museumDisplayOrder,
+            SettingsKeys.favoritesArtworks
+        ]
+    }
+
+    private static func isExportableUserDefaultsKey(_ key: String) -> Bool {
+        if baseExportedUserDefaultsKeys.contains(key) {
+            return true
+        }
+        return key.hasPrefix(SettingsKeys.feedCategoryPrefix) ||
+            key.hasPrefix(SettingsKeys.feedDisplayModePrefix)
+    }
+
+    private static func feedDisplayModeKey(for museumID: MuseumID) -> String {
         SettingsKeys.feedDisplayModePrefix + museumID.rawValue
     }
 }

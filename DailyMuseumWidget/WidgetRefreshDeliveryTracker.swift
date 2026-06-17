@@ -434,10 +434,6 @@ struct WidgetRefreshEngine {
                 instanceToken: refreshKey,
                 logSource: logSource
             )
-            let displayedArtworkKeys = await snapshotStore.displayedArtworkKeys(
-                for: refreshKey,
-                scopeRawValue: scope.rawValue
-            )
             var candidateAttempt = 0
             var skippedDisplayedArtwork = false
             var rejectedUnseenArtwork = false
@@ -492,12 +488,13 @@ struct WidgetRefreshEngine {
                     museumID: artwork.museumID,
                     objectID: artwork.objectID
                 )
+                let displayedArtworkKeys = await snapshotStore.displayedArtworkKeys(for: artwork.museumID)
                 if displayedArtworkKeys.contains(artworkKey) {
                     skippedDisplayedArtwork = true
                     await Self.logEvent(
                         logSource: logSource,
                         instanceToken: refreshKey,
-                        summary: "候选 \(candidateAttempt) 已在当前共享组展示过，跳过 \(artwork.museumID.displayName) / \(artwork.title)"
+                        summary: "候选 \(candidateAttempt) 已在当前博物馆刷新历史中展示过，跳过 \(artwork.museumID.displayName) / \(artwork.title)"
                     )
                     continue
                 }
@@ -526,15 +523,12 @@ struct WidgetRefreshEngine {
             }
 
             if skippedDisplayedArtwork && !rejectedUnseenArtwork && !didResetDisplayedHistory {
-                _ = await snapshotStore.resetDisplayedArtworkHistory(
-                    for: refreshKey,
-                    scopeRawValue: scope.rawValue
-                )
+                await snapshotStore.resetDisplayedArtworkHistory(for: museumIDs(for: scope))
                 didResetDisplayedHistory = true
                 await Self.logEvent(
                     logSource: logSource,
                     instanceToken: refreshKey,
-                    summary: "当前范围内没有新的未展示展品，清空当前共享组历史后重试一次"
+                    summary: "当前范围内没有新的未展示展品，清空相关博物馆刷新历史后重试一次"
                 )
                 continue
             }
@@ -586,6 +580,15 @@ struct WidgetRefreshEngine {
             museumIDs.append(museumID)
         }
         return museumIDs
+    }
+
+    private func museumIDs(for scope: WidgetMuseumScope) -> [MuseumID] {
+        switch scope {
+        case .all:
+            return MuseumRepository.widgetSupportedMuseums.map(\.id)
+        case .single(let museumID):
+            return [museumID]
+        }
     }
 
     private func makePayload(

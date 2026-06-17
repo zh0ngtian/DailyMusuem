@@ -1,8 +1,14 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @StateObject private var settings = SettingsStore.shared
     @State private var presentedTimeField: SettingsTimeField?
+    @State private var configurationDocument = AppConfigurationFileDocument()
+    @State private var isShowingConfigurationExporter = false
+    @State private var isShowingConfigurationImporter = false
+    @State private var isHandlingConfigurationFile = false
+    @State private var configurationAlertState: SettingsConfigurationAlertState?
 
     var body: some View {
         Form {
@@ -62,12 +68,62 @@ struct SettingsView: View {
             } header: {
                 Text("小组件")
             }
+
+            Section {
+                Button {
+                    exportConfiguration()
+                } label: {
+                    Label("导出配置到文件", systemImage: "square.and.arrow.up")
+                }
+                .disabled(isHandlingConfigurationFile)
+
+                Button {
+                    isShowingConfigurationImporter = true
+                } label: {
+                    Label("从文件导入配置", systemImage: "square.and.arrow.down")
+                }
+                .disabled(isHandlingConfigurationFile)
+            } header: {
+                Text("配置")
+            }
         }
         .navigationTitle("设置")
         .sheet(item: $presentedTimeField) { field in
             TimeSelectionSheet(
                 title: field.title,
                 selection: timeBinding(for: field)
+            )
+        }
+        .fileExporter(
+            isPresented: $isShowingConfigurationExporter,
+            document: configurationDocument,
+            contentType: .json,
+            defaultFilename: "MuseumMuse-Configuration"
+        ) { result in
+            switch result {
+            case .success:
+                configurationAlertState = SettingsConfigurationAlertState(
+                    title: "导出完成",
+                    message: "配置文件已保存。"
+                )
+            case .failure(let error):
+                configurationAlertState = SettingsConfigurationAlertState(
+                    title: "导出失败",
+                    message: error.localizedDescription
+                )
+            }
+        }
+        .fileImporter(
+            isPresented: $isShowingConfigurationImporter,
+            allowedContentTypes: [.json]
+        ) { result in
+            importConfiguration(from: result)
+        }
+        .alert(item: $configurationAlertState) { state in
+            Alert(
+                title: Text(state.title),
+                message: Text(state.message),
+                dismissButton: .default(Text("知道了"))
             )
         }
     }
@@ -132,6 +188,104 @@ struct SettingsView: View {
     private var scheduleTimeFont: Font {
         .system(size: 15, weight: .regular, design: .monospaced)
     }
+
+    private func exportConfiguration() {
+        guard !isHandlingConfigurationFile else {
+            return
+        }
+
+        isHandlingConfigurationFile = true
+        Task {
+            do {
+                let configuration = await settings.makeConfigurationExport()
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                let data = try encoder.encode(configuration)
+                await MainActor.run {
+                    configurationDocument = AppConfigurationFileDocument(data: data)
+                    isHandlingConfigurationFile = false
+                    isShowingConfigurationExporter = true
+                }
+            } catch {
+                await MainActor.run {
+                    isHandlingConfigurationFile = false
+                    configurationAlertState = SettingsConfigurationAlertState(
+                        title: "导出失败",
+                        message: error.localizedDescription
+                    )
+                }
+            }
+        }
+    }
+
+    private func importConfiguration(from result: Result<URL, Error>) {
+        switch result {
+        case .success(let url):
+            guard !isHandlingConfigurationFile else {
+                return
+            }
+
+            isHandlingConfigurationFile = true
+            Task {
+                do {
+                    let shouldStopAccessing = url.startAccessingSecurityScopedResource()
+                    defer {
+                        if shouldStopAccessing {
+                            url.stopAccessingSecurityScopedResource()
+                        }
+                    }
+
+                    let data = try Data(contentsOf: url)
+                    let configuration = try JSONDecoder().decode(AppConfigurationExport.self, from: data)
+                    await settings.importConfiguration(configuration)
+                    await MainActor.run {
+                        isHandlingConfigurationFile = false
+                        configurationAlertState = SettingsConfigurationAlertState(
+                            title: "导入完成",
+                            message: "配置已导入。"
+                        )
+                    }
+                } catch {
+                    await MainActor.run {
+                        isHandlingConfigurationFile = false
+                        configurationAlertState = SettingsConfigurationAlertState(
+                            title: "导入失败",
+                            message: error.localizedDescription
+                        )
+                    }
+                }
+            }
+        case .failure(let error):
+            configurationAlertState = SettingsConfigurationAlertState(
+                title: "导入失败",
+                message: error.localizedDescription
+            )
+        }
+    }
+}
+
+private struct AppConfigurationFileDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json] }
+
+    var data: Data
+
+    init(data: Data = Data()) {
+        self.data = data
+    }
+
+    init(configuration: ReadConfiguration) throws {
+        data = configuration.file.regularFileContents ?? Data()
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
+}
+
+private struct SettingsConfigurationAlertState: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
 }
 
 private enum SettingsTimeField: String, Identifiable {
