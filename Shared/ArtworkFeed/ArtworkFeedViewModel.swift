@@ -4,17 +4,20 @@ import SwiftUI
 @MainActor
 protocol ArtworkFeedSettingsProviding: AnyObject {
     var naraMuseumDataSource: NaraMuseumDataSource { get }
+    var metShowsOnlyOnViewArtworks: Bool { get }
     func feedCategories(for museumID: MuseumID) -> [MuseumCategory]
     func feedCategories(for museumID: MuseumID, naraDataSource: NaraMuseumDataSource?) -> [MuseumCategory]
     func saveFeedCategories(_ categories: [MuseumCategory], for museumID: MuseumID)
     func saveFeedCategories(_ categories: [MuseumCategory], for museumID: MuseumID, naraDataSource: NaraMuseumDataSource?)
     func saveNaraMuseumDataSource(_ dataSource: NaraMuseumDataSource)
+    func saveMetShowsOnlyOnViewArtworks(_ isEnabled: Bool)
 }
 
 extension SettingsStore: ArtworkFeedSettingsProviding {}
 
 extension ArtworkFeedSettingsProviding {
     var naraMuseumDataSource: NaraMuseumDataSource { .defaultValue }
+    var metShowsOnlyOnViewArtworks: Bool { false }
 
     func feedCategories(for museumID: MuseumID, naraDataSource: NaraMuseumDataSource?) -> [MuseumCategory] {
         if museumID == .nnm, let naraDataSource {
@@ -28,6 +31,8 @@ extension ArtworkFeedSettingsProviding {
     }
 
     func saveNaraMuseumDataSource(_ dataSource: NaraMuseumDataSource) {}
+
+    func saveMetShowsOnlyOnViewArtworks(_ isEnabled: Bool) {}
 }
 
 @MainActor
@@ -85,6 +90,7 @@ final class ArtworkFeedViewModel: ObservableObject {
     @Published private(set) var loadingLogs: [String] = []
     @Published private(set) var selectedCategories: [MuseumCategory]
     @Published private(set) var naraMuseumDataSource: NaraMuseumDataSource
+    @Published private(set) var metShowsOnlyOnViewArtworks: Bool
     @Published private(set) var showsInlineInitialLoading = false
     @Published private(set) var preservedItemsDuringRefresh: [ArtworkFeedItem] = []
 
@@ -123,6 +129,7 @@ final class ArtworkFeedViewModel: ObservableObject {
         self.nationalMuseumChinaAPI = nationalMuseumChinaAPI
         self.shanghaiMuseumAPI = shanghaiMuseumAPI
         self.naraMuseumDataSource = resolvedNaraDataSource
+        self.metShowsOnlyOnViewArtworks = museum.id == .met ? resolvedSettings.metShowsOnlyOnViewArtworks : false
         self.selectedCategories = resolvedSettings.feedCategories(
             for: museum.id,
             naraDataSource: museum.id == .nnm ? resolvedNaraDataSource : nil
@@ -178,7 +185,19 @@ final class ArtworkFeedViewModel: ObservableObject {
         await updateSelectedCategories(categories)
     }
 
-    func applyPageSettings(naraDataSource: NaraMuseumDataSource?, selectedCategories categories: [MuseumCategory]) async {
+    func applyPageSettings(
+        naraDataSource: NaraMuseumDataSource?,
+        metShowsOnlyOnViewArtworks nextMetShowsOnlyOnViewArtworks: Bool?,
+        selectedCategories categories: [MuseumCategory]
+    ) async {
+        if museum.id == .met {
+            await applyMetPageSettings(
+                metShowsOnlyOnViewArtworks: nextMetShowsOnlyOnViewArtworks ?? metShowsOnlyOnViewArtworks,
+                selectedCategories: categories
+            )
+            return
+        }
+
         guard museum.id == .nnm else {
             await updateSelectedCategories(categories)
             return
@@ -389,6 +408,7 @@ final class ArtworkFeedViewModel: ObservableObject {
             museumID: museum.id,
             categories: selectedCategories,
             randomOrder: isRandomOrder,
+            metShowsOnlyOnViewArtworks: metShowsOnlyOnViewArtworks,
             cachePolicy: .useCaches,
             onLog: { message in
                 await logRelay.append(message)
@@ -408,6 +428,10 @@ final class ArtworkFeedViewModel: ObservableObject {
     private var categorySelectionKey: String {
         if museum.id == .nnm {
             return "\(naraMuseumDataSource.rawValue):\(museum.id.feedCategoryStorageValue(for: selectedCategories, naraDataSource: naraMuseumDataSource))"
+        }
+        if museum.id == .met {
+            let onViewValue = metShowsOnlyOnViewArtworks ? "on-view" : "all-artworks"
+            return "\(museum.id.feedCategoryStorageValue(for: selectedCategories)):\(onViewValue)"
         }
         return museum.id.feedCategoryStorageValue(for: selectedCategories)
     }
@@ -438,6 +462,26 @@ final class ArtworkFeedViewModel: ObservableObject {
             for: museum.id,
             naraDataSource: museum.id == .nnm ? naraMuseumDataSource : nil
         )
+        await reload()
+    }
+
+    private func applyMetPageSettings(
+        metShowsOnlyOnViewArtworks nextMetShowsOnlyOnViewArtworks: Bool,
+        selectedCategories categories: [MuseumCategory]
+    ) async {
+        let normalized = museum.id.normalizedFeedCategories(categories)
+        let categoriesChanged = normalized.map(\.id) != selectedCategories.map(\.id)
+        let onViewChanged = nextMetShowsOnlyOnViewArtworks != metShowsOnlyOnViewArtworks
+        guard categoriesChanged || onViewChanged else { return }
+
+        if categoriesChanged {
+            selectedCategories = normalized
+            settings.saveFeedCategories(normalized, for: museum.id)
+        }
+        if onViewChanged {
+            metShowsOnlyOnViewArtworks = nextMetShowsOnlyOnViewArtworks
+            settings.saveMetShowsOnlyOnViewArtworks(nextMetShowsOnlyOnViewArtworks)
+        }
         await reload()
     }
 

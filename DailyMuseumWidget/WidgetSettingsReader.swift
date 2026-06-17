@@ -20,6 +20,10 @@ struct WidgetSettingsReader {
         NaraMuseumDataSource.storedValue(in: defaults)
     }
 
+    func metShowsOnlyOnViewArtworks() -> Bool {
+        defaults.bool(forKey: SettingsKeys.metShowsOnlyOnViewArtworks)
+    }
+
     func widgetRefreshInterval() -> WidgetRefreshInterval {
         WidgetRefreshInterval.storedValue(in: defaults)
     }
@@ -118,6 +122,7 @@ actor ArtworkBatchLoader {
     private let museumID: MuseumID
     private let categories: [MuseumCategory]
     private let randomOrder: Bool
+    private let metShowsOnlyOnViewArtworks: Bool
     private let cachePolicy: MuseumRequestCachePolicy
     private let onLog: (@Sendable (String) async -> Void)?
     private let metAPI: MetMuseumAPI
@@ -134,6 +139,7 @@ actor ArtworkBatchLoader {
         museumID: MuseumID,
         categories: [MuseumCategory],
         randomOrder: Bool,
+        metShowsOnlyOnViewArtworks: Bool = false,
         cachePolicy: MuseumRequestCachePolicy,
         onLog: (@Sendable (String) async -> Void)? = nil,
         metAPI: MetMuseumAPI = MetMuseumAPI(),
@@ -148,6 +154,7 @@ actor ArtworkBatchLoader {
             ? museumID.normalizedFeedCategories(categories, naraDataSource: naraDataSource)
             : museumID.normalizedFeedCategories(categories)
         self.randomOrder = randomOrder
+        self.metShowsOnlyOnViewArtworks = museumID == .met && metShowsOnlyOnViewArtworks
         self.cachePolicy = cachePolicy
         self.onLog = onLog
         self.metAPI = metAPI
@@ -222,6 +229,7 @@ actor ArtworkBatchLoader {
                         hasImages: true,
                         query: "*",
                         departmentID: departmentID,
+                        onlyOnView: metShowsOnlyOnViewArtworks,
                         cachePolicy: cachePolicy
                     ) { [log = onLog] message in
                         if let log {
@@ -236,6 +244,7 @@ actor ArtworkBatchLoader {
                 ids = try await metAPI.searchObjectIDs(
                     hasImages: true,
                     query: "*",
+                    onlyOnView: metShowsOnlyOnViewArtworks,
                     cachePolicy: cachePolicy,
                     onLog: onLog
                 )

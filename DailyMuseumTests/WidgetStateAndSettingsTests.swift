@@ -34,6 +34,20 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(categories.map(\.id), ["american-decorative-arts", "modern-art"])
     }
 
+    func testWidgetSettingsReaderUsesStoredMetOnViewToggle() {
+        defaults.set(true, forKey: SettingsKeys.metShowsOnlyOnViewArtworks)
+
+        let reader = WidgetSettingsReader(defaults: defaults)
+
+        XCTAssertTrue(reader.metShowsOnlyOnViewArtworks())
+    }
+
+    func testWidgetSettingsReaderDefaultsMetOnViewToggleToOff() {
+        let reader = WidgetSettingsReader(defaults: defaults)
+
+        XCTAssertFalse(reader.metShowsOnlyOnViewArtworks())
+    }
+
     func testWidgetSettingsReaderDefaultsNaraToOfficialDataSourceAndCategories() {
         let reader = WidgetSettingsReader(defaults: defaults)
 
@@ -117,6 +131,21 @@ final class WidgetStateAndSettingsTests: XCTestCase {
     }
 
     @MainActor
+    func testSettingsStorePersistsMetOnViewToggle() {
+        let store = SettingsStore(defaults: defaults)
+
+        store.saveMetShowsOnlyOnViewArtworks(true)
+
+        XCTAssertTrue(defaults.bool(forKey: SettingsKeys.metShowsOnlyOnViewArtworks))
+        XCTAssertTrue(SettingsStore(defaults: defaults).metShowsOnlyOnViewArtworks)
+
+        store.saveMetShowsOnlyOnViewArtworks(false)
+
+        XCTAssertFalse(defaults.bool(forKey: SettingsKeys.metShowsOnlyOnViewArtworks))
+        XCTAssertFalse(SettingsStore(defaults: defaults).metShowsOnlyOnViewArtworks)
+    }
+
+    @MainActor
     func testSettingsStorePersistsNaraDataSourceAndSeparateCategories() {
         let store = SettingsStore(defaults: defaults)
 
@@ -153,6 +182,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         defaults.set(6, forKey: SettingsKeys.widgetRefreshIntervalHours)
         defaults.set(8 * 60, forKey: SettingsKeys.widgetAutoRefreshStartMinutes)
         defaults.set(20 * 60, forKey: SettingsKeys.widgetAutoRefreshEndMinutes)
+        defaults.set(true, forKey: SettingsKeys.metShowsOnlyOnViewArtworks)
         defaults.set(NaraMuseumDataSource.colbase.rawValue, forKey: SettingsKeys.naraMuseumDataSource)
         defaults.set(
             "american-decorative-arts,modern-art",
@@ -184,6 +214,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(targetStore.widgetRefreshInterval, .sixHours)
         XCTAssertEqual(targetStore.widgetAutoRefreshStartMinutes, 8 * 60)
         XCTAssertEqual(targetStore.widgetAutoRefreshEndMinutes, 20 * 60)
+        XCTAssertTrue(targetStore.metShowsOnlyOnViewArtworks)
         XCTAssertEqual(targetStore.naraMuseumDataSource, .colbase)
         XCTAssertEqual(targetStore.feedCategories(for: .met).map(\.id), ["american-decorative-arts", "modern-art"])
         XCTAssertEqual(targetStore.feedDisplayModeRawValue(for: .met), "list")
@@ -629,6 +660,71 @@ final class WidgetStateAndSettingsTests: XCTestCase {
                 .map { ($0.name, $0.value ?? "") }
         )
         XCTAssertNil(queryItems["isOnView"])
+    }
+
+    func testArtworkBatchLoaderMetAddsIsOnViewWhenEnabled() async throws {
+        let testID = UUID().uuidString
+        let recorder = WidgetRequestRecorder()
+
+        let session = makeStubSession(testID: testID) { [self] request in
+            let url = try XCTUnwrap(request.url)
+            recorder.record(url)
+
+            if url.path.contains("/search") {
+                return self.makeJSONResponse(
+                    url: url,
+                    jsonObject: [
+                        "total": 1,
+                        "objectIDs": [101]
+                    ]
+                )
+            }
+
+            if url.path.contains("/objects/101") {
+                return self.makeJSONResponse(
+                    url: url,
+                    jsonObject: [
+                        "objectID": 101,
+                        "title": "Met On View Artwork",
+                        "artistDisplayName": "Tester",
+                        "objectDate": "2026",
+                        "medium": "Oil on canvas",
+                        "dimensions": "10 x 10 cm",
+                        "department": "Modern Art",
+                        "culture": "Test Culture",
+                        "country": "USA",
+                        "repository": "The Metropolitan Museum of Art",
+                        "primaryImage": "https://example.com/met-101-large.jpg",
+                        "primaryImageSmall": "https://example.com/met-101-small.jpg",
+                        "objectURL": "https://example.com/met-101"
+                    ]
+                )
+            }
+
+            XCTFail("Unexpected URL: \(url.absoluteString)")
+            return self.makeJSONResponse(url: url, jsonObject: [:])
+        }
+
+        let loader = ArtworkBatchLoader(
+            museumID: .met,
+            categories: MuseumID.met.defaultFeedCategories,
+            randomOrder: false,
+            metShowsOnlyOnViewArtworks: true,
+            cachePolicy: .networkOnly,
+            metAPI: MetMuseumAPI(session: session)
+        )
+
+        let batch = try await loader.nextBatch(count: 10)
+
+        XCTAssertEqual(batch.count, 1)
+        XCTAssertEqual(batch.first?.title, "Met On View Artwork")
+
+        let searchURL = try XCTUnwrap(recorder.urls.first(where: { $0.path.contains("/search") }))
+        let queryItems = Dictionary(
+            uniqueKeysWithValues: (URLComponents(url: searchURL, resolvingAgainstBaseURL: false)?.queryItems ?? [])
+                .map { ($0.name, $0.value ?? "") }
+        )
+        XCTAssertEqual(queryItems["isOnView"], "true")
     }
 
     func testNationalMuseumChinaRequestThrottleEnforcesMinimumInterval() async throws {

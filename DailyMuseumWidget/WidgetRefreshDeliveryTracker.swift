@@ -412,6 +412,7 @@ struct WidgetRefreshEngine {
                 museumID: museumID,
                 categories: categories,
                 randomOrder: true,
+                metShowsOnlyOnViewArtworks: museumID == .met && settingsReader.metShowsOnlyOnViewArtworks(),
                 cachePolicy: MuseumRequestCachePolicy.networkOnly,
                 onLog: onLog
             )

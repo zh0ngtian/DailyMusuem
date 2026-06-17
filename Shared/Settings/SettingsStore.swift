@@ -108,6 +108,7 @@ final class SettingsStore: ObservableObject {
     @Published private(set) var widgetAutoRefreshStartMinutes: Int
     @Published private(set) var widgetAutoRefreshEndMinutes: Int
     @Published private(set) var isMuseumLatencyTestEnabled: Bool
+    @Published private(set) var metShowsOnlyOnViewArtworks: Bool
     @Published private(set) var naraMuseumDataSource: NaraMuseumDataSource
 
     init(
@@ -121,6 +122,7 @@ final class SettingsStore: ObservableObject {
         widgetAutoRefreshStartMinutes = autoRefreshWindow.startMinutes
         widgetAutoRefreshEndMinutes = autoRefreshWindow.endMinutes
         isMuseumLatencyTestEnabled = resolvedDefaults.bool(forKey: SettingsKeys.museumLatencyTestEnabled)
+        metShowsOnlyOnViewArtworks = resolvedDefaults.bool(forKey: SettingsKeys.metShowsOnlyOnViewArtworks)
         naraMuseumDataSource = NaraMuseumDataSource.storedValue(in: resolvedDefaults)
     }
 
@@ -154,6 +156,13 @@ final class SettingsStore: ObservableObject {
         isMuseumLatencyTestEnabled = isEnabled
         defaults.set(isEnabled, forKey: SettingsKeys.museumLatencyTestEnabled)
         defaults.synchronize()
+    }
+
+    func saveMetShowsOnlyOnViewArtworks(_ isEnabled: Bool) {
+        metShowsOnlyOnViewArtworks = isEnabled
+        defaults.set(isEnabled, forKey: SettingsKeys.metShowsOnlyOnViewArtworks)
+        defaults.synchronize()
+        requestWidgetReload()
     }
 
     func saveNaraMuseumDataSource(_ dataSource: NaraMuseumDataSource) {
@@ -272,6 +281,7 @@ final class SettingsStore: ObservableObject {
         widgetAutoRefreshStartMinutes = autoRefreshWindow.startMinutes
         widgetAutoRefreshEndMinutes = autoRefreshWindow.endMinutes
         isMuseumLatencyTestEnabled = defaults.bool(forKey: SettingsKeys.museumLatencyTestEnabled)
+        metShowsOnlyOnViewArtworks = defaults.bool(forKey: SettingsKeys.metShowsOnlyOnViewArtworks)
         naraMuseumDataSource = NaraMuseumDataSource.storedValue(in: defaults)
     }
 
@@ -314,6 +324,7 @@ final class SettingsStore: ObservableObject {
             SettingsKeys.widgetAutoRefreshStartMinutes,
             SettingsKeys.widgetAutoRefreshEndMinutes,
             SettingsKeys.museumLatencyTestEnabled,
+            SettingsKeys.metShowsOnlyOnViewArtworks,
             SettingsKeys.museumDisplayOrder,
             SettingsKeys.favoritesArtworks
         ]
