@@ -11,6 +11,7 @@ enum SettingsKeys {
     static let widgetAutoRefreshEndMinutes = "widget.autoRefreshEndMinutes"
     static let museumLatencyTestEnabled = "museum.latencyTestEnabled"
     static let metShowsOnlyOnViewArtworks = "met.showsOnlyOnViewArtworks"
+    static let artworkDetailFontScaleStep = "artworkDetail.fontScaleStep"
     static let museumDisplayOrder = "museum.displayOrder"
     static let favoritesArtworks = "favorites.artworks"
 
@@ -19,6 +20,23 @@ enum SettingsKeys {
             return feedCategoryPrefix + museumID.rawValue + ".official"
         }
         return feedCategoryPrefix + museumID.rawValue
+    }
+}
+
+enum ArtworkDetailFontScale {
+    static let minimumStep = -2
+    static let maximumStep = 3
+    static let defaultStep = 0
+
+    static func storedStep(in defaults: UserDefaults) -> Int {
+        guard let number = defaults.object(forKey: SettingsKeys.artworkDetailFontScaleStep) as? NSNumber else {
+            return defaultStep
+        }
+        return clampedStep(number.intValue)
+    }
+
+    static func clampedStep(_ step: Int) -> Int {
+        min(max(step, minimumStep), maximumStep)
     }
 }
 

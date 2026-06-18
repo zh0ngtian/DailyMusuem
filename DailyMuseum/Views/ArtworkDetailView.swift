@@ -66,6 +66,7 @@ struct ArtworkDetailView: View {
     let onRefresh: () async -> Void
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @StateObject private var settings = SettingsStore.shared
     @ScaledMetric(relativeTo: .body) private var compactToolbarIconPointSize: CGFloat = 18
     @ScaledMetric(relativeTo: .body) private var regularToolbarIconPointSize: CGFloat = 20
     @ScaledMetric(relativeTo: .body) private var translationToolbarIconPointSizeAdjustment: CGFloat = 2
@@ -83,10 +84,9 @@ struct ArtworkDetailView: View {
     @State private var pendingShareSheetItem: SharedImageSheetItem?
     @State private var isPreparingShareImage = false
     @State private var isShowingSecondaryActionsPopover = false
-    @State private var detailFontScaleStep = 0
 
     var body: some View {
-        let typography = ArtworkDetailTypography(scaleStep: detailFontScaleStep)
+        let typography = ArtworkDetailTypography(scaleStep: settings.artworkDetailFontScaleStep)
 
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -280,8 +280,8 @@ struct ArtworkDetailView: View {
         ) {
             ArtworkDetailMoreActionsPopover(
                 isShareDisabled: isPreparingShareImage,
-                isIncreaseDisabled: detailFontScaleStep >= ArtworkDetailTypography.maximumScaleStep,
-                isDecreaseDisabled: detailFontScaleStep <= ArtworkDetailTypography.minimumScaleStep,
+                isIncreaseDisabled: settings.artworkDetailFontScaleStep >= ArtworkDetailTypography.maximumScaleStep,
+                isDecreaseDisabled: settings.artworkDetailFontScaleStep <= ArtworkDetailTypography.minimumScaleStep,
                 onShare: {
                     isShowingSecondaryActionsPopover = false
                     handleShareButtonTap()
@@ -581,7 +581,7 @@ struct ArtworkDetailView: View {
     }
 
     private func adjustDetailFontScale(by delta: Int) {
-        detailFontScaleStep = ArtworkDetailTypography.clampedScaleStep(detailFontScaleStep + delta)
+        settings.saveArtworkDetailFontScaleStep(settings.artworkDetailFontScaleStep + delta)
     }
 
     private func presentPendingShareSheetIfNeeded() {
@@ -1364,8 +1364,8 @@ private struct ArtworkDetailShareSnapshotView: View {
 }
 
 private struct ArtworkDetailTypography {
-    static let minimumScaleStep = -2
-    static let maximumScaleStep = 3
+    static let minimumScaleStep = ArtworkDetailFontScale.minimumStep
+    static let maximumScaleStep = ArtworkDetailFontScale.maximumStep
     static let `default` = ArtworkDetailTypography()
 
     let titleFont: UIFont

@@ -146,6 +146,26 @@ final class WidgetStateAndSettingsTests: XCTestCase {
     }
 
     @MainActor
+    func testSettingsStorePersistsArtworkDetailFontScaleStepGlobally() {
+        let store = SettingsStore(defaults: defaults)
+
+        XCTAssertEqual(store.artworkDetailFontScaleStep, ArtworkDetailFontScale.defaultStep)
+
+        store.saveArtworkDetailFontScaleStep(2)
+
+        XCTAssertEqual(defaults.integer(forKey: SettingsKeys.artworkDetailFontScaleStep), 2)
+        XCTAssertEqual(SettingsStore(defaults: defaults).artworkDetailFontScaleStep, 2)
+
+        store.saveArtworkDetailFontScaleStep(99)
+
+        XCTAssertEqual(
+            defaults.integer(forKey: SettingsKeys.artworkDetailFontScaleStep),
+            ArtworkDetailFontScale.maximumStep
+        )
+        XCTAssertEqual(SettingsStore(defaults: defaults).artworkDetailFontScaleStep, ArtworkDetailFontScale.maximumStep)
+    }
+
+    @MainActor
     func testSettingsStorePersistsNaraDataSourceAndSeparateCategories() {
         let store = SettingsStore(defaults: defaults)
 
@@ -183,6 +203,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         defaults.set(8 * 60, forKey: SettingsKeys.widgetAutoRefreshStartMinutes)
         defaults.set(20 * 60, forKey: SettingsKeys.widgetAutoRefreshEndMinutes)
         defaults.set(true, forKey: SettingsKeys.metShowsOnlyOnViewArtworks)
+        defaults.set(2, forKey: SettingsKeys.artworkDetailFontScaleStep)
         defaults.set(NaraMuseumDataSource.colbase.rawValue, forKey: SettingsKeys.naraMuseumDataSource)
         defaults.set(
             "american-decorative-arts,modern-art",
@@ -201,6 +222,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         }
         targetDefaults.set(false, forKey: SettingsKeys.museumLatencyTestEnabled)
         targetDefaults.set(1, forKey: SettingsKeys.widgetRefreshIntervalHours)
+        targetDefaults.set(-1, forKey: SettingsKeys.artworkDetailFontScaleStep)
         targetDefaults.set("photographs", forKey: SettingsKeys.feedCategoryKey(for: .met))
         let targetWidgetStore = WidgetArtworkSnapshotStore(baseURL: temporaryBaseURL())
         await targetWidgetStore.replaceDisplayedArtworkHistory([
@@ -215,6 +237,8 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(targetStore.widgetAutoRefreshStartMinutes, 8 * 60)
         XCTAssertEqual(targetStore.widgetAutoRefreshEndMinutes, 20 * 60)
         XCTAssertTrue(targetStore.metShowsOnlyOnViewArtworks)
+        XCTAssertEqual(targetStore.artworkDetailFontScaleStep, 2)
+        XCTAssertEqual(targetDefaults.integer(forKey: SettingsKeys.artworkDetailFontScaleStep), 2)
         XCTAssertEqual(targetStore.naraMuseumDataSource, .colbase)
         XCTAssertEqual(targetStore.feedCategories(for: .met).map(\.id), ["american-decorative-arts", "modern-art"])
         XCTAssertEqual(targetStore.feedDisplayModeRawValue(for: .met), "list")

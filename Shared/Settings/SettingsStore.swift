@@ -109,6 +109,7 @@ final class SettingsStore: ObservableObject {
     @Published private(set) var widgetAutoRefreshEndMinutes: Int
     @Published private(set) var isMuseumLatencyTestEnabled: Bool
     @Published private(set) var metShowsOnlyOnViewArtworks: Bool
+    @Published private(set) var artworkDetailFontScaleStep: Int
     @Published private(set) var naraMuseumDataSource: NaraMuseumDataSource
 
     init(
@@ -123,6 +124,7 @@ final class SettingsStore: ObservableObject {
         widgetAutoRefreshEndMinutes = autoRefreshWindow.endMinutes
         isMuseumLatencyTestEnabled = resolvedDefaults.bool(forKey: SettingsKeys.museumLatencyTestEnabled)
         metShowsOnlyOnViewArtworks = resolvedDefaults.bool(forKey: SettingsKeys.metShowsOnlyOnViewArtworks)
+        artworkDetailFontScaleStep = ArtworkDetailFontScale.storedStep(in: resolvedDefaults)
         naraMuseumDataSource = NaraMuseumDataSource.storedValue(in: resolvedDefaults)
     }
 
@@ -163,6 +165,13 @@ final class SettingsStore: ObservableObject {
         defaults.set(isEnabled, forKey: SettingsKeys.metShowsOnlyOnViewArtworks)
         defaults.synchronize()
         requestWidgetReload()
+    }
+
+    func saveArtworkDetailFontScaleStep(_ step: Int) {
+        let clampedStep = ArtworkDetailFontScale.clampedStep(step)
+        artworkDetailFontScaleStep = clampedStep
+        defaults.set(clampedStep, forKey: SettingsKeys.artworkDetailFontScaleStep)
+        defaults.synchronize()
     }
 
     func saveNaraMuseumDataSource(_ dataSource: NaraMuseumDataSource) {
@@ -282,6 +291,7 @@ final class SettingsStore: ObservableObject {
         widgetAutoRefreshEndMinutes = autoRefreshWindow.endMinutes
         isMuseumLatencyTestEnabled = defaults.bool(forKey: SettingsKeys.museumLatencyTestEnabled)
         metShowsOnlyOnViewArtworks = defaults.bool(forKey: SettingsKeys.metShowsOnlyOnViewArtworks)
+        artworkDetailFontScaleStep = ArtworkDetailFontScale.storedStep(in: defaults)
         naraMuseumDataSource = NaraMuseumDataSource.storedValue(in: defaults)
     }
 
@@ -325,6 +335,7 @@ final class SettingsStore: ObservableObject {
             SettingsKeys.widgetAutoRefreshEndMinutes,
             SettingsKeys.museumLatencyTestEnabled,
             SettingsKeys.metShowsOnlyOnViewArtworks,
+            SettingsKeys.artworkDetailFontScaleStep,
             SettingsKeys.museumDisplayOrder,
             SettingsKeys.favoritesArtworks
         ]
