@@ -340,6 +340,168 @@ final class ParsingAndAPITests: XCTestCase {
         )
     }
 
+    func testGuimetMuseumAPIParsesOfficialDetailPageFields() throws {
+        let detailURL = URL(string: "https://www.guimet.fr/zh-hans/nos-collections/afghanistan-pakistan/bodhisattva-maitreya")!
+        let html = """
+        <main role="main">
+          <div class="artwork-header">
+            <h1 class="artwork-title field field--name-field-title field--type-text-long field--label-hidden field__items">弥勒菩萨</h1>
+            <div class="tag field field--name-field-text-period field--type-string field--label-hidden field__items">4-5世纪</div>
+            <div class="main-artwork">
+              <figure>
+                <img loading="lazy" src="/sites/default/files/styles/width_1220px/public/2023-07/7-bodhisattva-maitreya_0.jpg?itok=usqaJKYE" />
+                <figcaption class="field field--name-field-copyright field--type-text-long field--label-hidden field__items"><p>Photo (C) MNAAG</p></figcaption>
+              </figure>
+            </div>
+          </div>
+          <div class="field--name-field-teaser field field--type-text-long field--label-hidden field__items">
+            <p>这件作品是安德烈·马尔罗收藏中的一件传奇之作。</p>
+          </div>
+          <div class="field--name-field_ref_widgets field field--name-field-ref-widgets field--type-entity-reference-revisions field--label-hidden field__items">
+            <div class="paragraph paragraph--type--wysiwyg paragraph--view-mode--default">
+              <p>亚洲宗教对时间的看法是循环往复的。</p>
+              <p>这件作品可追溯到公元4至5世纪。</p>
+            </div>
+          </div>
+          <div class="paragraph--type--accordion small-container">
+            <div class="info-table">
+              <div class="cell field field--name-field-object-type field--type-string field--label-above">
+                <span class="label field__label">分类</span>
+                <span class="value field__items">雕塑</span>
+              </div>
+              <div class="cell field field--name-field-materials field--type-string field--label-above">
+                <span class="label field__label">材质</span>
+                <span class="value field__items">灰泥</span>
+              </div>
+              <div class="cell field field--name-field-dimensions field--type-string field--label-above field__items">
+                <span class="label field__label">尺寸</span>
+                <span class="value field__item">55 x 34 x 19 cm</span>
+              </div>
+              <div class="cell field field--name-field-object-number field--type-string field--label-above">
+                <span class="label field__label">藏品编号</span>
+                <span class="value field__items">MA 12974</span>
+              </div>
+              <div class="cell field field--name-field-ref-taxo-region field--type-entity-reference field--label-above field__items">
+                <span class="label field__label">地区或地点</span>
+                <span class="value field__item">阿富汗/巴基斯坦</span>
+              </div>
+            </div>
+          </div>
+          <div class="block-wrapper view-display-id-other_artwork_detail">
+            <h2>了解更多藏品</h2>
+            <p>这里不应进入当前展品介绍。</p>
+          </div>
+        </main>
+        """
+
+        let artwork = try GuimetMuseumAPI.parseDetailPage(html, detailURL: detailURL)
+
+        XCTAssertEqual(artwork.id, "guimet-afghanistan-pakistan~bodhisattva-maitreya")
+        XCTAssertEqual(artwork.museumID, .guimet)
+        XCTAssertEqual(artwork.objectID, "afghanistan-pakistan~bodhisattva-maitreya")
+        XCTAssertEqual(artwork.title, "弥勒菩萨")
+        XCTAssertEqual(artwork.objectDate, "4-5世纪")
+        XCTAssertEqual(artwork.department, "雕塑")
+        XCTAssertEqual(artwork.medium, "灰泥")
+        XCTAssertEqual(artwork.dimensions, "55 x 34 x 19 cm")
+        XCTAssertEqual(artwork.culture, "阿富汗/巴基斯坦")
+        XCTAssertEqual(artwork.repository, "吉美国立亚洲艺术博物馆")
+        XCTAssertEqual(
+            artwork.primaryImageURL?.absoluteString,
+            "https://www.guimet.fr/sites/default/files/styles/width_1220px/public/2023-07/7-bodhisattva-maitreya_0.jpg?itok=usqaJKYE"
+        )
+        XCTAssertEqual(artwork.objectURL, detailURL)
+        XCTAssertEqual(
+            artwork.normalizedDescriptionText,
+            """
+            这件作品是安德烈·马尔罗收藏中的一件传奇之作。
+
+            亚洲宗教对时间的看法是循环往复的。
+
+            这件作品可追溯到公元4至5世纪。
+            """
+        )
+        XCTAssertFalse(artwork.normalizedDescriptionText?.contains("了解更多藏品") ?? true)
+    }
+
+    func testGuimetMuseumAPISearchUsesOfficialCollectionPage() async throws {
+        let recorder = RequestRecorder()
+        let session = makeStubSession(testID: UUID().uuidString) { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+            recorder.record(request)
+
+            XCTAssertEqual(url.host, "www.guimet.fr")
+            XCTAssertTrue(request.value(forHTTPHeaderField: "User-Agent")?.contains("Mobile/15E148 Safari/604.1") == true)
+            XCTAssertTrue(request.value(forHTTPHeaderField: "Accept")?.contains("text/html") == true)
+
+            let html: String
+            if url.path == "/zh-hans/collections/afghanistan-et-gandhara" {
+                html = """
+                <div role="article" about="/zh-hans/nos-collections/afghanistan-pakistan/bodhisattva-maitreya" class="node--view-mode-teaser node--type-art-work">
+                  <div class="image-wrapper">
+                    <img src="https://www.guimet.fr/sites/default/files/styles/mosaic_list/public/2023-07/7-bodhisattva-maitreya_0.jpg?itok=crNarYT1" width="225" height="285" />
+                  </div>
+                  <div class="taxo-row">
+                    <span class="field field--name-field-ref-taxo-work-category field--type-entity-reference field--label-hidden field__items">雕塑</span>
+                  </div>
+                  <h2>弥勒菩萨摘要标题</h2>
+                  <a href="https://www.guimet.fr/zh-hans/nos-collections/afghanistan-pakistan/bodhisattva-maitreya" class="read-more-link">了解更多</a>
+                </div>
+                """
+            } else if url.path == "/zh-hans/nos-collections/afghanistan-pakistan/bodhisattva-maitreya" {
+                html = """
+                <main role="main">
+                  <div class="artwork-header">
+                    <h1 class="artwork-title field field--name-field-title field--type-text-long field--label-hidden field__items">弥勒菩萨详情标题</h1>
+                    <div class="tag field field--name-field-text-period field--type-string field--label-hidden field__items">4-5世纪</div>
+                    <div class="main-artwork"><figure><img src="/sites/default/files/styles/width_1220px/public/2023-07/detail.jpg" /></figure></div>
+                  </div>
+                  <div class="field--name-field-teaser field field--type-text-long field--label-hidden field__items"><p>详情页介绍。</p></div>
+                  <div class="paragraph--type--accordion small-container">
+                    <div class="info-table">
+                      <div class="cell"><span class="label field__label">分类</span><span class="value field__items">雕塑</span></div>
+                    </div>
+                  </div>
+                </main>
+                """
+            } else {
+                XCTFail("Unexpected Guimet URL: \(url.absoluteString)")
+                html = ""
+            }
+            return StubbedResponse(
+                response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                data: Data(html.utf8)
+            )
+        }
+        let api = GuimetMuseumAPI(session: session)
+
+        let snapshot = try await api.searchArtworkReferences(
+            collectionPaths: ["/zh-hans/collections/afghanistan-et-gandhara"],
+            minimumCount: 1,
+            cachePolicy: .networkOnly
+        )
+
+        XCTAssertEqual(snapshot.artworkReferences, ["afghanistan-pakistan~bodhisattva-maitreya"])
+        XCTAssertFalse(snapshot.hasMoreRemoteItems)
+
+        let artwork = try await api.fetchArtwork(
+            reference: "afghanistan-pakistan~bodhisattva-maitreya",
+            cachePolicy: .useCaches
+        )
+        XCTAssertEqual(artwork.title, "弥勒菩萨详情标题")
+        XCTAssertEqual(artwork.department, "雕塑")
+        XCTAssertEqual(artwork.normalizedDescriptionText, "详情页介绍。")
+        XCTAssertEqual(
+            recorder.urls.map(\.path),
+            [
+                "/zh-hans/collections/afghanistan-et-gandhara",
+                "/zh-hans/nos-collections/afghanistan-pakistan/bodhisattva-maitreya"
+            ]
+        )
+    }
+
     func testNaraMuseumOfficialSearchPageParserParsesCandidatesAndNormalizesURLs() {
         let html = """
         <div class="list clearfix">
@@ -755,6 +917,12 @@ final class ParsingAndAPITests: XCTestCase {
             request.httpMethod == "POST"
                 && request.url?.host == "www.shanghaimuseum.net"
                 && request.url?.path == "/mu/frontend/pg/collection/search-antique"
+        })
+        XCTAssertTrue(recorder.requests.contains { request in
+            request.httpMethod == "GET"
+                && request.url?.host == "www.guimet.fr"
+                && request.url?.path == "/zh-hans/cangpin"
+                && request.value(forHTTPHeaderField: "Accept")?.contains("text/html") == true
         })
     }
 

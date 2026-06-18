@@ -510,6 +510,8 @@ struct ArtworkDetailView: View {
             return Locale.Language(identifier: "ja")
         case .nmc, .shm:
             return nil
+        case .guimet:
+            return nil
         }
     }
 

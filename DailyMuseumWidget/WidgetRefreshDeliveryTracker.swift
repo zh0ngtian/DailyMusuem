@@ -787,7 +787,7 @@ enum WidgetPreferredImageURLDecision {
                 return compactUniqueURLs([artwork.primaryImageURL, artwork.primaryImageSmallURL])
             }
             return compactUniqueURLs([artwork.primaryImageSmallURL, artwork.primaryImageURL])
-        case .met, .nmc, .shm:
+        case .met, .nmc, .shm, .guimet:
             return compactUniqueURLs([artwork.primaryImageURL, artwork.primaryImageSmallURL])
         }
     }

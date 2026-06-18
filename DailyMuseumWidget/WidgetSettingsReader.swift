@@ -130,6 +130,7 @@ actor ArtworkBatchLoader {
     private let naraMuseumAPI: NaraMuseumAPI
     private let nationalMuseumChinaAPI: NationalMuseumChinaAPI
     private let shanghaiMuseumAPI: ShanghaiMuseumAPI
+    private let guimetMuseumAPI: GuimetMuseumAPI
 
     private var objectIDPool: [String] = []
     private var loadedObjectIDs: Set<String> = []
@@ -146,7 +147,8 @@ actor ArtworkBatchLoader {
         japanSearchAPI: JapanSearchAPI = JapanSearchAPI(),
         naraMuseumAPI: NaraMuseumAPI = NaraMuseumAPI(),
         nationalMuseumChinaAPI: NationalMuseumChinaAPI = NationalMuseumChinaAPI(),
-        shanghaiMuseumAPI: ShanghaiMuseumAPI = ShanghaiMuseumAPI()
+        shanghaiMuseumAPI: ShanghaiMuseumAPI = ShanghaiMuseumAPI(),
+        guimetMuseumAPI: GuimetMuseumAPI = GuimetMuseumAPI()
     ) {
         self.museumID = museumID
         let naraDataSource = Self.inferredNaraDataSource(museumID: museumID, categories: categories)
@@ -162,6 +164,7 @@ actor ArtworkBatchLoader {
         self.naraMuseumAPI = naraMuseumAPI
         self.nationalMuseumChinaAPI = nationalMuseumChinaAPI
         self.shanghaiMuseumAPI = shanghaiMuseumAPI
+        self.guimetMuseumAPI = guimetMuseumAPI
         hasMoreRemoteItemIDs = true
     }
 
@@ -293,6 +296,8 @@ actor ArtworkBatchLoader {
             await log("展品 ID 已就绪，当前可用 \(objectIDPool.count) 条。")
         case .shm:
             try await ensureShanghaiPool(targetCount: targetCount, reason: "首次进入")
+        case .guimet:
+            try await ensureGuimetPool(targetCount: targetCount, reason: "首次进入")
         }
     }
 
@@ -314,6 +319,8 @@ actor ArtworkBatchLoader {
             }
         case .shm:
             try await ensureShanghaiPool(targetCount: nextTargetCount, reason: "继续浏览")
+        case .guimet:
+            try await ensureGuimetPool(targetCount: nextTargetCount, reason: "继续浏览")
         case .met, .nmc:
             break
         }
@@ -429,6 +436,56 @@ actor ArtworkBatchLoader {
 
         hasMoreRemoteItemIDs = result.hasMoreRemoteItems
         await log("上海博物馆展品编码已就绪，当前缓存 \(objectIDPool.count) 条，\(hasMoreRemoteItemIDs ? "后续可继续拉取" : "已无更多远端数据")。")
+    }
+
+    private func ensureGuimetPool(targetCount: Int, reason: String) async throws {
+        let mergedResult: GuimetMuseumAPI.SearchPoolSnapshot
+
+        if let collectionPaths = selectedGuimetCollectionPaths {
+            var mergedReferences: [String] = []
+            var hasMoreRemoteItems = false
+
+            for (category, collectionPath) in zip(categories, collectionPaths) {
+                try Task.checkCancellation()
+                let categoryResult = try await guimetMuseumAPI.searchArtworkReferences(
+                    collectionPaths: [collectionPath],
+                    minimumCount: targetCount,
+                    cachePolicy: cachePolicy
+                ) { [log = onLog] message in
+                    if let log {
+                        await log("\(category.displayName)：\(message)")
+                    }
+                }
+                mergedReferences.append(contentsOf: categoryResult.artworkReferences)
+                hasMoreRemoteItems = hasMoreRemoteItems || categoryResult.hasMoreRemoteItems
+            }
+
+            mergedResult = GuimetMuseumAPI.SearchPoolSnapshot(
+                artworkReferences: Self.stableUniqueStrings(mergedReferences),
+                hasMoreRemoteItems: hasMoreRemoteItems
+            )
+        } else {
+            mergedResult = try await guimetMuseumAPI.searchArtworkReferences(
+                collectionPaths: nil,
+                minimumCount: targetCount,
+                cachePolicy: cachePolicy,
+                onLog: onLog
+            )
+        }
+
+        await log("\(reason)时按\(randomOrder ? "随机" : "网页路径顺序")模式整理吉美国立亚洲艺术博物馆展品，类别：\(selectedCategoriesLogLabel)。")
+        let uniqueReferences = Self.stableUniqueStrings(mergedResult.artworkReferences)
+        if objectIDPool.isEmpty {
+            objectIDPool = randomOrder ? uniqueReferences.shuffled() : uniqueReferences.sorted()
+        } else if randomOrder {
+            let existing = Set(objectIDPool)
+            objectIDPool.append(contentsOf: uniqueReferences.filter { !existing.contains($0) }.shuffled())
+        } else {
+            objectIDPool = uniqueReferences.sorted()
+        }
+
+        hasMoreRemoteItemIDs = mergedResult.hasMoreRemoteItems
+        await log("吉美官网藏品路径已就绪，当前缓存 \(objectIDPool.count) 条，\(hasMoreRemoteItemIDs ? "后续可继续拉取" : "已无更多远端数据")。")
     }
 
     private func fetchArtworks(
@@ -597,6 +654,37 @@ actor ArtworkBatchLoader {
                 }
                 return results.compactMap(\.artwork)
             }
+        case .guimet:
+            return await withTaskGroup(of: BatchLoadResult.self) { group in
+                for reference in candidateIDs {
+                    group.addTask { [guimetMuseumAPI, cachePolicy, onArtworkReady] in
+                        do {
+                            try Task.checkCancellation()
+                            let artwork = try await guimetMuseumAPI.fetchArtwork(
+                                reference: reference,
+                                cachePolicy: cachePolicy
+                            )
+                            try Task.checkCancellation()
+                            guard artwork.primaryImageSmallURL != nil || artwork.primaryImageURL != nil else {
+                                return .failure("path=\(reference) 缺少可用图片")
+                            }
+                            await onArtworkReady?(artwork)
+                            return .artwork(artwork)
+                        } catch {
+                            return .failure("path=\(reference) 详情获取失败：\(error.localizedDescription)")
+                        }
+                    }
+                }
+                let results = await collectBatchResults(from: &group)
+                let failures = results.compactMap(\.failureMessage)
+                if !failures.isEmpty {
+                    await log("吉美国立亚洲艺术博物馆本批详情失败 \(failures.count) 条。")
+                    for message in failures.prefix(3) {
+                        await log(message)
+                    }
+                }
+                return results.compactMap(\.artwork)
+            }
         }
     }
 
@@ -680,6 +768,11 @@ actor ArtworkBatchLoader {
     private var selectedShanghaiMuseumSubtypes: [String]? {
         guard !isAllCategoriesSelected else { return nil }
         return categories.compactMap(\.shanghaiMuseumSubtype)
+    }
+
+    private var selectedGuimetCollectionPaths: [String]? {
+        guard !isAllCategoriesSelected else { return nil }
+        return categories.compactMap(\.guimetCollectionPath)
     }
 
     private static func stableUniqueStrings(_ values: [String]) -> [String] {

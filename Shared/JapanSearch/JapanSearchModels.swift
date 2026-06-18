@@ -29,7 +29,7 @@ struct JapanSearchMuseumProfile: Hashable, Sendable {
                 provider: "narahaku",
                 countryName: "日本"
             )
-        case .met, .nmc, .shm:
+        case .met, .nmc, .shm, .guimet:
             return nil
         }
     }

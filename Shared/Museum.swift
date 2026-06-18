@@ -23,6 +23,7 @@ struct MuseumCategory: Identifiable, Hashable {
         case naraMuseumOfficialDepartment
         case nationalMuseumChinaBucket
         case shanghaiMuseumSubtype
+        case guimetCollection
     }
 
     let museumID: MuseumID
@@ -61,6 +62,11 @@ struct MuseumCategory: Identifiable, Hashable {
         return remoteValue
     }
 
+    var guimetCollectionPath: String? {
+        guard kind == .guimetCollection else { return nil }
+        return remoteValue
+    }
+
     var isAll: Bool {
         kind == .all
     }
@@ -72,6 +78,7 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
     case nnm
     case nmc
     case shm
+    case guimet
 
     var id: String { rawValue }
 
@@ -87,6 +94,8 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
             return "中国国家博物馆"
         case .shm:
             return "上海博物馆"
+        case .guimet:
+            return "吉美国立亚洲艺术博物馆"
         }
     }
 
@@ -98,6 +107,8 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
             return "日本"
         case .nmc, .shm:
             return "中国"
+        case .guimet:
+            return "法国"
         }
     }
 
@@ -113,6 +124,8 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
             return "北京"
         case .shm:
             return "上海"
+        case .guimet:
+            return "巴黎"
         }
     }
 
@@ -132,6 +145,8 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
             return "NmcHomepageLogo"
         case .shm:
             return "ShmHomepageLogo"
+        case .guimet:
+            return "GuimetHomepageLogo"
         }
     }
 
@@ -141,7 +156,7 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
 
     var supportsTranslation: Bool {
         switch self {
-        case .met, .tnm, .nnm:
+        case .met, .tnm, .nnm, .guimet:
             return true
         case .nmc, .shm:
             return false
@@ -150,7 +165,7 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
 
     var supportsWidgetContent: Bool {
         switch self {
-        case .met, .tnm, .nnm, .nmc, .shm:
+        case .met, .tnm, .nnm, .nmc, .shm, .guimet:
             return true
         }
     }
@@ -159,7 +174,7 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
         switch self {
         case .nmc, .shm:
             return true
-        case .met, .tnm, .nnm:
+        case .met, .tnm, .nnm, .guimet:
             return false
         }
     }
@@ -237,6 +252,21 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
                 "封泥", "符节（牌）", "印玺", "建筑配件", "器物配件", "织物", "绣品", "服装", "饰品", "文献",
                 "书籍图谱", "拓本", "玩具", "乐器"
             ].map { .shanghaiMuseumSubtype(museumID: self, name: $0) }
+        case .guimet:
+            return [
+                .all(museumID: self),
+                .guimetCollection(museumID: self, id: "afghanistan-pakistan", displayName: "阿富汗 - 巴基斯坦", path: "/zh-hans/collections/afghanistan-et-gandhara"),
+                .guimetCollection(museumID: self, id: "southeast-asia", displayName: "东南亚", path: "/zh-hans/collections/asie-du-sud-est"),
+                .guimetCollection(museumID: self, id: "indian-world", displayName: "印度世界", path: "/zh-hans/collections/monde-indien"),
+                .guimetCollection(museumID: self, id: "himalayan-world", displayName: "喜马拉雅世界", path: "/zh-hans/collections/monde-himalayen"),
+                .guimetCollection(museumID: self, id: "china", displayName: "中国", path: "/zh-hans/collections/chine"),
+                .guimetCollection(museumID: self, id: "buddhist-china-central-asia", displayName: "中国佛教 - 中亚", path: "/zh-hans/collections/chine-bouddhique-asie-centrale"),
+                .guimetCollection(museumID: self, id: "korea", displayName: "韩国收藏", path: "/zh-hans/collections/coree"),
+                .guimetCollection(museumID: self, id: "japan", displayName: "日本", path: "/zh-hans/collections/japon"),
+                .guimetCollection(museumID: self, id: "textiles", displayName: "织物", path: "/zh-hans/collections/textiles"),
+                .guimetCollection(museumID: self, id: "historical-library", displayName: "历史图书馆珍藏", path: "/zh-hans/collections/tresors-de-la-bibliotheque"),
+                .guimetCollection(museumID: self, id: "photography", displayName: "摄影作品", path: "/zh-hans/collections/photographies")
+            ]
         }
     }
 
@@ -507,6 +537,21 @@ final class MuseumLatencyService: @unchecked Sendable {
             request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
             request.setValue("no-cache", forHTTPHeaderField: "Pragma")
             return request
+        case .guimet:
+            guard let url = URL(string: "https://www.guimet.fr/zh-hans/cangpin") else {
+                throw URLError(.badURL)
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.timeoutInterval = timeoutInterval
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            request.setValue("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", forHTTPHeaderField: "Accept")
+            request.setValue(Self.mobileUserAgent, forHTTPHeaderField: "User-Agent")
+            request.setValue("zh-CN,zh-Hans;q=0.9,en;q=0.8", forHTTPHeaderField: "Accept-Language")
+            request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+            request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+            return request
         }
     }
 
@@ -717,6 +762,16 @@ private extension MuseumCategory {
             displayName: name,
             kind: .shanghaiMuseumSubtype,
             remoteValue: name
+        )
+    }
+
+    static func guimetCollection(museumID: MuseumID, id: String, displayName: String, path: String) -> MuseumCategory {
+        MuseumCategory(
+            museumID: museumID,
+            id: id,
+            displayName: displayName,
+            kind: .guimetCollection,
+            remoteValue: path
         )
     }
 }

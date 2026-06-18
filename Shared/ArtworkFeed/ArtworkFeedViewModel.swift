@@ -102,6 +102,7 @@ final class ArtworkFeedViewModel: ObservableObject {
     private let naraMuseumAPI: NaraMuseumAPI
     private let nationalMuseumChinaAPI: NationalMuseumChinaAPI
     private let shanghaiMuseumAPI: ShanghaiMuseumAPI
+    private let guimetMuseumAPI: GuimetMuseumAPI
 
     private var batchLoader: ArtworkBatchLoader?
     private var objectIDPool: [String] = []
@@ -116,7 +117,8 @@ final class ArtworkFeedViewModel: ObservableObject {
         japanSearchAPI: JapanSearchAPI = JapanSearchAPI(),
         naraMuseumAPI: NaraMuseumAPI = NaraMuseumAPI(),
         nationalMuseumChinaAPI: NationalMuseumChinaAPI = NationalMuseumChinaAPI(),
-        shanghaiMuseumAPI: ShanghaiMuseumAPI = ShanghaiMuseumAPI()
+        shanghaiMuseumAPI: ShanghaiMuseumAPI = ShanghaiMuseumAPI(),
+        guimetMuseumAPI: GuimetMuseumAPI = GuimetMuseumAPI()
     ) {
         let resolvedSettings = settings ?? SettingsStore.shared
         let resolvedNaraDataSource = museum.id == .nnm ? resolvedSettings.naraMuseumDataSource : .colbase
@@ -128,6 +130,7 @@ final class ArtworkFeedViewModel: ObservableObject {
         self.naraMuseumAPI = naraMuseumAPI
         self.nationalMuseumChinaAPI = nationalMuseumChinaAPI
         self.shanghaiMuseumAPI = shanghaiMuseumAPI
+        self.guimetMuseumAPI = guimetMuseumAPI
         self.naraMuseumDataSource = resolvedNaraDataSource
         self.metShowsOnlyOnViewArtworks = museum.id == .met ? resolvedSettings.metShowsOnlyOnViewArtworks : false
         self.selectedCategories = resolvedSettings.feedCategories(
@@ -265,6 +268,8 @@ final class ArtworkFeedViewModel: ObservableObject {
             }
         } else if museum.id == .shm {
             await shanghaiMuseumAPI.resetSearchCache(subtypes: selectedShanghaiMuseumSubtypes)
+        } else if museum.id == .guimet {
+            await guimetMuseumAPI.resetSearchCache(collectionPaths: selectedGuimetCollectionPaths)
         }
 
         showsInlineInitialLoading = presentation == .inlineInitialBatch
@@ -279,7 +284,7 @@ final class ArtworkFeedViewModel: ObservableObject {
         objectIDPool = []
         loadedObjectIDs = []
         hasMoreItems = true
-        hasMoreRemoteItemIDs = museum.id == .tnm || (museum.id == .nnm && naraMuseumDataSource == .colbase) || museum.id == .shm
+        hasMoreRemoteItemIDs = museum.id == .tnm || (museum.id == .nnm && naraMuseumDataSource == .colbase) || museum.id == .shm || museum.id == .guimet
         isLoadingMore = false
         loadingLogs = []
         appendLoadingLog("开始加载 \(museum.displayName) 展品，当前类别：\(selectedCategoriesLogLabel)。")
@@ -417,7 +422,8 @@ final class ArtworkFeedViewModel: ObservableObject {
             japanSearchAPI: japanSearchAPI,
             naraMuseumAPI: naraMuseumAPI,
             nationalMuseumChinaAPI: nationalMuseumChinaAPI,
-            shanghaiMuseumAPI: shanghaiMuseumAPI
+            shanghaiMuseumAPI: shanghaiMuseumAPI,
+            guimetMuseumAPI: guimetMuseumAPI
         )
     }
 
@@ -448,6 +454,11 @@ final class ArtworkFeedViewModel: ObservableObject {
     private var selectedShanghaiMuseumSubtypes: [String]? {
         guard !isAllCategoriesSelected else { return nil }
         return selectedCategories.compactMap(\.shanghaiMuseumSubtype)
+    }
+
+    private var selectedGuimetCollectionPaths: [String]? {
+        guard !isAllCategoriesSelected else { return nil }
+        return selectedCategories.compactMap(\.guimetCollectionPath)
     }
 
     private func updateSelectedCategories(_ categories: [MuseumCategory]) async {
