@@ -115,24 +115,25 @@ final class CoreLogicTests: XCTestCase {
         let museums = MuseumRepository.museums(inPreferredOrder: [.tnm, .tnm, .met])
         let widgetMuseums = MuseumRepository.widgetMuseums(inPreferredOrder: [.tnm, .tnm, .met])
 
-        XCTAssertEqual(museums.map(\.id), [.tnm, .met, .nnm, .nmc, .shm])
-        XCTAssertEqual(widgetMuseums.map(\.id), [.tnm, .met, .nnm, .nmc, .shm])
+        XCTAssertEqual(museums.map(\.id), [.tnm, .met, .nnm, .nmc, .shm, .guimet])
+        XCTAssertEqual(widgetMuseums.map(\.id), [.tnm, .met, .nnm, .nmc, .shm, .guimet])
     }
 
     func testMuseumRepositoryHomepageCountrySectionsPlaceChinaFirst() {
         let sections = MuseumRepository.homepageCountrySections
 
-        XCTAssertEqual(sections.map(\.country), ["中国", "美国", "日本"])
+        XCTAssertEqual(sections.map(\.country), ["中国", "美国", "日本", "法国"])
         XCTAssertEqual(sections[0].museums.map(\.id), [.nmc, .shm])
         XCTAssertEqual(sections[1].museums.map(\.id), [.met])
         XCTAssertEqual(sections[2].museums.map(\.id), [.tnm, .nnm])
-        XCTAssertEqual(MuseumRepository.homepageMuseumIDs, [.nmc, .shm, .met, .tnm, .nnm])
+        XCTAssertEqual(sections[3].museums.map(\.id), [.guimet])
+        XCTAssertEqual(MuseumRepository.homepageMuseumIDs, [.nmc, .shm, .met, .tnm, .nnm, .guimet])
     }
 
     func testMuseumRepositoryWidgetMuseumsFollowHomepageOrderWithoutGrouping() {
         let widgetMuseums = MuseumRepository.widgetMuseums(inPreferredOrder: MuseumRepository.homepageMuseumIDs)
 
-        XCTAssertEqual(widgetMuseums.map(\.id), [.nmc, .shm, .met, .tnm, .nnm])
+        XCTAssertEqual(widgetMuseums.map(\.id), [.nmc, .shm, .met, .tnm, .nnm, .guimet])
     }
 
     func testMuseumMetadataUsesStableCountryAndCityFieldsForHomepageCopy() {
@@ -151,6 +152,9 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertEqual(MuseumRepository.museum(for: .shm).country, "中国")
         XCTAssertEqual(MuseumRepository.museum(for: .shm).city, "上海")
         XCTAssertEqual(MuseumRepository.museum(for: .shm).subtitle, "上海")
+        XCTAssertEqual(MuseumRepository.museum(for: .guimet).country, "法国")
+        XCTAssertEqual(MuseumRepository.museum(for: .guimet).city, "巴黎")
+        XCTAssertEqual(MuseumRepository.museum(for: .guimet).subtitle, "巴黎")
     }
 
     func testMuseumLatencyMeasurementFormatsDisplayTextAndQuality() {

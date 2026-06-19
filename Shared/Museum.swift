@@ -16,7 +16,7 @@ struct MuseumCountrySection: Identifiable, Hashable {
 }
 
 struct MuseumCategory: Identifiable, Hashable {
-    enum Kind: String {
+    enum Kind: String, Codable {
         case all
         case metDepartment
         case japanSearchType
@@ -444,16 +444,17 @@ final class MuseumLatencyService: @unchecked Sendable {
         static let timeoutInterval: TimeInterval = 5
     }
 
-    private let session: URLSession
+    private let backendClient: MuseumBackendClient
     private let now: @Sendable () -> Date
     private let timeoutInterval: TimeInterval
 
     init(
         session: URLSession = .shared,
+        backendClient: MuseumBackendClient? = nil,
         timeoutInterval: TimeInterval = Constants.timeoutInterval,
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
-        self.session = session
+        self.backendClient = backendClient ?? MuseumBackendClient(session: session)
         self.timeoutInterval = timeoutInterval
         self.now = now
     }
@@ -476,161 +477,24 @@ final class MuseumLatencyService: @unchecked Sendable {
 
     func measureLatency(for museumID: MuseumID) async -> MuseumLatencyMeasurement {
         do {
-            let request = try makeRequest(for: museumID)
             let start = now()
-            let (_, response) = try await session.data(for: request)
-            try validate(response: response)
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    try await self.backendClient.probe(museumID: museumID, cachePolicy: .networkOnly)
+                }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: UInt64(self.timeoutInterval * 1_000_000_000))
+                    throw URLError(.timedOut)
+                }
+
+                try await group.next()
+                group.cancelAll()
+            }
             let milliseconds = Int((now().timeIntervalSince(start) * 1_000).rounded())
             return .measured(museumID: museumID, milliseconds: milliseconds)
         } catch {
             return .timeout(museumID: museumID)
         }
-    }
-
-    private func makeRequest(for museumID: MuseumID) throws -> URLRequest {
-        switch museumID {
-        case .met:
-            return try makeGETRequest(
-                urlString: "https://collectionapi.metmuseum.org/public/collection/v1/departments"
-            )
-        case .tnm:
-            return try makeJapanSearchLatencyRequest(contributor: "東京国立博物館")
-        case .nnm:
-            return try makeGETRequest(urlString: "https://www.narahaku.go.jp/chinese/collection/")
-        case .nmc:
-            var components = URLComponents(string: "https://appapi.chnmuseum.cn/api/exhibit_list")
-            components?.queryItems = [
-                URLQueryItem(name: "cate_id", value: "0"),
-                URLQueryItem(name: "limit", value: "1"),
-                URLQueryItem(name: "page", value: "1"),
-                URLQueryItem(name: "p", value: "i"),
-                URLQueryItem(name: "son_cate_id", value: "0")
-            ]
-            guard let url = components?.url else {
-                throw URLError(.badURL)
-            }
-
-            var request = URLRequest(url: url)
-            request.httpMethod = "GET"
-            request.timeoutInterval = timeoutInterval
-            request.cachePolicy = .reloadIgnoringLocalCacheData
-            request.setValue(Self.mobileUserAgent, forHTTPHeaderField: "User-Agent")
-            request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
-            request.setValue("zh-CN,zh-Hans;q=0.9,en;q=0.8", forHTTPHeaderField: "Accept-Language")
-            request.setValue("gzip, deflate, br", forHTTPHeaderField: "Accept-Encoding")
-            return request
-        case .shm:
-            let url = URL(string: "https://www.shanghaimuseum.net/mu/frontend/pg/collection/search-antique")!
-            let collectionURL = "https://www.shanghaimuseum.net/mu/frontend/pg/collection/antique"
-            let body = try JSONSerialization.data(withJSONObject: shanghaiMuseumLatencyPayload(), options: [])
-
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
-            request.httpBody = body
-            request.timeoutInterval = timeoutInterval
-            request.cachePolicy = .reloadIgnoringLocalCacheData
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
-            request.setValue("zh-CN,zh-Hans;q=0.9,en;q=0.8", forHTTPHeaderField: "Accept-Language")
-            request.setValue(Self.mobileUserAgent, forHTTPHeaderField: "User-Agent")
-            request.setValue(collectionURL, forHTTPHeaderField: "Referer")
-            request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
-            request.setValue("no-cache", forHTTPHeaderField: "Pragma")
-            return request
-        case .guimet:
-            guard let url = URL(string: "https://www.guimet.fr/zh-hans/cangpin") else {
-                throw URLError(.badURL)
-            }
-
-            var request = URLRequest(url: url)
-            request.httpMethod = "GET"
-            request.timeoutInterval = timeoutInterval
-            request.cachePolicy = .reloadIgnoringLocalCacheData
-            request.setValue("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", forHTTPHeaderField: "Accept")
-            request.setValue(Self.mobileUserAgent, forHTTPHeaderField: "User-Agent")
-            request.setValue("zh-CN,zh-Hans;q=0.9,en;q=0.8", forHTTPHeaderField: "Accept-Language")
-            request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
-            request.setValue("no-cache", forHTTPHeaderField: "Pragma")
-            return request
-        }
-    }
-
-    private func makeGETRequest(urlString: String) throws -> URLRequest {
-        guard let url = URL(string: urlString) else {
-            throw URLError(.badURL)
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.timeoutInterval = timeoutInterval
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-        return request
-    }
-
-    private func makeJapanSearchLatencyRequest(contributor: String) throws -> URLRequest {
-        var components = URLComponents(string: "https://jpsearch.go.jp/api/item/search/jps-cross")
-        components?.queryItems = [
-            URLQueryItem(name: "f-db", value: "cobas"),
-            URLQueryItem(name: "q-contributor", value: contributor),
-            URLQueryItem(name: "f-contents", value: "image"),
-            URLQueryItem(name: "from", value: "0"),
-            URLQueryItem(name: "size", value: "1")
-        ]
-        guard let url = components?.url else {
-            throw URLError(.badURL)
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.timeoutInterval = timeoutInterval
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-        request.setValue("curl/8.7.1", forHTTPHeaderField: "User-Agent")
-        request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
-        request.setValue("ja-JP,ja;q=0.9,en-US;q=0.8,zh-CN;q=0.7", forHTTPHeaderField: "Accept-Language")
-        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
-        request.setValue("no-cache", forHTTPHeaderField: "Pragma")
-        return request
-    }
-
-    private func validate(response: URLResponse) throws {
-        guard let http = response as? HTTPURLResponse else { return }
-        guard (200..<300).contains(http.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
-    }
-
-    private static let mobileUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
-
-    private func shanghaiMuseumLatencyPayload() -> [String: Any] {
-        [
-            "params": [
-                "langCode": "CHINESE",
-                "antiqueSourceCode": "ANTIQUE_SOURCE_1",
-                "esFlag": true,
-                "ai0": "1",
-                "ai1": "1",
-                "keywords": NSNull(),
-                "types": NSNull(),
-                "ages": NSNull(),
-                "year": NSNull(),
-                "place": NSNull(),
-                "author": NSNull(),
-                "matter": NSNull(),
-                "shape": NSNull(),
-                "style": NSNull(),
-                "subject": NSNull(),
-                "subtype": NSNull(),
-                "tech": NSNull(),
-                "objectFlag": NSNull(),
-                "videoFlag": NSNull(),
-                "stampFlag": NSNull(),
-                "prefaceFlag": NSNull(),
-                "donateFlag": NSNull(),
-                "unearthFlag": NSNull()
-            ],
-            "page": 1,
-            "limit": 1
-        ]
     }
 }
 

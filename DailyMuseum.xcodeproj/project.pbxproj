@@ -21,6 +21,9 @@
 		0B2200030000000000000003 /* GuimetMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B2200010000000000000001 /* GuimetMuseumAPI.swift */; };
 		0B2200040000000000000004 /* GuimetMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B2200010000000000000001 /* GuimetMuseumAPI.swift */; };
 		0B2200050000000000000005 /* GuimetMuseumAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B2200010000000000000001 /* GuimetMuseumAPI.swift */; };
+		0CBE00100000000000000001 /* MuseumBackendClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CBE000F0000000000000000 /* MuseumBackendClient.swift */; };
+		0CBE00110000000000000002 /* MuseumBackendClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CBE000F0000000000000000 /* MuseumBackendClient.swift */; };
+		0CBE00120000000000000003 /* MuseumBackendClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CBE000F0000000000000000 /* MuseumBackendClient.swift */; };
 		0B5F10A5A1B44D74885A5E01 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 0B5F10A5A1B44D74885A5E04 /* InfoPlist.strings */; };
 		0C29EBB7118BA7DA8620B6F1 /* ArtworkCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3069A0CBA34322E131468A6 /* ArtworkCardView.swift */; };
 		10425B44D3DC479F9D20FE9C /* MetMuseumModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63E587269ECC706F1F22C266 /* MetMuseumModels.swift */; };
@@ -171,6 +174,7 @@
 		0A1100010000000000000001 /* NaraMuseumAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NaraMuseumAPI.swift; sourceTree = "<group>"; };
 		0ACA67A0EFEEB5748BD15991 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		0B2200010000000000000001 /* GuimetMuseumAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuimetMuseumAPI.swift; sourceTree = "<group>"; };
+		0CBE000F0000000000000000 /* MuseumBackendClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuseumBackendClient.swift; sourceTree = "<group>"; };
 		0B5F10A5A1B44D74885A5E02 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		0B5F10A5A1B44D74885A5E03 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		15CC322130D2C36A4D586EC3 /* met-overview.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "met-overview.html"; sourceTree = "<group>"; };
@@ -303,6 +307,14 @@
 			path = ShanghaiMuseum;
 			sourceTree = "<group>";
 		};
+		0CBE000E0000000000000000 /* Backend */ = {
+			isa = PBXGroup;
+			children = (
+				0CBE000F0000000000000000 /* MuseumBackendClient.swift */,
+			);
+			path = Backend;
+			sourceTree = "<group>";
+		};
 		41BF8271109E2C2D713CC4AF /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -351,6 +363,7 @@
 				6B261DB738D9FD5711A2D6ED /* MuseumRequestCachePolicy.swift */,
 				C5BCD57FB86FC7D9454A8587 /* WidgetManualRefreshRunner.swift */,
 				5225386D7CA9D444567A323F /* ArtworkFeed */,
+				0CBE000E0000000000000000 /* Backend */,
 				A68417A79F9D150D53ED0C41 /* Images */,
 				0B2200020000000000000002 /* GuimetMuseum */,
 				0F8ACE05F507B92A0E80653D /* JapanSearch */,
@@ -603,6 +616,7 @@
 				7C1D0CDB2BA138EC3688D49E /* ArtworkFeedCache.swift in Sources */,
 				AA13EE5D38DF6679999B07EF /* ArtworkFeedItem.swift in Sources */,
 				ECE253F7723E9092C651604B /* ArtworkFeedViewModel.swift in Sources */,
+				0CBE00120000000000000003 /* MuseumBackendClient.swift in Sources */,
 				E34068BA81AA887116679881 /* ArtworkFeedViewModelTests.swift in Sources */,
 				96F201E336F9C153509002C3 /* CoreLogicTests.swift in Sources */,
 				4B2F819053D552D94899A3A0 /* FavoritesStore.swift in Sources */,
@@ -644,6 +658,7 @@
 				19972E0AC511408E6B230C44 /* ArtworkFeedCache.swift in Sources */,
 				BA503B583A43593254FC7A8E /* ArtworkFeedItem.swift in Sources */,
 				5601240D9836EF70D90487A0 /* ArtworkFeedViewModel.swift in Sources */,
+				0CBE00110000000000000002 /* MuseumBackendClient.swift in Sources */,
 				BB4EB0811A3E804BBA440AEF /* CachedAsyncImage.swift in Sources */,
 				EE309BCCC53ECF316CA57CF3 /* DailyMuseumWidget.swift in Sources */,
 				D196A25010220D77782341EC /* DailyMuseumWidgetBundle.swift in Sources */,
@@ -693,6 +708,7 @@
 				07D7736A77F39CB6028E891B /* ArtworkFeedItem.swift in Sources */,
 				5CD44E4C3C51F0C9DC86B62C /* ArtworkFeedView.swift in Sources */,
 				8CC0195C8ECB3BBE91FA8E12 /* ArtworkFeedViewModel.swift in Sources */,
+				0CBE00100000000000000001 /* MuseumBackendClient.swift in Sources */,
 				0221CE15D7D3E4EDE27D79FC /* ArtworkListRowCardView.swift in Sources */,
 				D92BF8CACC23E37738349E04 /* CachedAsyncImage.swift in Sources */,
 				3E9E2BDFE01616ACE8B45CE8 /* DailyMuseumApp.swift in Sources */,

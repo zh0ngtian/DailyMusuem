@@ -46,7 +46,11 @@ protocol ArtworkFeedCaching: AnyObject {
         objectIDPool: [String],
         loadedObjectIDs: Set<String>,
         hasMoreItems: Bool,
-        hasMoreRemoteItemIDs: Bool
+        hasMoreRemoteItemIDs: Bool,
+        nextCursor: String?,
+        seed: Int,
+        dataVersion: String?,
+        hasRequestedBackendPage: Bool
     )
     func clear(museumID: MuseumID, randomOrder: Bool, categorySelectionKey: String)
 }
@@ -97,40 +101,29 @@ final class ArtworkFeedViewModel: ObservableObject {
     private let museum: Museum
     private let settings: ArtworkFeedSettingsProviding
     private let cache: ArtworkFeedCaching
-    private let metAPI: MetMuseumAPI
-    private let japanSearchAPI: JapanSearchAPI
-    private let naraMuseumAPI: NaraMuseumAPI
-    private let nationalMuseumChinaAPI: NationalMuseumChinaAPI
-    private let shanghaiMuseumAPI: ShanghaiMuseumAPI
-    private let guimetMuseumAPI: GuimetMuseumAPI
+    private let backendClient: MuseumBackendClient
 
     private var batchLoader: ArtworkBatchLoader?
     private var objectIDPool: [String] = []
     private var loadedObjectIDs: Set<String> = []
     private var hasMoreRemoteItemIDs = false
+    private var nextCursor: String?
+    private var loaderSeed = 0
+    private var feedDataVersion: String?
+    private var hasRequestedBackendPage = false
 
     init(
         museum: Museum,
         settings: ArtworkFeedSettingsProviding? = nil,
         cache: ArtworkFeedCaching? = nil,
-        metAPI: MetMuseumAPI = MetMuseumAPI(),
-        japanSearchAPI: JapanSearchAPI = JapanSearchAPI(),
-        naraMuseumAPI: NaraMuseumAPI = NaraMuseumAPI(),
-        nationalMuseumChinaAPI: NationalMuseumChinaAPI = NationalMuseumChinaAPI(),
-        shanghaiMuseumAPI: ShanghaiMuseumAPI = ShanghaiMuseumAPI(),
-        guimetMuseumAPI: GuimetMuseumAPI = GuimetMuseumAPI()
+        backendClient: MuseumBackendClient = .shared
     ) {
         let resolvedSettings = settings ?? SettingsStore.shared
         let resolvedNaraDataSource = museum.id == .nnm ? resolvedSettings.naraMuseumDataSource : .colbase
         self.museum = museum
         self.settings = resolvedSettings
         self.cache = cache ?? ArtworkFeedCache.shared
-        self.metAPI = metAPI
-        self.japanSearchAPI = japanSearchAPI
-        self.naraMuseumAPI = naraMuseumAPI
-        self.nationalMuseumChinaAPI = nationalMuseumChinaAPI
-        self.shanghaiMuseumAPI = shanghaiMuseumAPI
-        self.guimetMuseumAPI = guimetMuseumAPI
+        self.backendClient = backendClient
         self.naraMuseumDataSource = resolvedNaraDataSource
         self.metShowsOnlyOnViewArtworks = museum.id == .met ? resolvedSettings.metShowsOnlyOnViewArtworks : false
         self.selectedCategories = resolvedSettings.feedCategories(
@@ -250,28 +243,6 @@ final class ArtworkFeedViewModel: ObservableObject {
             categorySelectionKey: categorySelectionKey
         )
 
-        if museum.id == .tnm || (museum.id == .nnm && naraMuseumDataSource == .colbase) {
-            if let typeCodes = selectedJapanSearchTypeCodes {
-                for typeCode in typeCodes {
-                    await japanSearchAPI.resetSearchCache(
-                        museumID: museum.id,
-                        preferHasImages: true,
-                        categoryTypeCode: typeCode
-                    )
-                }
-            } else {
-                await japanSearchAPI.resetSearchCache(
-                    museumID: museum.id,
-                    preferHasImages: true,
-                    categoryTypeCode: nil
-                )
-            }
-        } else if museum.id == .shm {
-            await shanghaiMuseumAPI.resetSearchCache(subtypes: selectedShanghaiMuseumSubtypes)
-        } else if museum.id == .guimet {
-            await guimetMuseumAPI.resetSearchCache(collectionPaths: selectedGuimetCollectionPaths)
-        }
-
         showsInlineInitialLoading = presentation == .inlineInitialBatch
         preservedItemsDuringRefresh = presentation == .inlineInitialBatch ? items : []
         defer {
@@ -283,6 +254,10 @@ final class ArtworkFeedViewModel: ObservableObject {
         items = []
         objectIDPool = []
         loadedObjectIDs = []
+        nextCursor = nil
+        loaderSeed = 0
+        feedDataVersion = nil
+        hasRequestedBackendPage = false
         hasMoreItems = true
         hasMoreRemoteItemIDs = museum.id == .tnm || (museum.id == .nnm && naraMuseumDataSource == .colbase) || museum.id == .shm || museum.id == .guimet
         isLoadingMore = false
@@ -396,6 +371,10 @@ final class ArtworkFeedViewModel: ObservableObject {
             objectIDPool = []
             loadedObjectIDs = []
             hasMoreRemoteItemIDs = false
+            nextCursor = nil
+            loaderSeed = 0
+            feedDataVersion = nil
+            hasRequestedBackendPage = false
             hasMoreItems = false
             return
         }
@@ -404,6 +383,10 @@ final class ArtworkFeedViewModel: ObservableObject {
         objectIDPool = snapshot.objectIDPool
         loadedObjectIDs = snapshot.loadedObjectIDs
         hasMoreRemoteItemIDs = snapshot.hasMoreRemoteItemIDs
+        nextCursor = snapshot.nextCursor
+        loaderSeed = snapshot.seed
+        feedDataVersion = snapshot.dataVersion
+        hasRequestedBackendPage = snapshot.hasRequestedBackendPage
         hasMoreItems = snapshot.hasMoreRemoteItemIDs || snapshot.objectIDPool.contains { !snapshot.loadedObjectIDs.contains($0) }
     }
 
@@ -418,12 +401,7 @@ final class ArtworkFeedViewModel: ObservableObject {
             onLog: { message in
                 await logRelay.append(message)
             },
-            metAPI: metAPI,
-            japanSearchAPI: japanSearchAPI,
-            naraMuseumAPI: naraMuseumAPI,
-            nationalMuseumChinaAPI: nationalMuseumChinaAPI,
-            shanghaiMuseumAPI: shanghaiMuseumAPI,
-            guimetMuseumAPI: guimetMuseumAPI
+            backendClient: backendClient
         )
     }
 
@@ -432,33 +410,19 @@ final class ArtworkFeedViewModel: ObservableObject {
     }
 
     private var categorySelectionKey: String {
+        let dataVersionSuffix = "backend:\(MuseumBackendDataVersionCache.current)"
         if museum.id == .nnm {
-            return "\(naraMuseumDataSource.rawValue):\(museum.id.feedCategoryStorageValue(for: selectedCategories, naraDataSource: naraMuseumDataSource))"
+            return "\(naraMuseumDataSource.rawValue):\(museum.id.feedCategoryStorageValue(for: selectedCategories, naraDataSource: naraMuseumDataSource)):\(dataVersionSuffix)"
         }
         if museum.id == .met {
             let onViewValue = metShowsOnlyOnViewArtworks ? "on-view" : "all-artworks"
-            return "\(museum.id.feedCategoryStorageValue(for: selectedCategories)):\(onViewValue)"
+            return "\(museum.id.feedCategoryStorageValue(for: selectedCategories)):\(onViewValue):\(dataVersionSuffix)"
         }
-        return museum.id.feedCategoryStorageValue(for: selectedCategories)
+        return "\(museum.id.feedCategoryStorageValue(for: selectedCategories)):\(dataVersionSuffix)"
     }
 
     private var selectedCategoriesLogLabel: String {
         isAllCategoriesSelected ? "全部" : selectedCategories.map(\.displayName).joined(separator: "、")
-    }
-
-    private var selectedJapanSearchTypeCodes: [String]? {
-        guard !isAllCategoriesSelected else { return nil }
-        return selectedCategories.compactMap(\.japanSearchTypeCode)
-    }
-
-    private var selectedShanghaiMuseumSubtypes: [String]? {
-        guard !isAllCategoriesSelected else { return nil }
-        return selectedCategories.compactMap(\.shanghaiMuseumSubtype)
-    }
-
-    private var selectedGuimetCollectionPaths: [String]? {
-        guard !isAllCategoriesSelected else { return nil }
-        return selectedCategories.compactMap(\.guimetCollectionPath)
     }
 
     private func updateSelectedCategories(_ categories: [MuseumCategory]) async {
@@ -513,6 +477,10 @@ final class ArtworkFeedViewModel: ObservableObject {
         loadedObjectIDs = snapshot.loadedObjectIDs
         hasMoreItems = snapshot.hasMoreItems
         hasMoreRemoteItemIDs = snapshot.hasMoreRemoteItemIDs
+        nextCursor = snapshot.nextCursor
+        loaderSeed = snapshot.seed
+        feedDataVersion = snapshot.dataVersion
+        hasRequestedBackendPage = snapshot.hasRequestedBackendPage
         isLoadingMore = false
         state = .loaded
 
@@ -521,7 +489,11 @@ final class ArtworkFeedViewModel: ObservableObject {
             from: ArtworkBatchLoader.StateSnapshot(
                 objectIDPool: snapshot.objectIDPool,
                 loadedObjectIDs: snapshot.loadedObjectIDs,
-                hasMoreRemoteItemIDs: snapshot.hasMoreRemoteItemIDs
+                hasMoreRemoteItemIDs: snapshot.hasMoreRemoteItemIDs,
+                nextCursor: snapshot.nextCursor,
+                seed: snapshot.seed,
+                dataVersion: snapshot.dataVersion,
+                hasRequestedBackendPage: snapshot.hasRequestedBackendPage
             )
         )
         return true
@@ -537,7 +509,11 @@ final class ArtworkFeedViewModel: ObservableObject {
             objectIDPool: objectIDPool,
             loadedObjectIDs: loadedObjectIDs,
             hasMoreItems: hasMoreItems,
-            hasMoreRemoteItemIDs: hasMoreRemoteItemIDs
+            hasMoreRemoteItemIDs: hasMoreRemoteItemIDs,
+            nextCursor: nextCursor,
+            seed: loaderSeed,
+            dataVersion: feedDataVersion,
+            hasRequestedBackendPage: hasRequestedBackendPage
         )
     }
 

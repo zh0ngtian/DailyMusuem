@@ -10,6 +10,10 @@ final class ArtworkFeedCache {
         let loadedObjectIDs: Set<String>
         let hasMoreItems: Bool
         let hasMoreRemoteItemIDs: Bool
+        let nextCursor: String?
+        let seed: Int
+        let dataVersion: String?
+        let hasRequestedBackendPage: Bool
     }
 
     private struct Key: Hashable {
@@ -34,14 +38,22 @@ final class ArtworkFeedCache {
         objectIDPool: [String],
         loadedObjectIDs: Set<String>,
         hasMoreItems: Bool,
-        hasMoreRemoteItemIDs: Bool
+        hasMoreRemoteItemIDs: Bool,
+        nextCursor: String?,
+        seed: Int,
+        dataVersion: String?,
+        hasRequestedBackendPage: Bool
     ) {
         storage[Key(museumID: museumID, randomOrder: randomOrder, categorySelectionKey: categorySelectionKey)] = Snapshot(
             items: items,
             objectIDPool: objectIDPool,
             loadedObjectIDs: loadedObjectIDs,
             hasMoreItems: hasMoreItems,
-            hasMoreRemoteItemIDs: hasMoreRemoteItemIDs
+            hasMoreRemoteItemIDs: hasMoreRemoteItemIDs,
+            nextCursor: nextCursor,
+            seed: seed,
+            dataVersion: dataVersion,
+            hasRequestedBackendPage: hasRequestedBackendPage
         )
     }
 

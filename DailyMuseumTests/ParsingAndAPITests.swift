@@ -415,9 +415,7 @@ final class ParsingAndAPITests: XCTestCase {
             artwork.normalizedDescriptionText,
             """
             这件作品是安德烈·马尔罗收藏中的一件传奇之作。
-
             亚洲宗教对时间的看法是循环往复的。
-
             这件作品可追溯到公元4至5世纪。
             """
         )
@@ -869,7 +867,7 @@ final class ParsingAndAPITests: XCTestCase {
         XCTAssertEqual(callCounter.value, 4)
     }
 
-    func testMuseumLatencyServiceUsesOneLightweightEndpointPerMuseum() async throws {
+    func testMuseumLatencyServiceUsesBackendProbePerMuseum() async throws {
         let recorder = RequestRecorder()
         let session = makeStubSession(testID: UUID().uuidString) { request in
             guard let url = request.url else {
@@ -881,49 +879,108 @@ final class ParsingAndAPITests: XCTestCase {
                 data: Data("{}".utf8)
             )
         }
-        let service = MuseumLatencyService(session: session)
+        let backendClient = MuseumBackendClient(
+            baseURL: URL(string: "https://backend.example")!,
+            session: session
+        )
+        let service = MuseumLatencyService(session: session, backendClient: backendClient)
 
         let measurements = await service.measureLatencies(for: MuseumRepository.homepageMuseumIDs)
 
         XCTAssertEqual(Set(measurements.keys), Set(MuseumRepository.homepageMuseumIDs))
         XCTAssertEqual(recorder.requests.count, MuseumRepository.homepageMuseumIDs.count)
 
-        XCTAssertTrue(recorder.requests.contains { request in
-            request.httpMethod == "GET"
-                && request.url?.host == "collectionapi.metmuseum.org"
-                && request.url?.path == "/public/collection/v1/departments"
+        let requestedPaths = Set(recorder.requests.compactMap { $0.url?.path })
+        let expectedPaths = Set(MuseumRepository.homepageMuseumIDs.map { "/v1/museums/\($0.rawValue)/probe" })
+        XCTAssertEqual(requestedPaths, expectedPaths)
+        XCTAssertTrue(recorder.requests.allSatisfy { request in
+            request.httpMethod == "GET" && request.url?.host == "backend.example"
         })
-        XCTAssertTrue(recorder.requests.contains { request in
-            request.httpMethod == "GET"
-                && request.url?.host == "jpsearch.go.jp"
-                && request.url?.path == "/api/item/search/jps-cross"
-                && queryValue("size", in: request.url) == "1"
-                && queryValue("f-db", in: request.url) == "cobas"
-                && queryValue("q-contributor", in: request.url) == "東京国立博物館"
-        })
-        XCTAssertTrue(recorder.requests.contains { request in
-            request.httpMethod == "GET"
-                && request.url?.host == "www.narahaku.go.jp"
-                && (request.url?.path == "/chinese/collection/" || request.url?.path == "/chinese/collection")
-        })
-        XCTAssertTrue(recorder.requests.contains { request in
-            request.httpMethod == "GET"
-                && request.url?.host == "appapi.chnmuseum.cn"
-                && request.url?.path == "/api/exhibit_list"
-                && queryValue("cate_id", in: request.url) == "0"
-                && queryValue("limit", in: request.url) == "1"
-        })
-        XCTAssertTrue(recorder.requests.contains { request in
-            request.httpMethod == "POST"
-                && request.url?.host == "www.shanghaimuseum.net"
-                && request.url?.path == "/mu/frontend/pg/collection/search-antique"
-        })
-        XCTAssertTrue(recorder.requests.contains { request in
-            request.httpMethod == "GET"
-                && request.url?.host == "www.guimet.fr"
-                && request.url?.path == "/zh-hans/cangpin"
-                && request.value(forHTTPHeaderField: "Accept")?.contains("text/html") == true
-        })
+    }
+
+    func testMuseumBackendDebugAuthProviderIssuesSignedBusinessHeaders() async throws {
+        let recorder = RequestRecorder()
+        let session = makeStubSession(testID: UUID().uuidString) { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+            recorder.record(request)
+
+            let json: [String: Any]
+            switch url.path {
+            case "/v1/auth/challenge":
+                let challenge = recorder.requests.count == 1 ? "register-challenge" : "session-challenge"
+                json = [
+                    "challenge": challenge,
+                    "expiresAt": 4_102_444_800,
+                    "mode": "debug"
+                ]
+            case "/v1/auth/register":
+                json = [
+                    "deviceID": "device-1",
+                    "keyID": "debug-key",
+                    "registered": true
+                ]
+            case "/v1/auth/session":
+                json = [
+                    "accessToken": "debug-session-token",
+                    "tokenType": "Bearer",
+                    "expiresAt": 4_102_444_800
+                ]
+            default:
+                XCTFail("Unexpected auth URL: \(url.absoluteString)")
+                json = [:]
+            }
+
+            return StubbedResponse(
+                response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                data: try JSONSerialization.data(withJSONObject: json)
+            )
+        }
+        let provider = MuseumBackendDebugAuthProvider(
+            baseURL: URL(string: "https://backend.example")!,
+            session: session,
+            secret: "debug-secret",
+            deviceID: "device-1",
+            appVersion: "1.0 1"
+        )
+
+        let headers = try await provider.authenticatedHeaders(
+            method: "GET",
+            path: "/v1/museums",
+            queryItems: [
+                URLQueryItem(name: "limit", value: "10"),
+                URLQueryItem(name: "category", value: "space value")
+            ],
+            body: nil
+        )
+
+        XCTAssertEqual(
+            recorder.requests.compactMap { $0.url?.path },
+            ["/v1/auth/challenge", "/v1/auth/register", "/v1/auth/challenge", "/v1/auth/session"]
+        )
+        XCTAssertEqual(headers["Authorization"], "Bearer debug-session-token")
+        XCTAssertEqual(headers["X-MuseumMuse-App-Attest-KeyID"], "debug-key")
+        XCTAssertEqual(headers["X-MuseumMuse-App-Version"], "1.0 1")
+
+        let timestamp = try XCTUnwrap(headers["X-MuseumMuse-Timestamp"])
+        let nonce = try XCTUnwrap(headers["X-MuseumMuse-Nonce"])
+        let expectedHash = MuseumBackendDebugAuthProvider.canonicalRequestHash(
+            method: "GET",
+            path: "/v1/museums",
+            queryItems: [
+                URLQueryItem(name: "limit", value: "10"),
+                URLQueryItem(name: "category", value: "space value")
+            ],
+            body: Data(),
+            timestamp: timestamp,
+            nonce: nonce
+        )
+        XCTAssertEqual(headers["X-MuseumMuse-Request-Hash"], expectedHash)
+        XCTAssertEqual(
+            headers["X-MuseumMuse-App-Attest-Assertion"],
+            MuseumBackendDebugAuthProvider.debugAssertion(for: expectedHash, secret: "debug-secret")
+        )
     }
 
     func testMuseumLatencyServiceTreatsRequestFailureAsTimeout() async throws {

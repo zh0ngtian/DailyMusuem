@@ -142,6 +142,24 @@
 
 ### 3.1 数据接入
 
+- 当前改造后的展品数据路径为 `离线爬虫 + 服务端 SQLite + iOS/Widget 后端客户端`。
+- 主 App 二级页、详情页和 Widget 默认不再直接请求各馆官方展品接口；各馆官方 API / 官网解析代码保留为爬虫规则参考和短期排查依据。
+- SQLite 只保存展品文字字段、分类、官网链接、图片 URL 和抓取元信息，不保存图片二进制。
+- 图片仍由客户端按服务端返回的 `primaryImageURL` / `primaryImageSmallURL` 异步拉取。
+- 当前 `server.crawler.main crawl` 成功后会按 SQLite 当前状态写出 manifest；默认库 `museummuse.sqlite` 使用同目录 `manifest.json`，非默认库使用同目录 `{db_stem}.manifest.json`，避免多个 SQLite 在同一目录时互相覆盖 manifest。`--museum all` 只允许显式传入 `--allow-network` 后顺序执行全部正式源，避免误触发真实源站请求。
+- 本地后端 / 客户端功能测试可先运行 `python -m server.crawler.seed_sample_data --db server/data/museummuse.sqlite` 生成最小样本 SQLite；该脚本复用各馆 crawler parser / store 函数，不触发任何源站网络请求，不能当作真实全量抓取完成证据。
+- 真实数据交付仍以 `python -m server.crawler.main crawl --museum all --db server/data/museummuse.sqlite --allow-network --max-details {明确预算}` 或 `--full --skip-existing` 生成的 SQLite、`manifest.json` 和抓取日志为准；live crawl 必须显式传入大于 `0` 的 `--max-details` 或显式传入 `--full`，避免默认命令产生无详情数据的假成功。
+- `--full` 表示遍历当前数据源发现到的完整候选池，不能和 `--max-details` 同时使用；`--skip-existing` 用于长任务续跑，遇到目标库中已存在的 `(museum_id, source_key, object_id)` 时跳过详情请求，并在 crawl run manifest 中记录 `skippedExistingCount`。
+- `--museum all` 可用 `--exclude-museum {crawler_id}` 跳过高风险来源；例如国博全量详情策略未确认时，应使用 `--exclude-museum nmc` 先完成其它来源全量 crawl。
+- `--page-size {N}` 可用于支持分页大小的候选搜索 crawler，例如 Japan Search 和上海博物馆；它只减少候选页请求次数，不改变详情页抓取上限。用户已允许后续批量尝试 `50`，但若源站失败率升高，应回退到默认 `10`。
+- `--request-interval {seconds}` 可用于支持该参数的非国博 crawler 调整请求间隔；`--concurrency {N}` 可用于支持该参数的非国博长详情 crawler 并发抓取详情。用户已允许后续非国博来源尝试 `--request-interval 0.1 --concurrency 10`（约 `10 QPS` 上限）。这两个参数禁止用于国博，国博仍必须遵守单独 API 调用预算和反爬限制。
+- 本地客户端连接后端验证全量数据时，后端必须显式设置 `MUSEUMMUSE_DB_PATH=server/data/museummuse-live-all.sqlite`；`server/data/museummuse-live-full.sqlite` 是早期每源 `10` 条的小样本库，继续指向它会导致客户端看起来只能加载 `10` 条。
+- 上海博物馆和 Met 这类长详情任务会在 live crawl 中逐条提交，并每 `100` 个候选输出一次进度；如果任务中断，后续应使用 `--skip-existing` 续跑，不能直接认为已完成。
+- 全量交付前必须运行 `python -m server.crawler.main status --db {SQLite}`；只有所有正式 crawler target 都显示 `completion=complete`，才能视为“全量爬取完成”。样本数据、`--max-details` smoke run 或只有部分来源成功不能当作全量完成证据。
+- 服务端 `/v1` 业务接口默认需要鉴权；`MUSEUMMUSE_AUTH_MODE=disabled` 只允许 loopback 本地开发跳过鉴权。
+- Simulator 本地调试可使用 `MUSEUMMUSE_AUTH_MODE=debug` 和 `MUSEUMMUSE_DEBUG_AUTH_SECRET` 启用 debug auth；客户端仍需通过 challenge / register / session 获取短期 token，并在业务请求中携带 timestamp、nonce、request hash 和 debug assertion。
+- 未配置正式 App Attest 校验时，非本地 debug / disabled 模式不能当作生产可用鉴权；服务端应返回 `501 app_attest_not_configured`。
+
 #### 3.1.1 大都会艺术博物馆
 
 - 大都会当前主数据源是 `The Met Collection API`：
@@ -166,6 +184,12 @@
   - 不能假设公开 API 已包含完整介绍文案。
   - 不能删除官网页面抓取这条兜底链路，除非确认官方 API 已能稳定返回同等信息。
   - 不允许把 `Overview / Provenance / References / Catalogue Entry` 等其他官网区块误当作展品介绍。
+- 离线全量 crawler 需要处理 Met 搜索候选池中少量详情 API 不可取的 objectID：
+  - 若 object detail API 稳定返回 `404` 或在低速重试后长期无响应，不能伪造展品入库。
+  - 这类候选应记录到 `crawl_errors`，并在 run manifest 中计入 `permanentFailureCount`，作为“已遍历但源站无详情”的终端状态。
+  - `status` 判定 Met 全量完成时允许 `artworkCount + permanentFailureCount == candidateCount`。
+- 当前 Python 离线爬虫已支持 `server.crawler.main crawl --museum met --sample-detail-json` 验证 The Met object JSON 解析和 SQLite 入库，并支持通过 `--sample-web-html` 验证官网 overview / 顶部简介 / meta description 兜底解析。真实网络抓取会在 object API 后按中文页、英文页顺序尝试官网描述；服务端 crawler 没有 WebKit 渲染兜底，若遇到 Vercel Security Checkpoint 只能保留空介绍并记录后续补抓。
+- Met live crawl 支持通过 `--category-id {内部分类ID}` 把项目内部分类映射到官方 `departmentId` 后搜索，例如 `africa-oceania-americas -> 5`、`european-paintings -> 11`；后续新增或调整 Met 分类时必须同步维护这层映射。
 
 #### 3.1.2 东京国立博物馆
 
@@ -184,6 +208,7 @@
 - 东京馆当前不依赖官网页面抓取详情：
   - 展品列表和详情信息都以 `Japan Search Web API` 返回为准。
   - 后续如增加新的网页抓取方案，必须先确认不会破坏现有分页、缓存和字段映射逻辑。
+- 当前 Python 离线爬虫已支持 `server.crawler.main crawl --museum tnm --sample-detail-json` 验证 Japan Search item JSON 解析和 SQLite 入库；真实网络抓取必须显式传入 `--allow-network`，并继续保留 `size=10` 小页、contributor 空结果 fallback 和本地过滤规则。
 
 #### 3.1.3 奈良国立博物馆
 
@@ -210,6 +235,7 @@
   - 示例：`narahaku-1032-0`
   - 用于区分收藏 key、feed cache key、Widget candidate key 和深链接
   - 详情 loader 对 `.nnm` 需要按 `objectID` 前缀分发：`narahaku-` 走馆方详情，否则走 Japan Search / ColBase
+- 当前 Python 离线爬虫已支持 `server.crawler.main crawl --museum nnm-official --sample-detail-html --sample-object-id {原始ID}` 验证奈良馆方详情 HTML 解析和 SQLite 入库；搜索页解析、`narahaku-` objectID、图片 URL 规范化、说明文本清洗、缺失材质行处理和官方门类 membership 都必须继续与 Swift 侧规则保持一致。
 - 奈良 ColBase 源继续复用 `Japan Search Web API`：
   - 搜索 itemIDs：
     - `https://jpsearch.go.jp/api/item/search/jps-cross`
@@ -226,17 +252,19 @@
   - 大 `size` 值在 iPhone 端不稳定，分页大小必须按当前约定的小页策略处理，不能恢复成一次抓取超大页。
   - 主 App 二级页和 Widget 均继续按 `10` 条小页增量推进。
 - ColBase `linkUrl` 作为 ColBase 源官网原始链接，用于详情页官网入口、AI 按钮和 Widget 深链接来源。
+- 当前 Python 离线爬虫已支持 `server.crawler.main crawl --museum nnm-colbase --sample-detail-json` 验证奈良 ColBase item JSON 解析和 SQLite 入库；真实网络抓取必须显式传入 `--allow-network`，并继续保留与东京馆一致的小页、fallback 和 provider / contributor 本地过滤规则。
 
 #### 3.1.4 中国国家博物馆
 
 - 中国国家博物馆当前接入接口：
   - `https://appapi.chnmuseum.cn/api/exhibit_list?cate_id={类别ID}&limit={一次拉取的数量}&p=i&son_cate_id=0`
   - `https://appapi.chnmuseum.cn/api/exhibit/share_link?p=i&exhibit_id={id}`
-- 当前 App 对列表接口的用途：
-  - 批量拉取展品列表
-  - 分页获取展品 ID 池
-  - 按分类构建二级页候选数据池
-- 当前 App 对该接口的用途：
+- 当前离线爬虫对列表接口的用途：
+  - 尽量少调用 API 获取尽量多的候选展品 ID
+  - 优先使用 `cate_id=0` 全部分类和最大已验证 `limit` 做大页分页
+  - 不应为了每个分类重复调用列表 API；分类关系优先从详情 HTML 或已抓字段回填
+  - 列表 item 中已经返回的标题、年代、分类、尺寸、图片等摘要字段需要随候选一起保留；详情 HTML 缺少 `brief` 段落时，应优先用这些已获取摘要字段回填，不能为了补字段再额外打分类列表 API
+- 当前离线爬虫对详情页 HTML 的用途：
   - 拉取展品详情页 HTML
   - 从 HTML 中解析标题、年代、分类、尺寸、图片、展品介绍
 - 当前中国国家博物馆详情页字段提取规则：
@@ -245,11 +273,17 @@
   - 展品介绍来自 `detail` 区块
   - 图片使用详情页中的首张可用 `img`
   - 当前数据源未稳定提供艺术家、材质、文化等字段时，允许保持空值，不允许伪造内容
-- 该接口的 QPS 限制要求：
-  - 中国国家博物馆对 QPS 非常敏感，必须视为严格限流接口
-  - 客户端请求频率必须控制在 `1 QPS`
-  - 不允许对该接口并发突发请求，避免 IP 被封禁
-  - 后续如修改中国国家博物馆相关加载逻辑，必须保留或强化现有限流机制，不能绕过
+- 该接口的反爬与调用量限制要求：
+  - 中国国家博物馆 API 对同一 IP 请求次数非常敏感，请求 API 太多可能导致 IP 被封禁；不能只依赖 `1 QPS` 作为保护。
+  - 离线爬虫必须记录并控制 API 总调用量，列表 API 优先大页抓取，避免按分类或按小页重复拉取。
+  - 爬虫侧默认使用 `MUSEUMMUSE_NMC_LIST_LIMIT=100` 和 `MUSEUMMUSE_NMC_MAX_LIST_API_CALLS=20` 作为国博列表 API 预算上限；提高这些值前必须先确认源站风险。
+  - 国博 live crawl 带 `--max-details` 时，候选池发现只需要拿到足够支撑目标成功条数的候选后就停止，不能为了少量详情先消耗完整列表预算。
+  - 国博 `--full` 不允许默认通过 `share_link` API 全量打详情；除非已经确认风险并显式设置 `MUSEUMMUSE_NMC_DETAIL_FETCH_MODE=share_link_api` 和 `MUSEUMMUSE_NMC_ALLOW_FULL_SHARE_LINK_API=1`，否则应先补网页详情抓取路径或继续使用受控预算模式。
+  - `server.crawler.main crawl --museum nmc` 支持通过 `--sample-detail-html` 离线验证详情解析和 SQLite 入库；真实网络抓取必须显式传入 `--allow-network`。
+  - 国博详情 live 抓取默认不启用 `share_link` API path；只有显式设置 `MUSEUMMUSE_NMC_DETAIL_FETCH_MODE=share_link_api` 才允许走该路径，且会继续消耗 API 预算。
+  - 网页 HTML 抓取相对 API 更安全，详情字段应优先按网页抓取路径解析；如必须访问 `share_link` 这类 API path 返回的 HTML，也要和列表 API 共用预算、串行限流并记录调用量。
+  - 不允许对国博 API 并发突发请求，避免 IP 被封禁。
+  - 后续如修改中国国家博物馆相关加载逻辑，必须保留或强化爬虫侧限流、API 调用预算和大页策略，不能绕过。
 
 #### 3.1.5 上海博物馆
 
@@ -270,13 +304,16 @@
   - 详情页和图片页共同组成最终详情数据，不能只依赖搜索摘要
 - 上海博物馆当前请求约束：
   - 搜索分页大小按 `10` 条处理
-  - 当前实现对搜索、详情、图片请求统一做了 `1 QPS` 节流
+  - 当前离线 crawler 默认对搜索、详情、图片请求使用保守节流；用户批准后，真实全量抓取可通过 `--request-interval 0.1 --concurrency 10` 在共享 limiter 下尝试约 `10 QPS` 上限
   - 请求需要继续保留浏览器风格请求头与 `Referer`
+  - 离线 crawler 对搜索、详情和图片请求的瞬时网络失败最多重试 `3` 次，每次重试仍需经过同一个共享 limiter
   - 后续如果修改上海博物馆链路，不能移除分页、小页策略、节流或请求头兜底
 - 上海博物馆详情链路注意事项：
   - 搜索返回的 `catalog` 和摘要字段只可作为预览或补充，详情页仍应以文章页解析结果为准
+  - 部分文章页标题前会带 `img.jwz` 等题名字形图片，标题解析必须先清理标题区内的图片、收藏链接等标签，不能要求 `title` div 的第一个节点就是纯文本
   - 图片页解析失败时，当前允许继续返回文字详情；后续修改时不能因为图片页失败而直接丢弃整条详情
   - 主 App 二级页首批加载允许先用文章页解析出的文字字段渲染卡片，再等待图片页补齐图片链接与后续图片显示
+- 当前 Python 离线爬虫已支持 `server.crawler.main crawl --museum shm --sample-detail-html --sample-object-id {code}` 验证上海博物馆文章页 HTML 解析和 SQLite 入库；可选 `--sample-image-html` 补充图片页解析。真实网络抓取必须显式传入 `--allow-network`，并继续保留搜索 / 文章 / 图片请求共享 limiter、图片页失败不丢弃文字详情、搜索摘要不替代文章页详情的规则。
 
 #### 3.1.6 吉美国立亚洲艺术博物馆
 
@@ -304,18 +341,15 @@
   - 不能恢复到 POP / Joconde 作为主数据源，除非产品范围再次明确调整
   - 不能把官网分类页以外的站内推荐卡片混入当前分类候选池
   - 不能把详情页中的导航、分享、相关藏品或页脚内容误当作展品字段
+- 当前 Python 离线爬虫已支持 `server.crawler.main crawl --museum guimet --sample-detail-html --sample-detail-url {详情页URL}` 验证吉美官网详情 HTML 解析和 SQLite 入库；真实网络抓取必须显式传入 `--allow-network`，并继续保留官网分类页候选、详情页字段解析、`~` objectID 分隔和“不混入了解更多藏品”规则。
 
 #### 3.1.7 首页延迟测试
 
 - 首页延迟测试只用于展示当前网络延迟，不写入展品搜索、详情或 Widget 缓存。
-- 每个已支持博物馆需要配置一个轻量 API：
-  - 大都会艺术博物馆：`https://collectionapi.metmuseum.org/public/collection/v1/departments`
-  - 东京国立博物馆：`https://jpsearch.go.jp/api/item/search/jps-cross`，参数使用 `f-db=cobas`、`q-contributor=東京国立博物館`、`f-contents=image`、`from=0`、`size=1`
-  - 奈良国立博物馆：`https://www.narahaku.go.jp/chinese/collection/`
-  - 中国国家博物馆：`https://appapi.chnmuseum.cn/api/exhibit_list`，参数使用 `cate_id=0`、`limit=1`、`page=1`、`p=i`、`son_cate_id=0`
-  - 上海博物馆：`https://www.shanghaimuseum.net/mu/frontend/pg/collection/search-antique`，请求体使用 `page=1`、`limit=1`
-  - 吉美国立亚洲艺术博物馆：`https://www.guimet.fr/zh-hans/cangpin`
-- 后续新增博物馆时，延迟测试 API 必须优先选择单次、轻量、不会改变服务端状态的请求。
+- 前后端分离改造后，首页延迟测试开启时每馆请求服务端轻量探测接口：
+  - `GET /v1/museums/{museum_id}/probe`
+- 服务端 probe 只做轻量 SQLite 查询，不回源官方站点。
+- 后续新增博物馆时，延迟测试必须优先选择服务端轻量探测；如产品明确要测源站延迟，需要单独标记为例外。
 
 ### 3.2 分类规范
 
@@ -629,7 +663,7 @@
 - 进入二级页面时，不要一次性抓取所有详情数据。
 - 首次只加载少量展品：
   - 当前约定为 `10` 个。
-- 后续继续浏览时，滚动到底部再加载下一批。
+- 后续继续浏览时，滚动到底部后继续上滑加载下一批。
 - 到达底部后，不允许自动继续加载下一批。
 - 底部加载更多的交互需要对齐顶部 `refreshable` 的手感：
   - 先继续上滑，超过阈值后进入“松开即可加载下一批”状态。
@@ -697,7 +731,7 @@
 ### 4.4 展品详情页
 
 - 点击展品后进入详情页。
-- 详情信息通过 API 抓取。
+- 详情信息通过服务端详情接口抓取；官网页面解析、大都会概述兜底、国博 / 上博 HTML 清洗等逻辑前移到离线爬虫。
 - 详情页不显示副标题；艺术家需要作为独立字段展示。
 - 详情页右上角需要提供收藏按钮：
   - 未收藏时显示 `star`
@@ -878,13 +912,10 @@
   - 非当前配置的渲染请求只允许读取已有共享状态用于展示，不能新建或更新共享状态
   - 获取当前配置后，应清理不在当前配置中的历史共享状态，避免已删除的 `scope` 残留后续误触发刷新
 - 小组件刷新必须走 `network-only`：
-  - 刷新时不依赖搜索、详情或图片缓存来选取展品
+  - 刷新时直连服务端，不复用主 App 搜索 / 详情缓存来选取展品
   - 仅允许持久化当前共享组上一次渲染结果和刷新状态，供 WidgetKit 重绘
-- 中国国家博物馆小组件刷新使用专用候选推进：
-  - 不复用主 App 的全量展品 ID 池加载逻辑
-  - 不允许为了展示单件 Widget 先把 `exhibit_list` 的全部 `page_count` 页拉完
-  - 刷新时先通过列表接口确认页数，再从当前生效类别的少量随机页中准备候选
-  - 单次刷新最多只允许发起少量列表页请求，详情和图片继续按单件候选逐个推进
+- 中国国家博物馆小组件刷新不再直连 `exhibit_list` 或详情源站，必须通过服务端候选 / 列表接口获取服务端已入库展品。
+- 国博源站 API 调用量控制属于离线爬虫职责；不能在 Widget provider 中重新实现国博源站随机页候选逻辑。
 - 奈良国立博物馆小组件刷新必须跟随当前奈良数据源：
   - 馆方源使用 network-only 馆方候选和馆方详情，不复用主 App 缓存
   - ColBase 源继续使用 network-only Japan Search / ColBase 候选和详情

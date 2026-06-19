@@ -387,6 +387,7 @@ struct WidgetRefreshEngine {
     let randomIndex: RandomIndex
     let imageDataFetcher: ImageDataFetcher?
     let urlSession: URLSession
+    let backendClient: MuseumBackendClient
 
     init(
         settingsReader: WidgetSettingsReader = WidgetSettingsReader(),
@@ -396,25 +397,21 @@ struct WidgetRefreshEngine {
             Int.random(in: range)
         },
         imageDataFetcher: ImageDataFetcher? = nil,
-        urlSession: URLSession = .shared
+        urlSession: URLSession = .shared,
+        backendClient: MuseumBackendClient = .shared
     ) {
         self.settingsReader = settingsReader
         self.snapshotStore = snapshotStore
+        self.backendClient = backendClient
         self.loaderFactory = loaderFactory ?? { museumID, categories, onLog in
-            if museumID == .nmc {
-                return NationalMuseumChinaWidgetCandidateLoader(
-                    categories: categories,
-                    randomIndex: randomIndex,
-                    onLog: onLog
-                )
-            }
             return ArtworkBatchLoader(
                 museumID: museumID,
                 categories: categories,
                 randomOrder: true,
                 metShowsOnlyOnViewArtworks: museumID == .met && settingsReader.metShowsOnlyOnViewArtworks(),
                 cachePolicy: MuseumRequestCachePolicy.networkOnly,
-                onLog: onLog
+                onLog: onLog,
+                backendClient: backendClient
             )
         }
         self.randomIndex = randomIndex

@@ -22,3 +22,11 @@ xcuserdata/
 !*.xcodeproj/project.pbxproj
 !*.xcodeproj/xcshareddata/
 !*.xcodeproj/xcshareddata/**
+
+# Local backend/crawler data artifacts
+server/data/*.sqlite
+server/data/*.sqlite-*
+server/data/*.db
+server/data/*.db-*
+server/data/*.manifest.json
+server/data/manifest.json

@@ -8,12 +8,7 @@ struct ArtworkDetailLoaderView: View {
     @State private var errorMessage: String?
     @State private var imageReloadToken = 0
 
-    private let metAPI = MetMuseumAPI()
-    private let japanSearchAPI = JapanSearchAPI()
-    private let naraMuseumAPI = NaraMuseumAPI()
-    private let nationalMuseumChinaAPI = NationalMuseumChinaAPI()
-    private let shanghaiMuseumAPI = ShanghaiMuseumAPI()
-    private let guimetMuseumAPI = GuimetMuseumAPI()
+    private let backendClient = MuseumBackendClient.shared
 
     var body: some View {
         Group {
@@ -65,54 +60,11 @@ struct ArtworkDetailLoaderView: View {
         errorMessage = nil
 
         do {
-            switch reference.museumID {
-            case .met:
-                guard let objectID = Int(reference.objectID) else {
-                    throw URLError(.badURL)
-                }
-                let object = try await metAPI.fetchObject(objectID: objectID)
-                var loadedArtwork = object.toArtwork()
-                if loadedArtwork.artworkDescription == nil {
-                    var webDescription = await metAPI.fetchObjectWebDescription(
-                        objectID: objectID,
-                        objectURL: loadedArtwork.objectURL
-                    )
-                    if webDescription == nil, let objectURL = loadedArtwork.objectURL {
-                        await RequestLogger.shared.logEvent(
-                            source: "Met 官网",
-                            summary: "URLSession 未拿到官网概述，尝试浏览器渲染兜底，objectID=\(objectID)"
-                        )
-                        webDescription = await MetMuseumWebDescriptionBrowserFetcher.shared.fetchDescription(from: objectURL)
-                    }
-                    loadedArtwork = loadedArtwork.withArtworkDescription(webDescription)
-                }
-                artwork = loadedArtwork
-            case .tnm:
-                let item = try await japanSearchAPI.fetchItem(
-                    museumID: reference.museumID,
-                    itemID: reference.objectID
-                )
-                artwork = item.toArtwork(museumID: reference.museumID)
-            case .nnm:
-                if NaraMuseumAPI.isOfficialObjectID(reference.objectID) {
-                    artwork = try await naraMuseumAPI.fetchArtwork(objectID: reference.objectID)
-                } else {
-                    let item = try await japanSearchAPI.fetchItem(
-                        museumID: reference.museumID,
-                        itemID: reference.objectID
-                    )
-                    artwork = item.toArtwork(museumID: reference.museumID)
-                }
-            case .nmc:
-                guard let exhibitID = Int(reference.objectID) else {
-                    throw URLError(.badURL)
-                }
-                artwork = try await nationalMuseumChinaAPI.fetchExhibit(exhibitID: exhibitID)
-            case .shm:
-                artwork = try await shanghaiMuseumAPI.fetchArtwork(objectCode: reference.objectID)
-            case .guimet:
-                artwork = try await guimetMuseumAPI.fetchArtwork(reference: reference.objectID)
-            }
+            artwork = try await backendClient.artwork(
+                museumID: reference.museumID,
+                objectID: reference.objectID,
+                source: backendSource
+            )
         } catch {
             if artwork == nil {
                 errorMessage = error.localizedDescription
@@ -139,6 +91,13 @@ struct ArtworkDetailLoaderView: View {
             return 0.8
         }
         return CGFloat(imageAspectRatio)
+    }
+
+    private var backendSource: String? {
+        guard reference.museumID == .nnm else { return nil }
+        return reference.objectID.hasPrefix("narahaku-")
+            ? NaraMuseumDataSource.official.rawValue
+            : NaraMuseumDataSource.colbase.rawValue
     }
 
     private var isFavorite: Bool {

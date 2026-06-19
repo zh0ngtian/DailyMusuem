@@ -3,55 +3,126 @@ import XCTest
 
 @MainActor
 final class ArtworkFeedViewModelTests: XCTestCase {
+    func testLoadMoreFetchesNextBackendCursorPage() async throws {
+        let testID = UUID().uuidString
+        let backendRequestCounter = LockedCounter()
+        let session = makeStubSession(testID: testID) { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+            guard url.path == "/v1/museums/tnm/artworks" else {
+                XCTFail("Unexpected URL: \(url.absoluteString)")
+                throw URLError(.badURL)
+            }
+
+            let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+            let queryItems = Dictionary(
+                uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") }
+            )
+            XCTAssertEqual(queryItems["limit"], "10")
+
+            let requestCount = backendRequestCounter.increment()
+            let ids: [Int]
+            let nextCursor: Any
+            let hasMore: Bool
+            switch queryItems["cursor"] {
+            case nil:
+                XCTAssertEqual(requestCount, 1)
+                ids = Array(1...10)
+                nextCursor = "cursor-10"
+                hasMore = true
+            case "cursor-10":
+                XCTAssertEqual(requestCount, 2)
+                ids = Array(11...20)
+                nextCursor = NSNull()
+                hasMore = false
+            default:
+                XCTFail("Unexpected cursor: \(queryItems["cursor"] ?? "nil")")
+                ids = []
+                nextCursor = NSNull()
+                hasMore = false
+            }
+
+            return FeedViewModelStubbedResponse(
+                response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                data: try JSONSerialization.data(withJSONObject: [
+                    "dataVersion": "test-version",
+                    "data": [
+                        "items": ids.map {
+                            Self.makeBackendArtwork(id: "item-\($0)", title: "Title item-\($0)")
+                        },
+                        "nextCursor": nextCursor,
+                        "hasMore": hasMore
+                    ]
+                ])
+            )
+        }
+        let backendClient = MuseumBackendClient(
+            baseURL: URL(string: "https://backend.example")!,
+            session: session
+        )
+        let viewModel = ArtworkFeedViewModel(
+            museum: MuseumRepository.museum(for: .tnm),
+            settings: StubArtworkFeedSettings(),
+            cache: StubArtworkFeedCache(),
+            backendClient: backendClient
+        )
+
+        await viewModel.reload()
+
+        XCTAssertEqual(viewModel.state, .loaded)
+        XCTAssertEqual(viewModel.displayItems.count, 10)
+        XCTAssertTrue(viewModel.hasMoreItems)
+
+        await viewModel.loadMoreIfNeeded()
+
+        XCTAssertEqual(viewModel.displayItems.count, 20)
+        XCTAssertFalse(viewModel.hasMoreItems)
+    }
+
     func testPullToRefreshKeepsRenderedItemsVisibleWhileInlineInitialLoadingIsShown() async {
         let itemID = "refresh-\(UUID().uuidString)"
         let refreshSearchStarted = expectation(description: "refresh search started")
-        let searchResponseGate = DispatchSemaphore(value: 0)
-        let searchRequestCounter = LockedCounter()
+        let backendResponseGate = DispatchSemaphore(value: 0)
+        let backendRequestCounter = LockedCounter()
         let session = makeStubSession(testID: UUID().uuidString) { request in
             guard let url = request.url else {
                 throw URLError(.badURL)
             }
 
-            if url.path.contains("/item/search/jps-cross") {
-                let currentSearchRequestCount = searchRequestCounter.increment()
+            if url.path == "/v1/museums/tnm/artworks" {
+                let currentRequestCount = backendRequestCounter.increment()
 
-                if currentSearchRequestCount > 1 {
+                if currentRequestCount > 1 {
                     refreshSearchStarted.fulfill()
-                    _ = searchResponseGate.wait(timeout: .now() + 2)
+                    _ = backendResponseGate.wait(timeout: .now() + 2)
                 }
 
-                let item = Self.makeJapanSearchItem(id: itemID, title: "Refresh Test Item")
                 return FeedViewModelStubbedResponse(
                     response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
                     data: try JSONSerialization.data(withJSONObject: [
-                        "list": [item],
-                        "hit": 1,
-                        "from": 0
+                        "dataVersion": "test-version",
+                        "data": [
+                            "items": [Self.makeBackendArtwork(id: itemID, title: "Refresh Test Item")],
+                            "nextCursor": NSNull(),
+                            "hasMore": false
+                        ]
                     ])
-                )
-            }
-
-            if url.path.contains("/item/\(itemID)") {
-                Thread.sleep(forTimeInterval: 0.25)
-                let item = Self.makeJapanSearchItem(id: itemID, title: "Refresh Test Item")
-                return FeedViewModelStubbedResponse(
-                    response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
-                    data: try JSONSerialization.data(withJSONObject: item)
                 )
             }
 
             throw URLError(.badURL)
         }
+        let backendClient = MuseumBackendClient(
+            baseURL: URL(string: "https://backend.example")!,
+            session: session
+        )
 
         let viewModel = ArtworkFeedViewModel(
             museum: MuseumRepository.museum(for: .tnm),
             settings: StubArtworkFeedSettings(),
             cache: StubArtworkFeedCache(),
-            metAPI: MetMuseumAPI(session: session),
-            japanSearchAPI: JapanSearchAPI(session: session),
-            nationalMuseumChinaAPI: NationalMuseumChinaAPI(session: session),
-            shanghaiMuseumAPI: ShanghaiMuseumAPI(session: session)
+            backendClient: backendClient
         )
 
         await viewModel.reload()
@@ -70,7 +141,7 @@ final class ArtworkFeedViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.items.isEmpty)
         XCTAssertEqual(viewModel.displayItems.map(\.id), renderedItemIDs)
 
-        searchResponseGate.signal()
+        backendResponseGate.signal()
         await refreshTask.value
 
         XCTAssertEqual(viewModel.state, .loaded)
@@ -89,19 +160,24 @@ final class ArtworkFeedViewModelTests: XCTestCase {
         return URLSession(configuration: configuration)
     }
 
-    private nonisolated static func makeJapanSearchItem(id: String, title: String) -> [String: Any] {
+    private nonisolated static func makeBackendArtwork(id: String, title: String) -> [String: Any] {
         [
-            "id": id,
-            "common": [
-                "id": id,
-                "title": title,
-                "linkUrl": "https://example.com/\(id)",
-                "thumbnailUrl": ["https://example.com/\(id)-thumb.jpg"],
-                "contentsUrl": ["https://example.com/\(id).jpg"],
-                "contributor": ["東京国立博物館"],
-                "temporal": ["江户时代"]
-            ],
-            "cobas-22-s": "10"
+            "id": "tnm-\(id)",
+            "museumID": "tnm",
+            "objectID": id,
+            "title": title,
+            "artworkDescription": NSNull(),
+            "artistDisplayName": NSNull(),
+            "objectDate": "江户时代",
+            "medium": NSNull(),
+            "dimensions": NSNull(),
+            "department": NSNull(),
+            "culture": NSNull(),
+            "country": NSNull(),
+            "repository": "东京国立博物馆",
+            "primaryImageURL": "https://example.com/\(id).jpg",
+            "primaryImageSmallURL": "https://example.com/\(id)-thumb.jpg",
+            "objectURL": "https://example.com/\(id)"
         ]
     }
 }
@@ -129,7 +205,11 @@ private final class StubArtworkFeedCache: ArtworkFeedCaching {
         objectIDPool: [String],
         loadedObjectIDs: Set<String>,
         hasMoreItems: Bool,
-        hasMoreRemoteItemIDs: Bool
+        hasMoreRemoteItemIDs: Bool,
+        nextCursor: String?,
+        seed: Int,
+        dataVersion: String?,
+        hasRequestedBackendPage: Bool
     ) {}
 
     func clear(museumID: MuseumID, randomOrder: Bool, categorySelectionKey: String) {}

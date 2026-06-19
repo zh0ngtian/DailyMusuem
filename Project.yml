@@ -93,6 +93,7 @@ targets:
       - path: Shared/ArtworkFeed/ArtworkFeedCache.swift
       - path: Shared/ArtworkFeed/ArtworkFeedItem.swift
       - path: Shared/ArtworkFeed/ArtworkFeedViewModel.swift
+      - path: Shared/Backend/MuseumBackendClient.swift
       - path: Shared/Museum.swift
       - path: Shared/MuseumRequestCachePolicy.swift
       - path: Shared/Logging/LogTimestampFormatter.swift

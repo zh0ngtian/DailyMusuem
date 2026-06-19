@@ -491,7 +491,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(key, "all")
     }
 
-    func testArtworkBatchLoaderLoadsTokyoInTenItemPagesAndAdvancesSearchWindow() async throws {
+    func testArtworkBatchLoaderLoadsTokyoFromBackendInTenItemPagesAndAdvancesCursor() async throws {
         let recorder = WidgetRequestRecorder()
         let testID = UUID().uuidString
 
@@ -499,53 +499,62 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             let url = try XCTUnwrap(request.url)
             recorder.record(url)
 
-            if url.path.contains("/item/search/jps-cross") {
+            if url.path == "/v1/museums/tnm/artworks" {
                 let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
                 let queryItems = Dictionary(
                     uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") }
                 )
-                XCTAssertEqual(queryItems["size"], "10")
-                let fromValue = queryItems["from"] ?? "0"
+                XCTAssertEqual(queryItems["limit"], "10")
+                XCTAssertEqual(queryItems["order"], "stable")
                 let ids: [Int]
-                switch fromValue {
-                case "0":
+                let nextCursor: Any
+                let hasMore: Bool
+                switch queryItems["cursor"] {
+                case nil:
                     ids = Array(1...10)
-                case "10":
+                    nextCursor = "cursor-10"
+                    hasMore = true
+                case "cursor-10":
                     ids = Array(11...20)
+                    nextCursor = NSNull()
+                    hasMore = false
                 default:
-                    XCTFail("Unexpected from value: \(fromValue)")
+                    XCTFail("Unexpected cursor: \(queryItems["cursor"] ?? "nil")")
                     ids = []
+                    nextCursor = NSNull()
+                    hasMore = false
                 }
 
-                let list = ids.map {
-                    self.makeJapanSearchItemDictionary(id: "item-\($0)", sortValue: "\($0)")
-                }
                 return self.makeJSONResponse(
                     url: url,
                     jsonObject: [
-                        "list": list,
-                        "hit": 20,
-                        "from": Int(fromValue) ?? 0
+                        "dataVersion": "test-version",
+                        "data": [
+                            "items": ids.map {
+                                self.makeBackendArtworkDictionary(
+                                    museumID: .tnm,
+                                    objectID: "item-\($0)",
+                                    title: "Title item-\($0)"
+                                )
+                            },
+                            "nextCursor": nextCursor,
+                            "hasMore": hasMore
+                        ]
                     ]
                 )
             }
 
-            let itemID = url.lastPathComponent
-            return self.makeJSONResponse(
-                url: url,
-                jsonObject: self.makeJapanSearchItemDictionary(
-                    id: itemID,
-                    sortValue: itemID.replacingOccurrences(of: "item-", with: "")
-                )
-            )
+            XCTFail("Unexpected URL: \(url.absoluteString)")
+            return self.makeJSONResponse(url: url, jsonObject: [:])
         }
+        let backendClient = MuseumBackendClient(baseURL: URL(string: "https://backend.example")!, session: session)
 
         let loader = ArtworkBatchLoader(
             museumID: .tnm,
             categories: MuseumID.tnm.defaultFeedCategories,
             randomOrder: false,
             cachePolicy: .networkOnly,
-            japanSearchAPI: JapanSearchAPI(session: session)
+            backendClient: backendClient
         )
 
         let firstBatch = try await loader.nextBatch(count: 10)
@@ -554,43 +563,50 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(firstBatch.count, 10)
         XCTAssertEqual(secondBatch.count, 10)
 
-        let searchRequests = recorder.urls.filter { $0.path.contains("/item/search/jps-cross") }
-        let fromValues = searchRequests.map {
+        let backendRequests = recorder.urls.filter { $0.path == "/v1/museums/tnm/artworks" }
+        let cursors = backendRequests.map {
             URLComponents(url: $0, resolvingAgainstBaseURL: false)?
                 .queryItems?
-                .first(where: { $0.name == "from" })?
-                .value ?? "0"
+                .first(where: { $0.name == "cursor" })?
+                .value
         }
-        XCTAssertEqual(searchRequests.count, 3)
-        XCTAssertEqual(fromValues, ["0", "0", "10"])
+        XCTAssertEqual(backendRequests.count, 2)
+        XCTAssertEqual(cursors, [nil, "cursor-10"])
     }
 
     func testArtworkBatchLoaderLoadsNaraOfficialSourceWithOfficialDepartment() async throws {
         let recorder = WidgetRequestRecorder()
         let testID = UUID().uuidString
 
-        let session = makeStubSession(testID: testID) { request in
+        let session = makeStubSession(testID: testID) { [self] request in
             let url = try XCTUnwrap(request.url)
             recorder.record(url)
 
-            if url.path == "/chinese/collection/" || url.path == "/chinese/collection" {
-                XCTAssertEqual(
-                    URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                        .queryItems?
-                        .first(where: { $0.name == "bumon" })?
-                        .value,
-                    "雕刻"
+            if url.path == "/v1/museums/nnm/artworks" {
+                let queryItems = Dictionary(
+                    uniqueKeysWithValues: (URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? [])
+                        .map { ($0.name, $0.value ?? "") }
                 )
-                return WidgetStubbedResponse(
-                    response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
-                    data: Data(Self.naraOfficialSearchHTML.utf8)
-                )
-            }
-
-            if url.path == "/chinese/collection/1032-0.html" {
-                return WidgetStubbedResponse(
-                    response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
-                    data: Data(Self.naraOfficialDetailHTML.utf8)
+                XCTAssertEqual(queryItems["source"], "official")
+                XCTAssertEqual(queryItems["category_ids"], "official-sculpture")
+                return makeJSONResponse(
+                    url: url,
+                    jsonObject: [
+                        "dataVersion": "test-version",
+                        "data": [
+                            "items": [
+                                makeBackendArtworkDictionary(
+                                    museumID: .nnm,
+                                    objectID: "narahaku-1032-0",
+                                    title: "浮雕佛传图",
+                                    department: "雕刻",
+                                    primaryImageURL: "https://www.narahaku.go.jp/_fKkxXPHb/D025456.jpg"
+                                )
+                            ],
+                            "nextCursor": NSNull(),
+                            "hasMore": false
+                        ]
+                    ]
                 )
             }
 
@@ -600,13 +616,14 @@ final class WidgetStateAndSettingsTests: XCTestCase {
                 data: Data()
             )
         }
+        let backendClient = MuseumBackendClient(baseURL: URL(string: "https://backend.example")!, session: session)
 
         let loader = ArtworkBatchLoader(
             museumID: .nnm,
             categories: [MuseumID.nnm.selectableFeedCategories(naraDataSource: .official)[0]],
             randomOrder: false,
             cachePolicy: .networkOnly,
-            naraMuseumAPI: NaraMuseumAPI(session: session)
+            backendClient: backendClient
         )
 
         let batch = try await loader.nextBatch(count: 1)
@@ -615,7 +632,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(batch.first?.title, "浮雕佛传图")
         XCTAssertEqual(batch.first?.department, "雕刻")
         XCTAssertEqual(batch.first?.primaryImageURL?.absoluteString, "https://www.narahaku.go.jp/_fKkxXPHb/D025456.jpg")
-        XCTAssertTrue(recorder.urls.allSatisfy { !$0.path.contains("/api/item/search/jps-cross") })
+        XCTAssertTrue(recorder.urls.allSatisfy { $0.host == "backend.example" })
     }
 
     func testArtworkBatchLoaderMetIsNotInitiallyExhaustedAndLoadsFirstBatch() async throws {
@@ -626,33 +643,22 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             let url = try XCTUnwrap(request.url)
             recorder.record(url)
 
-            if url.path.contains("/search") {
+            if url.path == "/v1/museums/met/artworks" {
                 return self.makeJSONResponse(
                     url: url,
                     jsonObject: [
-                        "total": 1,
-                        "objectIDs": [101]
-                    ]
-                )
-            }
-
-            if url.path.contains("/objects/101") {
-                return self.makeJSONResponse(
-                    url: url,
-                    jsonObject: [
-                        "objectID": 101,
-                        "title": "Met Test Artwork",
-                        "artistDisplayName": "Tester",
-                        "objectDate": "2026",
-                        "medium": "Oil on canvas",
-                        "dimensions": "10 x 10 cm",
-                        "department": "Modern Art",
-                        "culture": "Test Culture",
-                        "country": "USA",
-                        "repository": "The Metropolitan Museum of Art",
-                        "primaryImage": "https://example.com/met-101-large.jpg",
-                        "primaryImageSmall": "https://example.com/met-101-small.jpg",
-                        "objectURL": "https://example.com/met-101"
+                        "dataVersion": "test-version",
+                        "data": [
+                            "items": [
+                                self.makeBackendArtworkDictionary(
+                                    museumID: .met,
+                                    objectID: "101",
+                                    title: "Met Test Artwork"
+                                )
+                            ],
+                            "nextCursor": NSNull(),
+                            "hasMore": false
+                        ]
                     ]
                 )
             }
@@ -666,7 +672,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             categories: MuseumID.met.defaultFeedCategories,
             randomOrder: false,
             cachePolicy: .networkOnly,
-            metAPI: MetMuseumAPI(session: session)
+            backendClient: MuseumBackendClient(baseURL: URL(string: "https://backend.example")!, session: session)
         )
 
         let isInitiallyExhausted = await loader.isExhausted()
@@ -678,12 +684,12 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(batch.first?.museumID, .met)
         XCTAssertEqual(batch.first?.title, "Met Test Artwork")
 
-        let searchURL = try XCTUnwrap(recorder.urls.first(where: { $0.path.contains("/search") }))
+        let searchURL = try XCTUnwrap(recorder.urls.first(where: { $0.path == "/v1/museums/met/artworks" }))
         let queryItems = Dictionary(
             uniqueKeysWithValues: (URLComponents(url: searchURL, resolvingAgainstBaseURL: false)?.queryItems ?? [])
                 .map { ($0.name, $0.value ?? "") }
         )
-        XCTAssertNil(queryItems["isOnView"])
+        XCTAssertNil(queryItems["only_on_view"])
     }
 
     func testArtworkBatchLoaderMetAddsIsOnViewWhenEnabled() async throws {
@@ -694,33 +700,22 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             let url = try XCTUnwrap(request.url)
             recorder.record(url)
 
-            if url.path.contains("/search") {
+            if url.path == "/v1/museums/met/artworks" {
                 return self.makeJSONResponse(
                     url: url,
                     jsonObject: [
-                        "total": 1,
-                        "objectIDs": [101]
-                    ]
-                )
-            }
-
-            if url.path.contains("/objects/101") {
-                return self.makeJSONResponse(
-                    url: url,
-                    jsonObject: [
-                        "objectID": 101,
-                        "title": "Met On View Artwork",
-                        "artistDisplayName": "Tester",
-                        "objectDate": "2026",
-                        "medium": "Oil on canvas",
-                        "dimensions": "10 x 10 cm",
-                        "department": "Modern Art",
-                        "culture": "Test Culture",
-                        "country": "USA",
-                        "repository": "The Metropolitan Museum of Art",
-                        "primaryImage": "https://example.com/met-101-large.jpg",
-                        "primaryImageSmall": "https://example.com/met-101-small.jpg",
-                        "objectURL": "https://example.com/met-101"
+                        "dataVersion": "test-version",
+                        "data": [
+                            "items": [
+                                self.makeBackendArtworkDictionary(
+                                    museumID: .met,
+                                    objectID: "101",
+                                    title: "Met On View Artwork"
+                                )
+                            ],
+                            "nextCursor": NSNull(),
+                            "hasMore": false
+                        ]
                     ]
                 )
             }
@@ -735,7 +730,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             randomOrder: false,
             metShowsOnlyOnViewArtworks: true,
             cachePolicy: .networkOnly,
-            metAPI: MetMuseumAPI(session: session)
+            backendClient: MuseumBackendClient(baseURL: URL(string: "https://backend.example")!, session: session)
         )
 
         let batch = try await loader.nextBatch(count: 10)
@@ -743,12 +738,12 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(batch.count, 1)
         XCTAssertEqual(batch.first?.title, "Met On View Artwork")
 
-        let searchURL = try XCTUnwrap(recorder.urls.first(where: { $0.path.contains("/search") }))
+        let searchURL = try XCTUnwrap(recorder.urls.first(where: { $0.path == "/v1/museums/met/artworks" }))
         let queryItems = Dictionary(
             uniqueKeysWithValues: (URLComponents(url: searchURL, resolvingAgainstBaseURL: false)?.queryItems ?? [])
                 .map { ($0.name, $0.value ?? "") }
         )
-        XCTAssertEqual(queryItems["isOnView"], "true")
+        XCTAssertEqual(queryItems["only_on_view"], "true")
     }
 
     func testNationalMuseumChinaRequestThrottleEnforcesMinimumInterval() async throws {
@@ -784,7 +779,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         }
     }
 
-    func testNationalMuseumChinaWidgetCandidateLoaderDoesNotFetchEveryListPage() async throws {
+    func testDefaultWidgetRefreshEngineUsesBackendForNationalMuseumChinaScope() async throws {
         let recorder = WidgetRequestRecorder()
         let session = makeStubSession(testID: UUID().uuidString) { [self] request in
             guard let url = request.url else {
@@ -792,58 +787,40 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             }
             recorder.record(url)
 
-            if url.path.contains("/api/exhibit_list") {
-                let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-                let queryItems = Dictionary(
-                    uniqueKeysWithValues: (components?.queryItems ?? []).map { ($0.name, $0.value ?? "") }
-                )
-                let page = Int(queryItems["page"] ?? "") ?? 1
-                let ids = page == 8 ? [801, 802] : Array(1...10)
+            if url.path == "/v1/museums/nmc/artworks" {
                 return makeJSONResponse(
                     url: url,
                     jsonObject: [
-                        "status": 1,
-                        "msg": "ok",
+                        "dataVersion": "test-version",
                         "data": [
-                            "count": 150,
-                            "list": ids.map { ["exhibit_id": $0] },
-                            "page": page,
-                            "per_page": 10,
-                            "page_count": 15,
-                        ],
+                            "items": [
+                                makeBackendArtworkDictionary(museumID: .nmc, objectID: "801", title: "后母戊鼎")
+                            ],
+                            "nextCursor": NSNull(),
+                            "hasMore": false
+                        ]
                     ]
-                )
-            }
-
-            if url.path.contains("/api/exhibit/share_link") {
-                return WidgetStubbedResponse(
-                    response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
-                    data: Data(Self.nationalMuseumChinaDetailHTML.utf8)
                 )
             }
 
             throw URLError(.badURL)
         }
-        let loader = NationalMuseumChinaWidgetCandidateLoader(
-            categories: MuseumID.nmc.defaultFeedCategories,
-            randomIndex: { range in
-                range.count == 15 ? 7 : 0
-            },
-            nationalMuseumChinaAPI: NationalMuseumChinaAPI(session: session)
+        let engine = WidgetRefreshEngine(
+            settingsReader: WidgetSettingsReader(defaults: defaults),
+            randomIndex: { _ in 0 },
+            imageDataFetcher: { _, _ in widgetValidPNGData },
+            backendClient: MuseumBackendClient(baseURL: URL(string: "https://backend.example")!, session: session)
         )
 
-        let artwork = try await loader.nextCandidateArtwork()
+        let payload = try await engine.fetchRenderableArtwork(
+            scope: .single(.nmc),
+            refreshKey: "nmc-backend",
+            logSource: "WidgetBackendNMC"
+        )
 
-        XCTAssertEqual(artwork?.museumID, .nmc)
-        XCTAssertEqual(artwork?.objectID, "801")
-        let listPages = recorder.urls
-            .filter { $0.path.contains("/api/exhibit_list") }
-            .compactMap { url -> Int? in
-                let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-                return components?.queryItems?.first(where: { $0.name == "page" })?.value.flatMap(Int.init)
-            }
-        XCTAssertEqual(listPages, [1, 8])
-        XCTAssertFalse(listPages.contains(15))
+        XCTAssertEqual(payload.museumID, .nmc)
+        XCTAssertEqual(payload.title, "后母戊鼎")
+        XCTAssertTrue(recorder.urls.allSatisfy { $0.host == "backend.example" })
     }
 
     func testWidgetPreferredImageURLDecisionUsesThumbnailForColbaseWidgets() {
@@ -1598,6 +1575,33 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             ],
             "cobas-16-s": "東京国立博物館",
             "cobas-22-s": sortValue
+        ]
+    }
+
+    private func makeBackendArtworkDictionary(
+        museumID: MuseumID,
+        objectID: String,
+        title: String,
+        department: String? = nil,
+        primaryImageURL: String? = nil
+    ) -> [String: Any] {
+        [
+            "id": "\(museumID.rawValue)-\(objectID)",
+            "museumID": museumID.rawValue,
+            "objectID": objectID,
+            "title": title,
+            "artworkDescription": NSNull(),
+            "artistDisplayName": NSNull(),
+            "objectDate": "2026",
+            "medium": NSNull(),
+            "dimensions": NSNull(),
+            "department": department.map { $0 as Any } ?? NSNull(),
+            "culture": NSNull(),
+            "country": museumID.country,
+            "repository": museumID.displayName,
+            "primaryImageURL": primaryImageURL ?? "https://example.com/\(objectID)-large.jpg",
+            "primaryImageSmallURL": "https://example.com/\(objectID)-small.jpg",
+            "objectURL": "https://example.com/\(objectID)"
         ]
     }
 
