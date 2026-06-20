@@ -6,6 +6,29 @@ struct Museum: Identifiable, Hashable, Codable {
     let country: String
     let city: String
     let subtitle: String
+    let iconURL: URL?
+    let iconAssetName: String?
+    let iconBackgroundColor: String?
+
+    init(
+        id: MuseumID,
+        displayName: String,
+        country: String,
+        city: String,
+        subtitle: String,
+        iconURL: URL? = nil,
+        iconAssetName: String? = nil,
+        iconBackgroundColor: String? = nil
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.country = country
+        self.city = city
+        self.subtitle = subtitle
+        self.iconURL = iconURL
+        self.iconAssetName = iconAssetName
+        self.iconBackgroundColor = iconBackgroundColor
+    }
 }
 
 struct MuseumCountrySection: Identifiable, Hashable {
@@ -16,117 +39,38 @@ struct MuseumCountrySection: Identifiable, Hashable {
 }
 
 struct MuseumCategory: Identifiable, Hashable {
-    enum Kind: String, Codable {
-        case all
-        case metDepartment
-        case japanSearchType
-        case naraMuseumOfficialDepartment
-        case nationalMuseumChinaBucket
-        case shanghaiMuseumSubtype
-        case guimetCollection
-    }
-
     let museumID: MuseumID
     let id: String
     let displayName: String
-    let kind: Kind
-    let remoteValue: String?
-
-    var metDepartmentID: Int? {
-        guard kind == .metDepartment else { return nil }
-        return remoteValue.flatMap(Int.init)
-    }
-
-    var japanSearchTypeCode: String? {
-        guard kind == .japanSearchType else { return nil }
-        return remoteValue
-    }
-
-    var naraMuseumOfficialDepartment: String? {
-        guard kind == .naraMuseumOfficialDepartment else { return nil }
-        return remoteValue
-    }
-
-    var nationalMuseumChinaBucketKey: String? {
-        guard kind == .nationalMuseumChinaBucket else { return nil }
-        return remoteValue
-    }
-
-    var nationalMuseumChinaCategoryID: Int? {
-        guard kind == .nationalMuseumChinaBucket else { return nil }
-        return remoteValue.flatMap(Int.init)
-    }
-
-    var shanghaiMuseumSubtype: String? {
-        guard kind == .shanghaiMuseumSubtype else { return nil }
-        return remoteValue
-    }
-
-    var guimetCollectionPath: String? {
-        guard kind == .guimetCollection else { return nil }
-        return remoteValue
-    }
 
     var isAll: Bool {
-        kind == .all
+        id == "all"
     }
 }
 
-enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
-    case met
-    case tnm
-    case nnm
-    case nmc
-    case shm
-    case guimet
-
-    var id: String { rawValue }
-
+extension MuseumIdentifier {
     var displayName: String {
-        switch self {
-        case .met:
-            return "大都会艺术博物馆"
-        case .tnm:
-            return "东京国立博物馆"
-        case .nnm:
-            return "奈良国立博物馆"
-        case .nmc:
-            return "中国国家博物馆"
-        case .shm:
-            return "上海博物馆"
-        case .guimet:
-            return "吉美国立亚洲艺术博物馆"
+        if let metadata = MuseumMetadataStore.cachedMuseum(id: self) {
+            return metadata.displayName
         }
+
+        return rawValue
     }
 
     var country: String {
-        switch self {
-        case .met:
-            return "美国"
-        case .tnm, .nnm:
-            return "日本"
-        case .nmc, .shm:
-            return "中国"
-        case .guimet:
-            return "法国"
+        if let metadata = MuseumMetadataStore.cachedMuseum(id: self) {
+            return metadata.country
         }
+
+        return ""
     }
 
     var city: String {
-        switch self {
-        case .met:
-            return "纽约"
-        case .tnm:
-            return "东京"
-        case .nnm:
-            return "奈良"
-        case .nmc:
-            return "北京"
-        case .shm:
-            return "上海"
-        case .guimet:
-            return "巴黎"
+        if let metadata = MuseumMetadataStore.cachedMuseum(id: self) {
+            return metadata.city
         }
+
+        return ""
     }
 
     var subtitle: String {
@@ -134,20 +78,7 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
     }
 
     var homepageLogoAssetName: String {
-        switch self {
-        case .met:
-            return "MetHomepageLogo"
-        case .tnm:
-            return "TnmHomepageLogo"
-        case .nnm:
-            return "NnmHomepageLogo"
-        case .nmc:
-            return "NmcHomepageLogo"
-        case .shm:
-            return "ShmHomepageLogo"
-        case .guimet:
-            return "GuimetHomepageLogo"
-        }
+        MuseumMetadataStore.cachedMuseum(id: self)?.icon.assetName ?? "MuseumHomepageLogoPlaceholder"
     }
 
     var copyrightNotice: String {
@@ -155,171 +86,69 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
     }
 
     var supportsTranslation: Bool {
-        switch self {
-        case .met, .tnm, .nnm, .guimet:
-            return true
-        case .nmc, .shm:
-            return false
+        if let metadata = MuseumMetadataStore.cachedMuseum(id: self) {
+            return metadata.capabilities.supportsTranslation
         }
+
+        return false
     }
 
     var supportsWidgetContent: Bool {
-        switch self {
-        case .met, .tnm, .nnm, .nmc, .shm, .guimet:
-            return true
+        if let metadata = MuseumMetadataStore.cachedMuseum(id: self) {
+            return metadata.capabilities.supportsWidgetContent
         }
+
+        return false
     }
 
-    var usesChinesePunctuation: Bool {
-        switch self {
-        case .nmc, .shm:
-            return true
-        case .met, .tnm, .nnm, .guimet:
-            return false
-        }
+    var punctuationStyle: TextPunctuationStyle {
+        MuseumMetadataStore.cachedMuseum(id: self)?.textPunctuationStyle ?? .western
+    }
+
+    var defaultSourceKey: String? {
+        MuseumMetadataStore.cachedMuseum(id: self)?.defaultSourceKey
+    }
+
+    var sources: [MuseumSourceMetadata] {
+        MuseumMetadataStore.cachedMuseum(id: self)?.sources ?? []
     }
 
     var availableFeedCategories: [MuseumCategory] {
-        switch self {
-        case .met:
-            return [
-                .all(museumID: self),
-                .metDepartment(museumID: self, id: "american-decorative-arts", displayName: "美国装饰艺术", departmentID: 1),
-                .metDepartment(museumID: self, id: "ancient-west-asian-art", displayName: "古代西亚艺术", departmentID: 3),
-                .metDepartment(museumID: self, id: "arms-and-armor", displayName: "武器与盔甲", departmentID: 4),
-                .metDepartment(museumID: self, id: "africa-oceania-americas", displayName: "非洲、大洋洲与美洲艺术", departmentID: 5),
-                .metDepartment(museumID: self, id: "asian-art", displayName: "亚洲艺术", departmentID: 6),
-                .metDepartment(museumID: self, id: "the-cloisters", displayName: "修道院分馆", departmentID: 7),
-                .metDepartment(museumID: self, id: "costume-institute", displayName: "服装学院", departmentID: 8),
-                .metDepartment(museumID: self, id: "drawings-and-prints", displayName: "素描与版画", departmentID: 9),
-                .metDepartment(museumID: self, id: "egyptian-art", displayName: "古埃及艺术", departmentID: 10),
-                .metDepartment(museumID: self, id: "european-paintings", displayName: "欧洲绘画", departmentID: 11),
-                .metDepartment(museumID: self, id: "european-sculpture-and-decorative-arts", displayName: "欧洲雕塑与装饰艺术", departmentID: 12),
-                .metDepartment(museumID: self, id: "greek-and-roman-art", displayName: "古希腊与古罗马艺术", departmentID: 13),
-                .metDepartment(museumID: self, id: "islamic-art", displayName: "伊斯兰艺术", departmentID: 14),
-                .metDepartment(museumID: self, id: "robert-lehman-collection", displayName: "罗伯特·雷曼收藏", departmentID: 15),
-                .metDepartment(museumID: self, id: "libraries", displayName: "图书馆藏", departmentID: 16),
-                .metDepartment(museumID: self, id: "medieval-art", displayName: "中世纪艺术", departmentID: 17),
-                .metDepartment(museumID: self, id: "musical-instruments", displayName: "乐器", departmentID: 18),
-                .metDepartment(museumID: self, id: "photographs", displayName: "摄影", departmentID: 19),
-                .metDepartment(museumID: self, id: "modern-art", displayName: "现代艺术", departmentID: 21)
-            ]
-        case .tnm:
-            return [
-                .all(museumID: self),
-                .japanSearchType(museumID: self, id: "archeology", displayName: "考古与历史资料", typeCode: "archeology"),
-                .japanSearchType(museumID: self, id: "paint", displayName: "绘画", typeCode: "paint"),
-                .japanSearchType(museumID: self, id: "ancdoc", displayName: "书迹与古文书", typeCode: "ancdoc"),
-                .japanSearchType(museumID: self, id: "metal", displayName: "金属工艺", typeCode: "metal"),
-                .japanSearchType(museumID: self, id: "ceramic", displayName: "陶瓷", typeCode: "ceramic"),
-                .japanSearchType(museumID: self, id: "lacquer", displayName: "漆器", typeCode: "lacquer"),
-                .japanSearchType(museumID: self, id: "daw", displayName: "染织", typeCode: "daw"),
-                .japanSearchType(museumID: self, id: "weaponry", displayName: "刀剑与兵器", typeCode: "weaponry"),
-                .japanSearchType(museumID: self, id: "sculpture", displayName: "雕刻", typeCode: "sculpture"),
-                .japanSearchType(museumID: self, id: "arts", displayName: "艺术与美术", typeCode: "arts"),
-                .japanSearchType(museumID: self, id: "architecture", displayName: "建筑", typeCode: "architecture")
-            ]
-        case .nnm:
-            return [
-                .all(museumID: self),
-                .japanSearchType(museumID: self, id: "archeology", displayName: "考古与历史资料", typeCode: "archeology"),
-                .japanSearchType(museumID: self, id: "ancdoc", displayName: "书迹与古文书", typeCode: "ancdoc"),
-                .japanSearchType(museumID: self, id: "paint", displayName: "绘画", typeCode: "paint"),
-                .japanSearchType(museumID: self, id: "craft", displayName: "工艺", typeCode: "craft"),
-                .japanSearchType(museumID: self, id: "sculpture", displayName: "雕刻", typeCode: "sculpture"),
-                .japanSearchType(museumID: self, id: "ceramic", displayName: "陶瓷", typeCode: "ceramic"),
-                .japanSearchType(museumID: self, id: "metal", displayName: "金属工艺", typeCode: "metal"),
-                .japanSearchType(museumID: self, id: "lacquer", displayName: "漆器", typeCode: "lacquer"),
-                .japanSearchType(museumID: self, id: "weaponry", displayName: "刀剑与兵器", typeCode: "weaponry"),
-                .japanSearchType(museumID: self, id: "daw", displayName: "染织", typeCode: "daw")
-            ]
-        case .nmc:
-            return [
-                .all(museumID: self),
-                .nationalMuseumChinaBucket(museumID: self, id: "archaeology", displayName: "考古发掘品", categoryID: 1),
-                .nationalMuseumChinaBucket(museumID: self, id: "revolutionary", displayName: "革命文物", categoryID: 2),
-                .nationalMuseumChinaBucket(museumID: self, id: "national-history", displayName: "国史文物", categoryID: 3),
-                .nationalMuseumChinaBucket(museumID: self, id: "heirloom", displayName: "传世文物", categoryID: 4),
-                .nationalMuseumChinaBucket(museumID: self, id: "currency", displayName: "货币", categoryID: 22),
-                .nationalMuseumChinaBucket(museumID: self, id: "rubbings", displayName: "文献拓本", categoryID: 24),
-                .nationalMuseumChinaBucket(museumID: self, id: "arts", displayName: "艺术品", categoryID: 26)
-            ]
-        case .shm:
-            return [.all(museumID: self)] + [
-                "礼器", "明器", "法器", "道具", "模具/模版", "丧葬用具", "陈设/观赏品", "日用品", "文具", "农具",
-                "工具", "兵器", "饪食器", "酒器", "水器", "车马器", "度量衡", "古钱", "铸币", "打制币",
-                "机制币", "纸币", "金银锭", "非法定钱币", "雕塑", "造像", "碑刻/墓志", "俑像", "画像石", "画像砖",
-                "封泥", "符节（牌）", "印玺", "建筑配件", "器物配件", "织物", "绣品", "服装", "饰品", "文献",
-                "书籍图谱", "拓本", "玩具", "乐器"
-            ].map { .shanghaiMuseumSubtype(museumID: self, name: $0) }
-        case .guimet:
-            return [
-                .all(museumID: self),
-                .guimetCollection(museumID: self, id: "afghanistan-pakistan", displayName: "阿富汗 - 巴基斯坦", path: "/zh-hans/collections/afghanistan-et-gandhara"),
-                .guimetCollection(museumID: self, id: "southeast-asia", displayName: "东南亚", path: "/zh-hans/collections/asie-du-sud-est"),
-                .guimetCollection(museumID: self, id: "indian-world", displayName: "印度世界", path: "/zh-hans/collections/monde-indien"),
-                .guimetCollection(museumID: self, id: "himalayan-world", displayName: "喜马拉雅世界", path: "/zh-hans/collections/monde-himalayen"),
-                .guimetCollection(museumID: self, id: "china", displayName: "中国", path: "/zh-hans/collections/chine"),
-                .guimetCollection(museumID: self, id: "buddhist-china-central-asia", displayName: "中国佛教 - 中亚", path: "/zh-hans/collections/chine-bouddhique-asie-centrale"),
-                .guimetCollection(museumID: self, id: "korea", displayName: "韩国收藏", path: "/zh-hans/collections/coree"),
-                .guimetCollection(museumID: self, id: "japan", displayName: "日本", path: "/zh-hans/collections/japon"),
-                .guimetCollection(museumID: self, id: "textiles", displayName: "织物", path: "/zh-hans/collections/textiles"),
-                .guimetCollection(museumID: self, id: "historical-library", displayName: "历史图书馆珍藏", path: "/zh-hans/collections/tresors-de-la-bibliotheque"),
-                .guimetCollection(museumID: self, id: "photography", displayName: "摄影作品", path: "/zh-hans/collections/photographies")
-            ]
-        }
+        availableFeedCategories(sourceKey: nil)
+    }
+
+    func availableFeedCategories(sourceKey: String?) -> [MuseumCategory] {
+        metadataFeedCategories(sourceKey: sourceKey) ?? [.all(museumID: self)]
     }
 
     var defaultFeedCategory: MuseumCategory {
-        availableFeedCategories[0]
+        availableFeedCategories.first ?? .all(museumID: self)
     }
 
     var selectableFeedCategories: [MuseumCategory] {
-        availableFeedCategories.filter { !$0.isAll }
+        selectableFeedCategories(sourceKey: nil)
     }
 
-    func availableFeedCategories(naraDataSource: NaraMuseumDataSource) -> [MuseumCategory] {
-        guard self == .nnm, naraDataSource == .official else {
-            return availableFeedCategories
-        }
-
-        return [.all(museumID: self)] + NaraMuseumOfficialDepartment.allCases.map { department in
-            .naraMuseumOfficialDepartment(
-                museumID: self,
-                id: department.id,
-                displayName: department.displayName
-            )
-        }
-    }
-
-    func selectableFeedCategories(naraDataSource: NaraMuseumDataSource) -> [MuseumCategory] {
-        availableFeedCategories(naraDataSource: naraDataSource).filter { !$0.isAll }
+    func selectableFeedCategories(sourceKey: String?) -> [MuseumCategory] {
+        availableFeedCategories(sourceKey: sourceKey).filter { !$0.isAll }
     }
 
     var defaultFeedCategories: [MuseumCategory] {
         selectableFeedCategories
     }
 
-    func defaultFeedCategories(naraDataSource: NaraMuseumDataSource) -> [MuseumCategory] {
-        selectableFeedCategories(naraDataSource: naraDataSource)
+    func defaultFeedCategories(sourceKey: String?) -> [MuseumCategory] {
+        selectableFeedCategories(sourceKey: sourceKey)
     }
 
-    func feedCategory(withID id: String?) -> MuseumCategory? {
-        guard let id else { return defaultFeedCategory }
-        return availableFeedCategories.first(where: { $0.id == id }) ?? defaultFeedCategory
+    func feedCategory(withID id: String?, sourceKey: String? = nil) -> MuseumCategory? {
+        guard let id else { return availableFeedCategories(sourceKey: sourceKey).first }
+        return availableFeedCategories(sourceKey: sourceKey).first(where: { $0.id == id })
+            ?? availableFeedCategories(sourceKey: sourceKey).first
     }
 
-    func feedCategories(withStoredValue rawValue: String?) -> [MuseumCategory] {
-        let selectable = selectableFeedCategories
-        return feedCategories(withStoredValue: rawValue, selectable: selectable)
-    }
-
-    func feedCategories(withStoredValue rawValue: String?, naraDataSource: NaraMuseumDataSource) -> [MuseumCategory] {
-        let selectable = selectableFeedCategories(naraDataSource: naraDataSource)
-        return feedCategories(withStoredValue: rawValue, selectable: selectable)
-    }
-
-    private func feedCategories(withStoredValue rawValue: String?, selectable: [MuseumCategory]) -> [MuseumCategory] {
+    func feedCategories(withStoredValue rawValue: String?, sourceKey: String? = nil) -> [MuseumCategory] {
+        let selectable = selectableFeedCategories(sourceKey: sourceKey)
         guard !selectable.isEmpty else { return [] }
         guard let rawValue, !rawValue.isEmpty else { return selectable }
 
@@ -336,17 +165,8 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
         return selected.isEmpty ? selectable : selected
     }
 
-    func normalizedFeedCategories(_ categories: [MuseumCategory]) -> [MuseumCategory] {
-        let selectable = selectableFeedCategories
-        return normalizedFeedCategories(categories, selectable: selectable)
-    }
-
-    func normalizedFeedCategories(_ categories: [MuseumCategory], naraDataSource: NaraMuseumDataSource) -> [MuseumCategory] {
-        let selectable = selectableFeedCategories(naraDataSource: naraDataSource)
-        return normalizedFeedCategories(categories, selectable: selectable)
-    }
-
-    private func normalizedFeedCategories(_ categories: [MuseumCategory], selectable: [MuseumCategory]) -> [MuseumCategory] {
+    func normalizedFeedCategories(_ categories: [MuseumCategory], sourceKey: String? = nil) -> [MuseumCategory] {
+        let selectable = selectableFeedCategories(sourceKey: sourceKey)
         guard !selectable.isEmpty else { return [] }
 
         let selectedIDSet = Set(
@@ -359,48 +179,68 @@ enum MuseumID: String, Codable, CaseIterable, Identifiable, Sendable {
         return normalized.isEmpty ? selectable : normalized
     }
 
-    func areAllFeedCategoriesSelected(_ categories: [MuseumCategory]) -> Bool {
-        normalizedFeedCategories(categories).count == selectableFeedCategories.count
+    func areAllFeedCategoriesSelected(_ categories: [MuseumCategory], sourceKey: String? = nil) -> Bool {
+        normalizedFeedCategories(categories, sourceKey: sourceKey).count == selectableFeedCategories(sourceKey: sourceKey).count
     }
 
-    func areAllFeedCategoriesSelected(_ categories: [MuseumCategory], naraDataSource: NaraMuseumDataSource) -> Bool {
-        normalizedFeedCategories(categories, naraDataSource: naraDataSource).count == selectableFeedCategories(naraDataSource: naraDataSource).count
-    }
-
-    func feedCategoryStorageValue(for categories: [MuseumCategory]) -> String {
-        let normalized = normalizedFeedCategories(categories)
-        if normalized.count == selectableFeedCategories.count {
+    func feedCategoryStorageValue(for categories: [MuseumCategory], sourceKey: String? = nil) -> String {
+        let normalized = normalizedFeedCategories(categories, sourceKey: sourceKey)
+        if normalized.count == selectableFeedCategories(sourceKey: sourceKey).count {
             return "all"
         }
         return normalized.map(\.id).joined(separator: ",")
     }
 
-    func feedCategoryStorageValue(for categories: [MuseumCategory], naraDataSource: NaraMuseumDataSource) -> String {
-        let normalized = normalizedFeedCategories(categories, naraDataSource: naraDataSource)
-        if normalized.count == selectableFeedCategories(naraDataSource: naraDataSource).count {
-            return "all"
+    private func metadataFeedCategories(sourceKey: String? = nil) -> [MuseumCategory]? {
+        guard let metadata = MuseumMetadataStore.cachedMuseum(id: self) else {
+            return nil
         }
-        return normalized.map(\.id).joined(separator: ",")
+        let effectiveSourceKey = sourceKey ?? metadata.defaultSourceKey
+        let categories = metadata.categories
+            .filter { $0.sourceKey == effectiveSourceKey }
+            .sorted { lhs, rhs in
+                if lhs.sortOrder != rhs.sortOrder {
+                    return lhs.sortOrder < rhs.sortOrder
+                }
+                return lhs.categoryID < rhs.categoryID
+            }
+            .map { $0.toMuseumCategory(museumID: self) }
+        guard !categories.isEmpty else {
+            return nil
+        }
+        return [.all(museumID: self)] + categories
     }
 }
 
 enum MuseumRepository {
-    static let supportedMuseums: [Museum] = MuseumID.allCases.map {
-        Museum(id: $0, displayName: $0.displayName, country: $0.country, city: $0.city, subtitle: $0.subtitle)
+    static var supportedMuseums: [Museum] {
+        let metadataMuseums = MuseumMetadataStore.cachedSnapshot()?.museums
+            .sorted { lhs, rhs in
+                if lhs.sortOrder != rhs.sortOrder {
+                    return lhs.sortOrder < rhs.sortOrder
+                }
+                return lhs.id.rawValue < rhs.id.rawValue
+            }
+            .map { $0.toMuseum() } ?? []
+        return metadataMuseums
     }
 
-    static let widgetSupportedMuseums: [Museum] = supportedMuseums.filter { $0.id.supportsWidgetContent }
+    static var widgetSupportedMuseums: [Museum] {
+        supportedMuseums.filter { $0.id.supportsWidgetContent }
+    }
 
-    static let homepageCountrySections: [MuseumCountrySection] = {
+    static var homepageCountrySections: [MuseumCountrySection] {
         homepageCountryOrder.compactMap { country in
             let museums = supportedMuseums.filter { $0.country == country }
             guard !museums.isEmpty else { return nil }
             return MuseumCountrySection(country: country, museums: museums)
         }
-    }()
+    }
 
-    static let homepageMuseumIDs: [MuseumID] = homepageCountrySections.flatMap { section in
-        section.museums.map(\.id)
+    static var homepageMuseumIDs: [MuseumID] {
+        homepageCountrySections.flatMap { section in
+            section.museums.map(\.id)
+        }
     }
 
     static func museum(for id: MuseumID) -> Museum {
@@ -437,21 +277,16 @@ enum MuseumRepository {
         return ordered
     }
 
-    private static let homepageCountryOrder: [String] = {
+    private static var homepageCountryOrder: [String] {
         var countries: [String] = []
         var seen: Set<String> = []
-
-        if supportedMuseums.contains(where: { $0.country == "中国" }) {
-            countries.append("中国")
-            seen.insert("中国")
-        }
 
         for museum in supportedMuseums where seen.insert(museum.country).inserted {
             countries.append(museum.country)
         }
 
         return countries
-    }()
+    }
 }
 
 private extension MuseumCategory {
@@ -459,69 +294,7 @@ private extension MuseumCategory {
         MuseumCategory(
             museumID: museumID,
             id: "all",
-            displayName: "全部",
-            kind: .all,
-            remoteValue: nil
-        )
-    }
-
-    static func metDepartment(museumID: MuseumID, id: String, displayName: String, departmentID: Int) -> MuseumCategory {
-        MuseumCategory(
-            museumID: museumID,
-            id: id,
-            displayName: displayName,
-            kind: .metDepartment,
-            remoteValue: String(departmentID)
-        )
-    }
-
-    static func japanSearchType(museumID: MuseumID, id: String, displayName: String, typeCode: String) -> MuseumCategory {
-        MuseumCategory(
-            museumID: museumID,
-            id: id,
-            displayName: displayName,
-            kind: .japanSearchType,
-            remoteValue: typeCode
-        )
-    }
-
-    static func naraMuseumOfficialDepartment(museumID: MuseumID, id: String, displayName: String) -> MuseumCategory {
-        MuseumCategory(
-            museumID: museumID,
-            id: id,
-            displayName: displayName,
-            kind: .naraMuseumOfficialDepartment,
-            remoteValue: displayName
-        )
-    }
-
-    static func nationalMuseumChinaBucket(museumID: MuseumID, id: String, displayName: String, categoryID: Int) -> MuseumCategory {
-        MuseumCategory(
-            museumID: museumID,
-            id: id,
-            displayName: displayName,
-            kind: .nationalMuseumChinaBucket,
-            remoteValue: String(categoryID)
-        )
-    }
-
-    static func shanghaiMuseumSubtype(museumID: MuseumID, name: String) -> MuseumCategory {
-        MuseumCategory(
-            museumID: museumID,
-            id: name,
-            displayName: name,
-            kind: .shanghaiMuseumSubtype,
-            remoteValue: name
-        )
-    }
-
-    static func guimetCollection(museumID: MuseumID, id: String, displayName: String, path: String) -> MuseumCategory {
-        MuseumCategory(
-            museumID: museumID,
-            id: id,
-            displayName: displayName,
-            kind: .guimetCollection,
-            remoteValue: path
+            displayName: "全部"
         )
     }
 }

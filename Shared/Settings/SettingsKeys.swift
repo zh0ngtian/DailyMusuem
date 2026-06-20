@@ -3,24 +3,25 @@ import Foundation
 enum SettingsKeys {
     static let appGroupID = "group.tech.zh0ngtian.MuseumMuse"
     static let widgetKind = "DailyMuseumWidget"
-    static let feedCategoryPrefix = "feed.category."
+    static let feedPreferences = "feed.preferences.v2"
     static let feedDisplayModePrefix = "feed.displayMode."
-    static let naraMuseumDataSource = "naraMuseum.dataSource"
     static let widgetRefreshIntervalHours = "widget.refreshIntervalHours"
     static let widgetAutoRefreshStartMinutes = "widget.autoRefreshStartMinutes"
     static let widgetAutoRefreshEndMinutes = "widget.autoRefreshEndMinutes"
-    static let metShowsOnlyOnViewArtworks = "met.showsOnlyOnViewArtworks"
     static let artworkDetailFontScaleStep = "artworkDetail.fontScaleStep"
     static let requestLogAccessUnlocked = "requestLog.accessUnlocked"
     static let museumDisplayOrder = "museum.displayOrder"
     static let favoritesArtworks = "favorites.artworks"
 
-    static func feedCategoryKey(for museumID: MuseumID, naraDataSource: NaraMuseumDataSource? = nil) -> String {
-        if museumID == .nnm, naraDataSource == .official {
-            return feedCategoryPrefix + museumID.rawValue + ".official"
-        }
-        return feedCategoryPrefix + museumID.rawValue
-    }
+}
+
+struct FeedPreferences: Codable, Equatable, Sendable {
+    var museums: [String: MuseumFeedPreference] = [:]
+}
+
+struct MuseumFeedPreference: Codable, Equatable, Sendable {
+    var selectedSourceKey: String?
+    var selectedCategoryIDsBySource: [String: [String]] = [:]
 }
 
 enum ArtworkDetailFontScale {

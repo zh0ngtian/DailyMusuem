@@ -47,7 +47,7 @@ LIVE_CRAWL_MUSEUMS = ["nmc", "met", "tnm", "nnm-colbase", "nnm-official", "shm",
 SUPPORTED_MUSEUMS = ["all", *LIVE_CRAWL_MUSEUMS]
 LIVE_CRAWL_SOURCES = {
     "nmc": ("nmc", "nmc_api"),
-    "met": ("met", "met_api"),
+    "met": ("met", "met_all"),
     "tnm": ("tnm", "japan_search"),
     "nnm-colbase": ("nnm", "colbase"),
     "nnm-official": ("nnm", "official"),
@@ -832,7 +832,7 @@ def crawl_met(args: argparse.Namespace, db_path: Path) -> None:
                         connection,
                         args,
                         museum_id="met",
-                        source_key="met_api",
+                        source_key="met_all",
                         object_id=str(object_id),
                     ):
                         skipped_count += 1
@@ -862,7 +862,7 @@ def crawl_met(args: argparse.Namespace, db_path: Path) -> None:
                                 connection,
                                 run_id=run_id,
                                 museum_id="met",
-                                source_key="met_api",
+                                source_key="met_all",
                                 object_id=str(object_id),
                                 url=None,
                                 stage="detail",

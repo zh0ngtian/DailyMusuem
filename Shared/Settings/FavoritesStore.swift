@@ -103,7 +103,17 @@ final class FavoritesStore: ObservableObject {
 
     func groupedFavorites(orderedMuseumIDs: [MuseumID]) -> [FavoriteSection] {
         let grouped = Dictionary(grouping: favorites, by: \.museumID)
-        let museumOrder = orderedMuseumIDs + MuseumID.allCases.filter { !orderedMuseumIDs.contains($0) }
+        let metadataMuseumIDs = MuseumMetadataStore.cachedSnapshot()?.museums
+            .sorted { lhs, rhs in
+                if lhs.sortOrder != rhs.sortOrder {
+                    return lhs.sortOrder < rhs.sortOrder
+                }
+                return lhs.id.rawValue < rhs.id.rawValue
+            }
+            .map(\.id) ?? []
+        let favoriteMuseumIDs = favorites.map(\.museumID)
+        var seen: Set<MuseumID> = []
+        let museumOrder = (orderedMuseumIDs + metadataMuseumIDs + favoriteMuseumIDs).filter { seen.insert($0).inserted }
 
         return museumOrder.compactMap { museumID in
             guard let items = grouped[museumID], !items.isEmpty else {

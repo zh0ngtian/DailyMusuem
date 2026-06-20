@@ -26,7 +26,8 @@ MET_OBJECT_JSON = """
   "repository": "Metropolitan Museum of Art, New York, NY",
   "primaryImage": "https://images.metmuseum.org/large.jpg",
   "primaryImageSmall": "https://images.metmuseum.org/small.jpg",
-  "objectURL": "https://www.metmuseum.org/art/collection/search/1001"
+  "objectURL": "https://www.metmuseum.org/art/collection/search/1001",
+  "isOnView": true
 }
 """
 
@@ -59,8 +60,16 @@ class MetCrawlerTests(unittest.TestCase):
         self.assertEqual(record.title, "Bodhisattva")
         self.assertEqual(record.artist_display_name, "Unknown artist")
         self.assertEqual(record.department, "Asian Art")
+        self.assertEqual(record.is_on_view, True)
         self.assertEqual(record.primary_image_url, "https://images.metmuseum.org/large.jpg")
         self.assertEqual(record.primary_image_small_url, "https://images.metmuseum.org/small.jpg")
+
+    def test_parse_object_payload_derives_on_view_from_gallery_number(self) -> None:
+        payload = MET_OBJECT_JSON.replace('"isOnView": true', '"GalleryNumber": "602"')
+
+        record = parse_object_payload(payload)
+
+        self.assertEqual(record.is_on_view, True)
 
     def test_search_payload_deduplicates_object_ids(self) -> None:
         payload = b'{"total":3,"objectIDs":[1001,1001,1002]}'
@@ -123,10 +132,10 @@ class MetCrawlerTests(unittest.TestCase):
                 connection.commit()
 
                 row = connection.execute(
-                    "SELECT stable_id, title, artwork_description_text, has_image FROM artworks WHERE artwork_pk = ?",
+                    "SELECT source_key, stable_id, title, artwork_description_text, is_on_view, has_image FROM artworks WHERE artwork_pk = ?",
                     (artwork_pk,),
                 ).fetchone()
-                self.assertEqual(row, ("met-1001", "Bodhisattva", "Overview text", 1))
+                self.assertEqual(row, ("met_all", "met-1001", "Bodhisattva", "Overview text", 1, 1))
 
                 image_rows = connection.execute(
                     "SELECT role, url FROM artwork_images WHERE artwork_pk = ? ORDER BY sort_order",

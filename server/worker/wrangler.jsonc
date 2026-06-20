@@ -11,8 +11,8 @@
     "head_sampling_rate": 1
   },
   "vars": {
-    "AUTH_MODE": "simple",
-    "DATA_VERSION": "2026-06-19T15:57:49.419906+00:00"
+    "AUTH_MODE": "disabled",
+    "DATA_VERSION": "2026-06-20T12:07:22Z"
   },
   "d1_databases": [
     {

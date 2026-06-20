@@ -62,8 +62,7 @@ struct ArtworkDetailLoaderView: View {
         do {
             artwork = try await backendClient.artwork(
                 museumID: reference.museumID,
-                objectID: reference.objectID,
-                source: backendSource
+                objectID: reference.objectID
             )
         } catch {
             if artwork == nil {
@@ -91,13 +90,6 @@ struct ArtworkDetailLoaderView: View {
             return 0.8
         }
         return CGFloat(imageAspectRatio)
-    }
-
-    private var backendSource: String? {
-        guard reference.museumID == .nnm else { return nil }
-        return reference.objectID.hasPrefix("narahaku-")
-            ? NaraMuseumDataSource.official.rawValue
-            : NaraMuseumDataSource.colbase.rawValue
     }
 
     private var isFavorite: Bool {

@@ -12,11 +12,19 @@ final class ImageLoader: ObservableObject {
     @Published private(set) var error: Error?
 
     private var url: URL?
+    private let waterfallPolicy: WaterfallImageFetchPolicy?
+    private let waterfallRateLimitScope: String?
     private var task: Task<Void, Never>?
     private var retryCount = 0
 
-    init(url: URL?) {
+    init(
+        url: URL?,
+        waterfallPolicy: WaterfallImageFetchPolicy? = nil,
+        waterfallRateLimitScope: String? = nil
+    ) {
         self.url = url
+        self.waterfallPolicy = waterfallPolicy
+        self.waterfallRateLimitScope = waterfallRateLimitScope
     }
 
     func updateURL(_ newURL: URL?) {
@@ -64,6 +72,10 @@ final class ImageLoader: ObservableObject {
             while !Task.isCancelled {
                 let start = Date()
                 do {
+                    await WaterfallImageLoadCoordinator.shared.waitIfNeeded(
+                        policy: waterfallPolicy,
+                        scope: waterfallRateLimitScope
+                    )
                     await RequestLogger.shared.logRequestStart(source: "App 图片", url: url)
                     let (data, response) = try await URLSession.shared.data(from: url)
                     guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
@@ -114,5 +126,32 @@ final class ImageLoader: ObservableObject {
 
     deinit {
         task?.cancel()
+    }
+}
+
+actor WaterfallImageLoadCoordinator {
+    static let shared = WaterfallImageLoadCoordinator()
+
+    private var nextAllowedStartByScope: [String: Date] = [:]
+
+    func waitIfNeeded(policy: WaterfallImageFetchPolicy?, scope: String?) async {
+        guard let scope,
+              let qps = policy?.qps,
+              qps > 0 else {
+            return
+        }
+
+        let interval = 1 / qps
+        let now = Date()
+        let nextAllowedStart = nextAllowedStartByScope[scope] ?? now
+        let reservedStart = max(now, nextAllowedStart)
+        nextAllowedStartByScope[scope] = reservedStart.addingTimeInterval(interval)
+
+        let delay = reservedStart.timeIntervalSince(now)
+        guard delay > 0 else {
+            return
+        }
+
+        try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
     }
 }

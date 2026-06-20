@@ -24,7 +24,7 @@ private enum StartupNetworkPermissionRequester {
     static func request() {
         // iOS has no generic internet permission API; the first outbound request triggers the system prompt where required.
         Task(priority: .userInitiated) {
-            try? await MuseumBackendClient.shared.health(cachePolicy: .networkOnly)
+            try? await MuseumMetadataStore.shared.refresh(cachePolicy: .networkOnly)
         }
     }
 }

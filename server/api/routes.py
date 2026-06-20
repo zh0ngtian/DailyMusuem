@@ -55,6 +55,11 @@ async def museums() -> dict[str, object]:
     return envelope(database.museums())
 
 
+@router.get("/v1/museums/metadata", dependencies=[Depends(require_business_auth)])
+async def museum_metadata() -> dict[str, object]:
+    return envelope(database.museum_metadata())
+
+
 @router.get("/v1/museums/{museum_id}/categories", dependencies=[Depends(require_business_auth)])
 async def museum_categories(museum_id: str, source: str | None = None) -> dict[str, object]:
     try:
@@ -72,7 +77,6 @@ async def museum_artworks(
     cursor: str | None = None,
     order: str = Query(default="stable", pattern="^(stable|random)$"),
     seed: int | None = None,
-    only_on_view: bool = False,
     has_image: bool = True,
 ) -> dict[str, object]:
     try:
@@ -84,7 +88,6 @@ async def museum_artworks(
             cursor=cursor,
             order=order,
             seed=seed,
-            only_on_view=only_on_view,
             has_image=has_image,
         )
     except MuseumDatabaseError as exc:
@@ -125,13 +128,12 @@ async def widget_candidate(
     for museum_id in museum_ids:
         items, _, _ = database.artworks(
             museum_id=museum_id,
-            source=source if museum_id == "nnm" else None,
+            source=source,
             category_ids=categories,
             limit=10,
             cursor=None,
             order="random",
             seed=None,
-            only_on_view=False,
             has_image=True,
         )
         for artwork in items:

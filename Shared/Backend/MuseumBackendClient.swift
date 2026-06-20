@@ -3,13 +3,13 @@ import CryptoKit
 
 enum MuseumBackendEnvironment {
     static var defaultBaseURL: URL {
-        if let rawValue = Bundle.main.object(forInfoDictionaryKey: "MuseumBackendBaseURL") as? String,
+        if let rawValue = ProcessInfo.processInfo.environment["MUSEUMMUSE_BACKEND_BASE_URL"],
            let url = URL(string: rawValue.trimmingCharacters(in: .whitespacesAndNewlines)),
            url.scheme != nil {
             return url
         }
 
-        if let rawValue = ProcessInfo.processInfo.environment["MUSEUMMUSE_BACKEND_BASE_URL"],
+        if let rawValue = Bundle.main.object(forInfoDictionaryKey: "MuseumBackendBaseURL") as? String,
            let url = URL(string: rawValue.trimmingCharacters(in: .whitespacesAndNewlines)),
            url.scheme != nil {
             return url
@@ -420,7 +420,6 @@ struct ArtworkListQuery: Sendable {
     let cursor: String?
     let order: Order
     let seed: Int?
-    let onlyOnView: Bool
     let hasImage: Bool
     let cachePolicy: MuseumRequestCachePolicy
 
@@ -432,7 +431,6 @@ struct ArtworkListQuery: Sendable {
         cursor: String? = nil,
         order: Order = .stable,
         seed: Int? = nil,
-        onlyOnView: Bool = false,
         hasImage: Bool = true,
         cachePolicy: MuseumRequestCachePolicy = .useCaches
     ) {
@@ -443,7 +441,6 @@ struct ArtworkListQuery: Sendable {
         self.cursor = cursor
         self.order = order
         self.seed = seed
-        self.onlyOnView = onlyOnView
         self.hasImage = hasImage
         self.cachePolicy = cachePolicy
     }
@@ -477,16 +474,12 @@ struct BackendMuseumCategoryDTO: Decodable, Equatable {
     let museumID: MuseumID
     let id: String
     let displayName: String
-    let kind: MuseumCategory.Kind
-    let remoteValue: String?
 
     func toMuseumCategory() -> MuseumCategory {
         MuseumCategory(
             museumID: museumID,
             id: id,
-            displayName: displayName,
-            kind: kind,
-            remoteValue: remoteValue
+            displayName: displayName
         )
     }
 }
@@ -530,6 +523,19 @@ final class MuseumBackendClient: @unchecked Sendable {
         )
         MuseumBackendDataVersionCache.update(envelope.dataVersion)
         return envelope.data
+    }
+
+    func museumMetadata(cachePolicy: MuseumRequestCachePolicy = .useCaches) async throws -> MuseumMetadataSnapshot {
+        let envelope: BackendEnvelope<MuseumMetadataData> = try await get(
+            path: "/v1/museums/metadata",
+            queryItems: [],
+            cachePolicy: cachePolicy
+        )
+        MuseumBackendDataVersionCache.update(envelope.dataVersion)
+        return MuseumMetadataSnapshot(
+            dataVersion: envelope.dataVersion,
+            museums: envelope.data.museums
+        )
     }
 
     func categories(
@@ -711,9 +717,6 @@ private extension ArtworkListQuery {
         if let seed {
             items.append(URLQueryItem(name: "seed", value: String(seed)))
         }
-        if onlyOnView {
-            items.append(URLQueryItem(name: "only_on_view", value: "true"))
-        }
         return items
     }
 }
@@ -754,6 +757,7 @@ private struct BackendWidgetCandidateData: Decodable {
 private struct BackendArtworkDTO: Decodable {
     let id: String
     let museumID: String
+    let sourceKey: String?
     let objectID: String
     let title: String
     let artworkDescription: String?
@@ -777,6 +781,7 @@ private struct BackendArtworkDTO: Decodable {
         return Artwork(
             id: id,
             museumID: museumID,
+            sourceKey: sourceKey,
             objectID: objectID,
             title: title,
             artworkDescription: artworkDescription,

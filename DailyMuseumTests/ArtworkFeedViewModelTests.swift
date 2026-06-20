@@ -62,7 +62,7 @@ final class ArtworkFeedViewModelTests: XCTestCase {
             session: session
         )
         let viewModel = ArtworkFeedViewModel(
-            museum: MuseumRepository.museum(for: .tnm),
+            museum: MuseumRepository.museum(for: MuseumIdentifier("tnm")),
             settings: StubArtworkFeedSettings(),
             cache: StubArtworkFeedCache(),
             backendClient: backendClient
@@ -119,7 +119,7 @@ final class ArtworkFeedViewModelTests: XCTestCase {
         )
 
         let viewModel = ArtworkFeedViewModel(
-            museum: MuseumRepository.museum(for: .tnm),
+            museum: MuseumRepository.museum(for: MuseumIdentifier("tnm")),
             settings: StubArtworkFeedSettings(),
             cache: StubArtworkFeedCache(),
             backendClient: backendClient

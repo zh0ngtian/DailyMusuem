@@ -24,12 +24,63 @@ class MuseumDTO(BaseModel):
     supportsWidgetContent: bool
 
 
+class MuseumIconDTO(BaseModel):
+    url: str | None = None
+    assetName: str | None = None
+    backgroundColor: str | None = None
+
+
+class MuseumCapabilitiesDTO(BaseModel):
+    supportsWidgetContent: bool
+    supportsTranslation: bool
+    supportsFavorites: bool
+
+
+class MuseumSourceDTO(BaseModel):
+    sourceKey: str
+    displayName: str
+    isDefault: bool
+    translationSourceLanguage: str | None = None
+    preferredImageURLOrder: list[str] = Field(default_factory=list)
+    imageRequestHeaders: dict[str, str] = Field(default_factory=dict)
+
+
+class MuseumMetadataCategoryDTO(BaseModel):
+    sourceKey: str
+    categoryID: str
+    displayName: str
+    sortOrder: int
+
+
+class WaterfallImageFetchPolicyDTO(BaseModel):
+    qps: float | None = None
+
+
+class MuseumMetadataDTO(BaseModel):
+    museumID: str
+    displayName: str
+    subtitle: str
+    country: str
+    city: str
+    address: str | None = None
+    textPunctuationStyle: str
+    icon: MuseumIconDTO
+    sortOrder: int
+    capabilities: MuseumCapabilitiesDTO
+    defaultSourceKey: str
+    sources: list[MuseumSourceDTO]
+    categories: list[MuseumMetadataCategoryDTO]
+    waterfallImageFetchPolicy: WaterfallImageFetchPolicyDTO
+
+
+class MuseumMetadataDataDTO(BaseModel):
+    museums: list[MuseumMetadataDTO]
+
+
 class MuseumCategoryDTO(BaseModel):
     museumID: str
     id: str
     displayName: str
-    kind: str
-    remoteValue: str | None = None
 
 
 class ArtworkDTO(BaseModel):

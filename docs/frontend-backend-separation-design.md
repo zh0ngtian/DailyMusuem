@@ -91,15 +91,16 @@ sequenceDiagram
 - 共享候选池与详情批加载：`DailyMuseumWidget/WidgetSettingsReader.swift` 中的 `ArtworkBatchLoader`
 - 详情页按馆分发：`DailyMuseum/Views/ArtworkDetailLoaderView.swift`
 - Widget 刷新与候选推进：`DailyMuseumWidget/WidgetRefreshDeliveryTracker.swift`
-- 各馆现有源站逻辑：
-  - `Shared/MetMuseum/MetMuseumAPI.swift`
-  - `Shared/JapanSearch/JapanSearchAPI.swift`
-  - `Shared/NaraMuseum/NaraMuseumAPI.swift`
-  - `Shared/NationalMuseumChina/NationalMuseumChinaAPI.swift`
-  - `Shared/ShanghaiMuseum/ShanghaiMuseumAPI.swift`
-  - `Shared/GuimetMuseum/GuimetMuseumAPI.swift`
+- 各馆源站逻辑已收敛到服务端 crawler：
+  - `server/crawler/museums/met.py`
+  - `server/crawler/museums/tnm.py`
+  - `server/crawler/museums/nnm_official.py`
+  - `server/crawler/museums/nnm_colbase.py`
+  - `server/crawler/museums/nmc.py`
+  - `server/crawler/museums/shm.py`
+  - `server/crawler/museums/guimet.py`
 
-爬虫脚本应优先复刻这些文件里的请求参数、分页、解析和字段清洗规则，保证后端返回的 `Artwork` 语义与当前客户端一致。
+爬虫脚本是源站请求参数、分页、解析和字段清洗规则的唯一实现位置，保证后端返回的 `Artwork` 语义与客户端通用模型一致。
 
 ## 4. 总体架构
 
@@ -172,7 +173,7 @@ python -m server.crawler.main crawl --museum all --db server/data/museummuse.sql
 
 | 博物馆 | source_key | 候选池来源 | 详情来源 | 特殊规则 |
 | --- | --- | --- | --- | --- |
-| 大都会艺术博物馆 | `met_api` | The Met `/search`，按 `departmentId` 和 `hasImages=true` | `/objects/{objectID}` + 官网 overview 兜底 | `only_on_view` 通过 `isOnView=true` 搜索结果标记；`--category-id` 需要把项目内部分类 ID 映射为官方 `departmentId` |
+| 大都会艺术博物馆 | `met_all` | The Met `/search`，按 `departmentId` 和 `hasImages=true` | `/objects/{objectID}` + 官网 overview 兜底 | `met_on_view` 是复用 `met_all` 的客户端 source，通过 `list_filter_json={"only_on_view":true}` 过滤 `artworks.is_on_view=1`；`--category-id` 需要把项目内部分类 ID 映射为官方 `departmentId` |
 | 东京国立博物馆 | `japan_search` | Japan Search `jps-cross`，小页 `size=10` | Japan Search `/item/{itemID}` | 保留 contributor 为空时退回 cobas 全库再本地过滤 |
 | 奈良国立博物馆 | `official` | 馆方中文藏品页 `data-href` | 馆方详情页 `{id}.html` | `object_id` 使用 `narahaku-{原始ID}` |
 | 奈良国立博物馆 | `colbase` | Japan Search / ColBase，小页 `size=10` | Japan Search `/item/{itemID}` | 与东京馆同类分页约束 |
@@ -246,7 +247,7 @@ class RateLimiter:
   "database": "server/data/museummuse.sqlite",
   "artwork_count": 14690,
   "sources": [
-    { "museum_id": "met", "source_key": "met_api", "artwork_count": 12345 },
+    { "museum_id": "met", "source_key": "met_all", "artwork_count": 12345 },
     { "museum_id": "nmc", "source_key": "nmc_api", "artwork_count": 2345 }
   ],
   "crawl_runs": { "by_status": { "succeeded": 6 }, "latest": { "run_id": "met-..." } },
@@ -301,9 +302,11 @@ class RateLimiter:
 | --- | --- | --- | --- |
 | `source_pk` | `INTEGER` | 主键，自增 | 数据源内部主键 |
 | `museum_id` | `TEXT` | 非空，外键 | 所属博物馆 |
-| `source_key` | `TEXT` | 非空 | 稳定数据源标识，例如 `met_api`、`official`、`colbase` |
+| `source_key` | `TEXT` | 非空 | 稳定数据源标识，例如 `met_all`、`met_on_view`、`official`、`colbase` |
 | `display_name` | `TEXT` | 非空 | 数据源展示名，例如 `馆方数据源` |
 | `is_default` | `INTEGER` | 非空，默认 `1` | 是否为该馆默认源 |
+| `artwork_source_key` | `TEXT` | 可空 | 复用的真实入库 source；例如 `met_on_view` 指向 `met_all` |
+| `list_filter_json` | `TEXT` | 可空 | 服务端列表过滤语义；例如 `{"only_on_view":true}` |
 | `request_base_url` | `TEXT` | 可空 | 源站基础 URL，用于排查和文档展示 |
 | `notes` | `TEXT` | 可空 | 数据源约束说明 |
 
@@ -318,8 +321,6 @@ class RateLimiter:
 | `source_key` | `TEXT` | 非空，外键组成项 | 所属数据源 |
 | `category_id` | `TEXT` | 非空 | 项目内部稳定分类 ID |
 | `display_name` | `TEXT` | 非空 | UI 中文展示值 |
-| `kind` | `TEXT` | 非空 | 对应当前 `MuseumCategory.Kind` |
-| `remote_value` | `TEXT` | 可空 | 远端真实请求值，例如 `departmentId`、`f-type`、`subtype` |
 | `sort_order` | `INTEGER` | 非空，默认 `0` | 分类展示排序 |
 | `raw_json` | `TEXT` | 可空 | 源站分类原始信息 |
 
@@ -574,7 +575,7 @@ SHA256(
 
 - 本地服务默认仍开启鉴权。
 - 只有 `MUSEUMMUSE_AUTH_MODE=disabled` 且服务绑定 `127.0.0.1` 时，才允许跳过鉴权，避免误把无鉴权服务部署出去。
-- 当前 serverless 过渡路径使用 `AUTH_MODE=simple`；未配置 `SIMPLE_AUTH_SECRET` / `MUSEUMMUSE_SIMPLE_AUTH_SECRET` 时，服务端必须返回 `503 simple_auth_secret_missing`，不能自动降级为无鉴权。
+- serverless 过渡目标路径是 `AUTH_MODE=simple`；未配置 `SIMPLE_AUTH_SECRET` / `MUSEUMMUSE_SIMPLE_AUTH_SECRET` 时，服务端必须返回 `503 simple_auth_secret_missing`，不能自动降级为无鉴权。当前 Cloudflare 实例尚未配置 simple auth secret，因此线上临时保持 `AUTH_MODE=disabled`，切换前必须先补 secret 和客户端签名验证。
 - iOS Simulator 不稳定支持 App Attest 时，可以使用 debug-only mock attestation；该能力必须被编译条件和服务端环境双重限制。
 - 当前本地 debug auth 通过 `MUSEUMMUSE_AUTH_MODE=debug` 和 `MUSEUMMUSE_DEBUG_AUTH_SECRET` 启用，且服务端只接受 loopback 客户端。
 - debug auth 仍需要 `POST /v1/auth/challenge`、`POST /v1/auth/register`、`POST /v1/auth/session` 三步，业务请求继续携带短期 `Bearer` token、timestamp、nonce、canonical request hash 和 debug assertion。
@@ -617,7 +618,7 @@ GET /v1/museums/{museum_id}/categories?source=official
 
 - `source` 可选；奈良默认 `official`，其他馆默认各自默认源。
 - 不返回 `全部` 分类；客户端继续用“全部”表示选中所有真实分类。
-- 返回 `category_id`、`display_name`、`kind`、`remote_value`。
+- 返回 `category_id`、`display_name`、`sort_order`；源站请求值和过滤语义只保留在服务端内部。
 - 鉴权：需要。
 
 #### 展品列表
@@ -630,13 +631,12 @@ GET /v1/museums/{museum_id}/artworks?source=official&category_ids=a,b&limit=10&c
 
 | 参数 | 说明 |
 | --- | --- |
-| `source` | 数据源。奈良可为 `official` / `colbase`，其他馆通常省略 |
+| `source` | 数据源。奈良可为 `official` / `colbase`，大都会可为 `met_all` / `met_on_view`，单源馆通常省略 |
 | `category_ids` | 逗号分隔的真实分类 ID；省略表示全部 |
 | `limit` | 默认 10，最大 50 |
 | `cursor` | 上一页返回的不透明 cursor |
 | `order` | `stable` 或 `random` |
 | `seed` | `order=random` 时使用，保证分页内随机顺序稳定 |
-| `only_on_view` | 仅大都会使用，对应现有“仅显示展出展品” |
 | `has_image` | 默认 true，保持当前 App 只展示可渲染展品的行为 |
 
 列表项直接返回完整 `ArtworkDTO`，不要只返回 ID。这样客户端拿到 JSON 后可以立即渲染文字，图片由 URL 触发异步加载。
@@ -786,15 +786,15 @@ DTO 到现有模型的转换必须保持当前 `Artwork` 字段语义：
 
 - 搜索候选池。
 - 批量拉详情。
-- 按类别、奈良数据源、大都会 only-on-view 组织参数。
+- 按类别和当前 `sourceKey` 组织参数。
 - 给页面写加载日志。
 
 改造后建议保留 `ArtworkBatchLoader` 作为客户端分页编排层，但内部从“各馆 API 分发”改为“后端列表接口查询”：
 
 - `warmPoolIfNeeded` 不再请求官方候选池，改为初始化后端分页 query。
 - `nextBatch(count:)` 调用 `/v1/museums/{museum_id}/artworks`。
-- `selectedCategories`、`naraMuseumDataSource`、`metShowsOnlyOnViewArtworks` 继续转成 query 参数。
-- `ArtworkFeedCache` 的缓存 key 继续包含分类、奈良数据源和大都会 only-on-view，另加 `dataVersion`，避免 SQLite 数据更新后复用旧缓存。
+- `selectedCategories` 和当前 `sourceKey` 继续转成 query 参数；不再保留 `naraMuseumDataSource`、`metShowsOnlyOnViewArtworks` 这类按馆专用参数。
+- `ArtworkFeedCache` 的缓存 key 继续包含分类、`sourceKey` 和 `dataVersion`，避免 SQLite 数据或 metadata 更新后复用旧缓存。
 
 文字与图片渲染顺序：
 
@@ -809,7 +809,7 @@ DTO 到现有模型的转换必须保持当前 `Artwork` 字段语义：
 
 - 入口仍然接收 `ArtworkReference(museumID, objectID, imageAspectRatio)`。
 - `loadArtwork` 改为调用 `/v1/museums/{museum_id}/artworks/{object_id}`。
-- 奈良详情页根据 `objectID` 前缀或当前设置传 `source`。
+- 详情页根据当前引用或后端唯一 `(museum_id, object_id)` 解析传递 / 推断 `source`，不再按馆写 objectID 前缀分支。
 - 大都会官网概述、上海图片页、国博 HTML 解析等全部前移到爬虫；详情页不再做官网解析。
 - 刷新详情页时只重新请求后端详情，并清理图片内存缓存后重拉图片 URL。
 
@@ -824,7 +824,7 @@ Widget 必须继续满足：
 
 改造方案：
 
-- `WidgetSettingsReader` 继续读取 App Group 中的分类、奈良数据源、大都会 only-on-view、自动刷新时间窗。
+- `WidgetSettingsReader` 继续读取 App Group 中的分类、当前 `sourceKey` 和自动刷新时间窗。
 - `WidgetRefreshDeliveryTracker` 中创建候选 loader 时，改用 `MuseumBackendClient`。
 - 对 Widget 请求设置 `URLRequest.cachePolicy = .reloadIgnoringLocalCacheData`。
 - 若使用 `/v1/widget/candidate`，服务端一次返回一个候选；若暂时复用列表接口，客户端仍按现有单件候选推进规则停止。
@@ -840,16 +840,33 @@ Widget 必须继续满足：
 推荐流程：
 
 1. 本地或 CI 执行爬虫，生成新的 SQLite 临时文件。
-2. 跑完整性检查：
+2. 对本地 SQLite 跑 schema 初始化、crawler status 和完整性检查：
    - 六馆都有数据。
    - `artworks.has_image=1` 的数量符合预期。
    - 每个正式分类至少能查到候选或有明确空分类记录。
    - `artwork_images.url` 不是空字符串。
    - `crawl_errors` 数量低于阈值。
-3. 跑服务端 API 测试和样本快照测试。
-4. 将临时 SQLite 原子替换为发布文件。
-5. serverless 场景发布新函数版本或新数据层。
-6. 客户端通过 `dataVersion` 识别数据更新，清理旧 feed 缓存。
+3. 启动本地 Python API，显式使用发布候选库：
+   - `MUSEUMMUSE_DB_PATH=server/data/museummuse-live-all.sqlite`
+   - `MUSEUMMUSE_AUTH_MODE=disabled` 或本地 debug auth。
+4. 客户端先指向本地服务调试：
+   - `MUSEUMMUSE_BACKEND_BASE_URL=http://127.0.0.1:8000`
+   - 验证 metadata、列表、详情、Widget 候选、动态数据源切换和图片瀑布流限流。
+5. 本地测试全部通过后，才同步到 Cloudflare：
+   - 必须使用 `[@cloudflare](plugin://cloudflare@openai-curated-remote)` 插件能力完成远端检查、D1 SQL 执行和 Worker 发布；如果本地 Wrangler 没有可用 token，不要绕过该约束，改用插件提供的 Cloudflare API 能力。
+   - 发布 `server/worker` Worker。
+   - 将同一个 `server/data/museummuse-live-all.sqlite` 及其 manifest 迁移到 D1。
+   - 确认 Worker 环境变量、secret、D1 binding 和本地验证使用的 schema / 数据一致。
+6. Cloudflare 同步完成后，把客户端后端地址切回线上 Worker：
+   - 默认使用 Info.plist 中的 `MuseumBackendBaseURL`。
+   - 或显式设置 `MUSEUMMUSE_BACKEND_BASE_URL=https://museummuse-api.305301890.workers.dev`。
+7. 在线上 Worker + D1 上再跑一遍回归：
+   - 后端 metadata / 列表 / 详情 / Widget 候选接口。
+   - 后端客户端 DTO 映射和 source 选择相关单元测试。
+   - 必要的模拟器 smoke 验证。
+8. 客户端通过 `dataVersion` 识别数据更新，清理旧 feed 缓存。
+
+如果本地通过但线上失败，先排查 Worker 版本、D1 schema、D1 数据、metadata 响应和鉴权配置；不要在客户端补旧字段、旧 source key 或按馆 fallback 来绕过线上未同步问题。
 
 完整性检查 SQL 示例：
 
@@ -891,7 +908,7 @@ ORDER BY c.museum_id, c.sort_order;
   - 六馆列表接口。
   - 分类过滤。
   - 奈良 `official` / `colbase` 源切换。
-  - 大都会 `only_on_view=true`。
+  - 大都会 `source=met_on_view`。
   - 分页 cursor。
   - 详情查询。
   - Widget 单馆候选不越界。
@@ -904,7 +921,7 @@ ORDER BY c.museum_id, c.sort_order;
 - 主 App：
   - 六馆一级页入口不变。
   - 二级页首批 10 条加载、继续上滑松手加载、下拉刷新正常。
-  - 分类多选、奈良数据源切换、大都会 only-on-view 生效。
+  - 分类多选、动态 source 切换生效。
   - 详情页字段、AI 按钮、官网链接、收藏、全屏图片预览正常。
 - Widget：
   - `all` scope 和六个单馆 scope 都能刷新。
@@ -970,5 +987,5 @@ ORDER BY c.museum_id, c.sort_order;
 - 数据接入从“客户端直连官方源”调整为“离线爬虫 + 服务端 SQLite”。
 - 国博 QPS=1 从客户端运行时约束变为爬虫约束；上博离线爬虫可在用户批准后通过共享 limiter 尝试 QPS=10。
 - Widget network-only 的含义从“直连官方源”变为“直连服务端，不复用主 App 缓存”。
-- 服务端接口当前需要 simple HMAC，后续生产需要 App Attest、短期 token、nonce 防重放和限流，不允许裸露业务 API。
+- 服务端接口目标上需要 simple HMAC，后续生产需要 App Attest、短期 token、nonce 防重放和限流，不允许裸露业务 API。当前 Cloudflare 实例因尚未配置 simple auth secret 暂时保持 `AUTH_MODE=disabled`，不能把这个临时状态当作生产鉴权完成。
 - 新增博物馆完成标准需要增加“爬虫、SQLite schema、服务端接口、客户端 DTO 映射”。

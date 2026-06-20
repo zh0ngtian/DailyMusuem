@@ -8,6 +8,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
 
     override func setUpWithError() throws {
         try super.setUpWithError()
+        try seedTestMuseumMetadata()
         defaultsSuiteName = "WidgetStateAndSettingsTests.\(UUID().uuidString)"
         defaults = UserDefaults(suiteName: defaultsSuiteName)
         defaults.removePersistentDomain(forName: defaultsSuiteName)
@@ -23,58 +24,77 @@ final class WidgetStateAndSettingsTests: XCTestCase {
     }
 
     func testWidgetSettingsReaderUsesFeedCategoriesFromDefaults() {
-        defaults.set(
-            "modern-art,american-decorative-arts",
-            forKey: SettingsKeys.feedCategoryPrefix + MuseumID.met.rawValue
+        setFeedPreference(
+            museumID: MuseumIdentifier("met"),
+            categoriesBySource: [
+                "met_all": ["modern-art", "american-decorative-arts"]
+            ],
+            in: defaults
         )
 
         let reader = WidgetSettingsReader(defaults: defaults)
-        let categories = reader.categories(for: .met)
+        let categories = reader.categories(for: MuseumIdentifier("met"))
 
         XCTAssertEqual(categories.map(\.id), ["american-decorative-arts", "modern-art"])
     }
 
-    func testWidgetSettingsReaderUsesStoredMetOnViewToggle() {
-        defaults.set(true, forKey: SettingsKeys.metShowsOnlyOnViewArtworks)
-
+    func testWidgetSettingsReaderDefaultsMetToAllSource() {
         let reader = WidgetSettingsReader(defaults: defaults)
 
-        XCTAssertTrue(reader.metShowsOnlyOnViewArtworks())
-    }
-
-    func testWidgetSettingsReaderDefaultsMetOnViewToggleToOff() {
-        let reader = WidgetSettingsReader(defaults: defaults)
-
-        XCTAssertFalse(reader.metShowsOnlyOnViewArtworks())
-    }
-
-    func testWidgetSettingsReaderDefaultsNaraToOfficialDataSourceAndCategories() {
-        let reader = WidgetSettingsReader(defaults: defaults)
-
-        XCTAssertEqual(reader.naraMuseumDataSource(), .official)
+        XCTAssertEqual(reader.selectedSourceKey(for: MuseumIdentifier("met")), "met_all")
         XCTAssertEqual(
-            reader.categories(for: .nnm).map(\.id),
-            MuseumID.nnm.selectableFeedCategories(naraDataSource: .official).map(\.id)
+            reader.categories(for: MuseumIdentifier("met")).map(\.id),
+            MuseumIdentifier("met").selectableFeedCategories(sourceKey: "met_all").map(\.id)
+        )
+    }
+
+    func testWidgetSettingsReaderUsesStoredMetOnViewSource() {
+        setFeedPreference(
+            museumID: MuseumIdentifier("met"),
+            selectedSourceKey: "met_on_view",
+            categoriesBySource: [
+                "met_on_view": ["modern-art"]
+            ],
+            in: defaults
+        )
+
+        let reader = WidgetSettingsReader(defaults: defaults)
+
+        XCTAssertEqual(reader.selectedSourceKey(for: MuseumIdentifier("met")), "met_on_view")
+        XCTAssertEqual(reader.categories(for: MuseumIdentifier("met")).map(\.id), ["modern-art"])
+    }
+
+    func testWidgetSettingsReaderDefaultsNaraToOfficialSourceAndCategories() {
+        let reader = WidgetSettingsReader(defaults: defaults)
+
+        XCTAssertEqual(reader.selectedSourceKey(for: MuseumIdentifier("nnm")), "official")
+        XCTAssertEqual(
+            reader.categories(for: MuseumIdentifier("nnm")).map(\.id),
+            MuseumIdentifier("nnm").selectableFeedCategories(sourceKey: "official").map(\.id)
         )
     }
 
     func testWidgetSettingsReaderKeepsNaraOfficialAndColbaseCategoryStorageSeparate() {
-        defaults.set(NaraMuseumDataSource.official.rawValue, forKey: SettingsKeys.naraMuseumDataSource)
-        defaults.set(
-            "official-sculpture,official-painting",
-            forKey: SettingsKeys.feedCategoryKey(for: .nnm, naraDataSource: .official)
-        )
-        defaults.set(
-            "paint,sculpture",
-            forKey: SettingsKeys.feedCategoryKey(for: .nnm, naraDataSource: .colbase)
+        setFeedPreference(
+            museumID: MuseumIdentifier("nnm"),
+            selectedSourceKey: "official",
+            categoriesBySource: [
+                "official": ["official-sculpture", "official-painting"],
+                "colbase": ["paint", "sculpture"]
+            ],
+            in: defaults
         )
 
         var reader = WidgetSettingsReader(defaults: defaults)
-        XCTAssertEqual(reader.categories(for: .nnm).map(\.id), ["official-sculpture", "official-painting"])
+        XCTAssertEqual(reader.categories(for: MuseumIdentifier("nnm")).map(\.id), ["official-sculpture", "official-painting"])
 
-        defaults.set(NaraMuseumDataSource.colbase.rawValue, forKey: SettingsKeys.naraMuseumDataSource)
+        setFeedPreference(
+            museumID: MuseumIdentifier("nnm"),
+            selectedSourceKey: "colbase",
+            in: defaults
+        )
         reader = WidgetSettingsReader(defaults: defaults)
-        XCTAssertEqual(reader.categories(for: .nnm).map(\.id), ["paint", "sculpture"])
+        XCTAssertEqual(reader.categories(for: MuseumIdentifier("nnm")).map(\.id), ["paint", "sculpture"])
     }
 
     func testWidgetSettingsReaderUsesStoredRefreshInterval() {
@@ -106,21 +126,6 @@ final class WidgetStateAndSettingsTests: XCTestCase {
 
         XCTAssertEqual(reader.widgetAutoRefreshStartMinutes(), 0)
         XCTAssertEqual(reader.widgetAutoRefreshEndMinutes(), 23 * 60)
-    }
-
-    @MainActor
-    func testSettingsStorePersistsMetOnViewToggle() {
-        let store = SettingsStore(defaults: defaults)
-
-        store.saveMetShowsOnlyOnViewArtworks(true)
-
-        XCTAssertTrue(defaults.bool(forKey: SettingsKeys.metShowsOnlyOnViewArtworks))
-        XCTAssertTrue(SettingsStore(defaults: defaults).metShowsOnlyOnViewArtworks)
-
-        store.saveMetShowsOnlyOnViewArtworks(false)
-
-        XCTAssertFalse(defaults.bool(forKey: SettingsKeys.metShowsOnlyOnViewArtworks))
-        XCTAssertFalse(SettingsStore(defaults: defaults).metShowsOnlyOnViewArtworks)
     }
 
     @MainActor
@@ -161,28 +166,28 @@ final class WidgetStateAndSettingsTests: XCTestCase {
     }
 
     @MainActor
-    func testSettingsStorePersistsNaraDataSourceAndSeparateCategories() {
+    func testSettingsStorePersistsSelectedSourceAndSeparateCategories() {
         let store = SettingsStore(defaults: defaults)
 
-        XCTAssertEqual(store.naraMuseumDataSource, .official)
+        XCTAssertEqual(store.selectedSourceKey(for: MuseumIdentifier("nnm")), "official")
         store.saveFeedCategories(
-            [MuseumID.nnm.selectableFeedCategories(naraDataSource: .official)[0]],
-            for: .nnm,
-            naraDataSource: .official
+            [MuseumIdentifier("nnm").selectableFeedCategories(sourceKey: "official")[0]],
+            for: MuseumIdentifier("nnm"),
+            sourceKey: "official"
         )
-        store.saveNaraMuseumDataSource(.colbase)
+        store.saveSelectedSourceKey("colbase", for: MuseumIdentifier("nnm"))
         store.saveFeedCategories(
-            [MuseumID.nnm.selectableFeedCategories(naraDataSource: .colbase)[2]],
-            for: .nnm,
-            naraDataSource: .colbase
+            [MuseumIdentifier("nnm").selectableFeedCategories(sourceKey: "colbase")[2]],
+            for: MuseumIdentifier("nnm"),
+            sourceKey: "colbase"
         )
 
         let reloaded = SettingsStore(defaults: defaults)
 
-        XCTAssertEqual(reloaded.naraMuseumDataSource, .colbase)
-        XCTAssertEqual(reloaded.feedCategories(for: .nnm).map(\.id), ["paint"])
+        XCTAssertEqual(reloaded.selectedSourceKey(for: MuseumIdentifier("nnm")), "colbase")
+        XCTAssertEqual(reloaded.feedCategories(for: MuseumIdentifier("nnm")).map(\.id), ["paint"])
         XCTAssertEqual(
-            reloaded.feedCategories(for: .nnm, naraDataSource: .official).map(\.id),
+            reloaded.feedCategories(for: MuseumIdentifier("nnm"), sourceKey: "official").map(\.id),
             ["official-sculpture"]
         )
     }
@@ -191,20 +196,27 @@ final class WidgetStateAndSettingsTests: XCTestCase {
     func testSettingsStoreExportsAndImportsConfiguration() async throws {
         let sourceWidgetStore = WidgetArtworkSnapshotStore(baseURL: temporaryBaseURL())
         await sourceWidgetStore.replaceDisplayedArtworkHistory([
-            MuseumID.met.rawValue: [WidgetDisplayedArtworkKey.make(museumID: .met, objectID: "seen")]
+            MuseumIdentifier("met").rawValue: [WidgetDisplayedArtworkKey.make(museumID: MuseumIdentifier("met"), objectID: "seen")]
         ])
         defaults.set(6, forKey: SettingsKeys.widgetRefreshIntervalHours)
         defaults.set(8 * 60, forKey: SettingsKeys.widgetAutoRefreshStartMinutes)
         defaults.set(20 * 60, forKey: SettingsKeys.widgetAutoRefreshEndMinutes)
-        defaults.set(true, forKey: SettingsKeys.metShowsOnlyOnViewArtworks)
         defaults.set(2, forKey: SettingsKeys.artworkDetailFontScaleStep)
         defaults.set(true, forKey: SettingsKeys.requestLogAccessUnlocked)
-        defaults.set(NaraMuseumDataSource.colbase.rawValue, forKey: SettingsKeys.naraMuseumDataSource)
-        defaults.set(
-            "american-decorative-arts,modern-art",
-            forKey: SettingsKeys.feedCategoryKey(for: .met)
+        setFeedPreference(
+            museumID: MuseumIdentifier("met"),
+            selectedSourceKey: "met_on_view",
+            categoriesBySource: [
+                "met_on_view": ["american-decorative-arts", "modern-art"]
+            ],
+            in: defaults
         )
-        defaults.set("list", forKey: SettingsKeys.feedDisplayModePrefix + MuseumID.met.rawValue)
+        setFeedPreference(
+            museumID: MuseumIdentifier("nnm"),
+            selectedSourceKey: "colbase",
+            in: defaults
+        )
+        defaults.set("list", forKey: SettingsKeys.feedDisplayModePrefix + MuseumIdentifier("met").rawValue)
         defaults.set(Data([1, 2, 3]), forKey: SettingsKeys.favoritesArtworks)
 
         let sourceStore = SettingsStore(defaults: defaults, widgetSnapshotStore: sourceWidgetStore)
@@ -217,10 +229,17 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         }
         targetDefaults.set(1, forKey: SettingsKeys.widgetRefreshIntervalHours)
         targetDefaults.set(-1, forKey: SettingsKeys.artworkDetailFontScaleStep)
-        targetDefaults.set("photographs", forKey: SettingsKeys.feedCategoryKey(for: .met))
+        setFeedPreference(
+            museumID: MuseumIdentifier("met"),
+            selectedSourceKey: "met_on_view",
+            categoriesBySource: [
+                "met_on_view": ["photographs"]
+            ],
+            in: targetDefaults
+        )
         let targetWidgetStore = WidgetArtworkSnapshotStore(baseURL: temporaryBaseURL())
         await targetWidgetStore.replaceDisplayedArtworkHistory([
-            MuseumID.tnm.rawValue: [WidgetDisplayedArtworkKey.make(museumID: .tnm, objectID: "old")]
+            MuseumIdentifier("tnm").rawValue: [WidgetDisplayedArtworkKey.make(museumID: MuseumIdentifier("tnm"), objectID: "old")]
         ])
         let targetStore = SettingsStore(defaults: targetDefaults, widgetSnapshotStore: targetWidgetStore)
 
@@ -229,18 +248,18 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(targetStore.widgetRefreshInterval, .sixHours)
         XCTAssertEqual(targetStore.widgetAutoRefreshStartMinutes, 8 * 60)
         XCTAssertEqual(targetStore.widgetAutoRefreshEndMinutes, 20 * 60)
-        XCTAssertTrue(targetStore.metShowsOnlyOnViewArtworks)
         XCTAssertEqual(targetStore.artworkDetailFontScaleStep, 2)
         XCTAssertEqual(targetDefaults.integer(forKey: SettingsKeys.artworkDetailFontScaleStep), 2)
         XCTAssertTrue(targetStore.isRequestLogAccessUnlocked)
-        XCTAssertEqual(targetStore.naraMuseumDataSource, .colbase)
-        XCTAssertEqual(targetStore.feedCategories(for: .met).map(\.id), ["american-decorative-arts", "modern-art"])
-        XCTAssertEqual(targetStore.feedDisplayModeRawValue(for: .met), "list")
+        XCTAssertEqual(targetStore.selectedSourceKey(for: MuseumIdentifier("met")), "met_on_view")
+        XCTAssertEqual(targetStore.selectedSourceKey(for: MuseumIdentifier("nnm")), "colbase")
+        XCTAssertEqual(targetStore.feedCategories(for: MuseumIdentifier("met")).map(\.id), ["american-decorative-arts", "modern-art"])
+        XCTAssertEqual(targetStore.feedDisplayModeRawValue(for: MuseumIdentifier("met")), "list")
         XCTAssertEqual(targetDefaults.data(forKey: SettingsKeys.favoritesArtworks), Data([1, 2, 3]))
-        let importedMetHistory = await targetWidgetStore.displayedArtworkKeys(for: .met)
-        let importedTokyoHistory = await targetWidgetStore.displayedArtworkKeys(for: .tnm)
+        let importedMetHistory = await targetWidgetStore.displayedArtworkKeys(for: MuseumIdentifier("met"))
+        let importedTokyoHistory = await targetWidgetStore.displayedArtworkKeys(for: MuseumIdentifier("tnm"))
 
-        XCTAssertEqual(importedMetHistory, [WidgetDisplayedArtworkKey.make(museumID: .met, objectID: "seen")])
+        XCTAssertEqual(importedMetHistory, [WidgetDisplayedArtworkKey.make(museumID: MuseumIdentifier("met"), objectID: "seen")])
         XCTAssertEqual(importedTokyoHistory, [])
     }
 
@@ -334,7 +353,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 30_000)
         let resolution = WidgetScheduledRefreshPolicy.resolve(
             state: nil,
-            scopeRawValue: WidgetMuseumScope.single(.met).rawValue,
+            scopeRawValue: WidgetMuseumScope.single(MuseumIdentifier("met")).rawValue,
             schedule: nil,
             now: now
         )
@@ -368,7 +387,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             )
         )
         let state = makeWidgetState(
-            scopeRawValue: WidgetMuseumScope.single(.met).rawValue,
+            scopeRawValue: WidgetMuseumScope.single(MuseumIdentifier("met")).rawValue,
             phase: .success,
             lastUpdatedAt: now.timeIntervalSince1970,
             nextAutomaticRefreshAt: date(hour: 11, minute: 0, calendar: calendar).timeIntervalSince1970,
@@ -377,7 +396,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
 
         let resolution = WidgetScheduledRefreshPolicy.resolve(
             state: state,
-            scopeRawValue: WidgetMuseumScope.single(.met).rawValue,
+            scopeRawValue: WidgetMuseumScope.single(MuseumIdentifier("met")).rawValue,
             schedule: newSchedule,
             now: now
         )
@@ -402,7 +421,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         )
         let scheduledAt = date(hour: 12, minute: 0, calendar: calendar)
         let state = makeWidgetState(
-            scopeRawValue: WidgetMuseumScope.single(.met).rawValue,
+            scopeRawValue: WidgetMuseumScope.single(MuseumIdentifier("met")).rawValue,
             phase: .success,
             lastUpdatedAt: scheduledAt.timeIntervalSince1970,
             nextAutomaticRefreshAt: scheduledAt.timeIntervalSince1970,
@@ -411,7 +430,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
 
         let resolution = WidgetScheduledRefreshPolicy.resolve(
             state: state,
-            scopeRawValue: WidgetMuseumScope.single(.met).rawValue,
+            scopeRawValue: WidgetMuseumScope.single(MuseumIdentifier("met")).rawValue,
             schedule: schedule,
             now: scheduledAt
         )
@@ -435,7 +454,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         )
         let nextAutomaticRefreshAt = date(hour: 14, minute: 0, calendar: calendar)
         let state = makeWidgetState(
-            scopeRawValue: WidgetMuseumScope.single(.tnm).rawValue,
+            scopeRawValue: WidgetMuseumScope.single(MuseumIdentifier("tnm")).rawValue,
             phase: .success,
             lastUpdatedAt: date(hour: 8, minute: 0, calendar: calendar).timeIntervalSince1970,
             nextAutomaticRefreshAt: nextAutomaticRefreshAt.timeIntervalSince1970,
@@ -444,7 +463,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
 
         let resolution = WidgetScheduledRefreshPolicy.resolve(
             state: state,
-            scopeRawValue: WidgetMuseumScope.single(.tnm).rawValue,
+            scopeRawValue: WidgetMuseumScope.single(MuseumIdentifier("tnm")).rawValue,
             schedule: schedule,
             now: date(hour: 13, minute: 59, calendar: calendar)
         )
@@ -456,7 +475,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
 
     func testWidgetRefreshGroupKeyUsesScopeOnly() {
         let key = WidgetRefreshGroupKey.make(
-            scope: .single(.met),
+            scope: .single(MuseumIdentifier("met")),
             family: .systemLarge
         )
 
@@ -465,11 +484,11 @@ final class WidgetStateAndSettingsTests: XCTestCase {
 
     func testWidgetRefreshGroupKeyIgnoresFamily() {
         let smallKey = WidgetRefreshGroupKey.make(
-            scope: .single(.tnm),
+            scope: .single(MuseumIdentifier("tnm")),
             family: .systemSmall
         )
         let mediumKey = WidgetRefreshGroupKey.make(
-            scope: .single(.tnm),
+            scope: .single(MuseumIdentifier("tnm")),
             family: .systemMedium
         )
 
@@ -526,7 +545,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
                         "data": [
                             "items": ids.map {
                                 self.makeBackendArtworkDictionary(
-                                    museumID: .tnm,
+                                    museumID: MuseumIdentifier("tnm"),
                                     objectID: "item-\($0)",
                                     title: "Title item-\($0)"
                                 )
@@ -544,8 +563,8 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         let backendClient = MuseumBackendClient(baseURL: URL(string: "https://backend.example")!, session: session)
 
         let loader = ArtworkBatchLoader(
-            museumID: .tnm,
-            categories: MuseumID.tnm.defaultFeedCategories,
+            museumID: MuseumIdentifier("tnm"),
+            categories: MuseumIdentifier("tnm").defaultFeedCategories,
             randomOrder: false,
             cachePolicy: .networkOnly,
             backendClient: backendClient
@@ -590,7 +609,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
                         "data": [
                             "items": [
                                 makeBackendArtworkDictionary(
-                                    museumID: .nnm,
+                                    museumID: MuseumIdentifier("nnm"),
                                     objectID: "narahaku-1032-0",
                                     title: "浮雕佛传图",
                                     department: "雕刻",
@@ -613,8 +632,9 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         let backendClient = MuseumBackendClient(baseURL: URL(string: "https://backend.example")!, session: session)
 
         let loader = ArtworkBatchLoader(
-            museumID: .nnm,
-            categories: [MuseumID.nnm.selectableFeedCategories(naraDataSource: .official)[0]],
+            museumID: MuseumIdentifier("nnm"),
+            sourceKey: "official",
+            categories: [MuseumIdentifier("nnm").selectableFeedCategories(sourceKey: "official")[0]],
             randomOrder: false,
             cachePolicy: .networkOnly,
             backendClient: backendClient
@@ -645,7 +665,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
                         "data": [
                             "items": [
                                 self.makeBackendArtworkDictionary(
-                                    museumID: .met,
+                                    museumID: MuseumIdentifier("met"),
                                     objectID: "101",
                                     title: "Met Test Artwork"
                                 )
@@ -662,8 +682,8 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         }
 
         let loader = ArtworkBatchLoader(
-            museumID: .met,
-            categories: MuseumID.met.defaultFeedCategories,
+            museumID: MuseumIdentifier("met"),
+            categories: MuseumIdentifier("met").defaultFeedCategories,
             randomOrder: false,
             cachePolicy: .networkOnly,
             backendClient: MuseumBackendClient(baseURL: URL(string: "https://backend.example")!, session: session)
@@ -675,7 +695,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         let batch = try await loader.nextBatch(count: 10)
 
         XCTAssertEqual(batch.count, 1)
-        XCTAssertEqual(batch.first?.museumID, .met)
+        XCTAssertEqual(batch.first?.museumID, MuseumIdentifier("met"))
         XCTAssertEqual(batch.first?.title, "Met Test Artwork")
 
         let searchURL = try XCTUnwrap(recorder.urls.first(where: { $0.path == "/v1/museums/met/artworks" }))
@@ -686,7 +706,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertNil(queryItems["only_on_view"])
     }
 
-    func testArtworkBatchLoaderMetAddsIsOnViewWhenEnabled() async throws {
+    func testArtworkBatchLoaderMetOnViewSourceUsesSourceQuery() async throws {
         let testID = UUID().uuidString
         let recorder = WidgetRequestRecorder()
 
@@ -702,7 +722,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
                         "data": [
                             "items": [
                                 self.makeBackendArtworkDictionary(
-                                    museumID: .met,
+                                    museumID: MuseumIdentifier("met"),
                                     objectID: "101",
                                     title: "Met On View Artwork"
                                 )
@@ -719,10 +739,10 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         }
 
         let loader = ArtworkBatchLoader(
-            museumID: .met,
-            categories: MuseumID.met.defaultFeedCategories,
+            museumID: MuseumIdentifier("met"),
+            sourceKey: "met_on_view",
+            categories: MuseumIdentifier("met").defaultFeedCategories(sourceKey: "met_on_view"),
             randomOrder: false,
-            metShowsOnlyOnViewArtworks: true,
             cachePolicy: .networkOnly,
             backendClient: MuseumBackendClient(baseURL: URL(string: "https://backend.example")!, session: session)
         )
@@ -737,40 +757,8 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             uniqueKeysWithValues: (URLComponents(url: searchURL, resolvingAgainstBaseURL: false)?.queryItems ?? [])
                 .map { ($0.name, $0.value ?? "") }
         )
-        XCTAssertEqual(queryItems["only_on_view"], "true")
-    }
-
-    func testNationalMuseumChinaRequestThrottleEnforcesMinimumInterval() async throws {
-        let throttle = NationalMuseumChinaRequestThrottle(minimumInterval: 0.002)
-        let now = Date(timeIntervalSince1970: 1_000)
-
-        let firstDelay = try await throttle.waitForTurn(now: now)
-        let secondDelay = try await throttle.waitForTurn(now: now)
-        let thirdDelay = try await throttle.waitForTurn(now: now.addingTimeInterval(0.01))
-
-        XCTAssertEqual(firstDelay, 0, accuracy: 0.0001)
-        XCTAssertGreaterThan(secondDelay, 0.001)
-        XCTAssertEqual(thirdDelay, 0, accuracy: 0.0001)
-    }
-
-    func testNationalMuseumChinaRequestThrottleCancelsDuringWait() async throws {
-        let throttle = NationalMuseumChinaRequestThrottle(minimumInterval: 1)
-        let now = Date(timeIntervalSince1970: 2_000)
-        _ = try await throttle.waitForTurn(now: now)
-
-        let task = Task {
-            try await throttle.waitForTurn(now: now)
-        }
-        task.cancel()
-
-        do {
-            _ = try await task.value
-            XCTFail("Expected cancellation.")
-        } catch is CancellationError {
-            // Expected.
-        } catch {
-            XCTFail("Unexpected error: \(error)")
-        }
+        XCTAssertEqual(queryItems["source"], "met_on_view")
+        XCTAssertNil(queryItems["only_on_view"])
     }
 
     func testDefaultWidgetRefreshEngineUsesBackendForNationalMuseumChinaScope() async throws {
@@ -788,7 +776,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
                         "dataVersion": "test-version",
                         "data": [
                             "items": [
-                                makeBackendArtworkDictionary(museumID: .nmc, objectID: "801", title: "后母戊鼎")
+                                makeBackendArtworkDictionary(museumID: MuseumIdentifier("nmc"), objectID: "801", title: "后母戊鼎")
                             ],
                             "nextCursor": NSNull(),
                             "hasMore": false
@@ -807,12 +795,12 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         )
 
         let payload = try await engine.fetchRenderableArtwork(
-            scope: .single(.nmc),
+            scope: .single(MuseumIdentifier("nmc")),
             refreshKey: "nmc-backend",
             logSource: "WidgetBackendNMC"
         )
 
-        XCTAssertEqual(payload.museumID, .nmc)
+        XCTAssertEqual(payload.museumID, MuseumIdentifier("nmc"))
         XCTAssertEqual(payload.title, "后母戊鼎")
         XCTAssertTrue(recorder.urls.allSatisfy { $0.host == "backend.example" })
     }
@@ -822,7 +810,8 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         let largeURL = URL(string: "https://example.com/large.jpg")
         let tokyoArtwork = Artwork(
             id: "tnm-1",
-            museumID: .tnm,
+            museumID: MuseumIdentifier("tnm"),
+            sourceKey: "japan_search",
             objectID: "1",
             title: "Test",
             artworkDescription: nil,
@@ -840,7 +829,8 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         )
         let naraArtwork = Artwork(
             id: "nnm-1",
-            museumID: .nnm,
+            museumID: MuseumIdentifier("nnm"),
+            sourceKey: "colbase",
             objectID: "1",
             title: "Test",
             artworkDescription: nil,
@@ -858,7 +848,8 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         )
         let naraOfficialArtwork = Artwork(
             id: "nnm-narahaku-1032-0",
-            museumID: .nnm,
+            museumID: MuseumIdentifier("nnm"),
+            sourceKey: "official",
             objectID: "narahaku-1032-0",
             title: "Test",
             artworkDescription: nil,
@@ -876,19 +867,19 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         )
 
         XCTAssertEqual(
-            WidgetPreferredImageURLDecision.resolve(for: tokyoArtwork, museumID: .tnm),
+            WidgetPreferredImageURLDecision.resolve(for: tokyoArtwork, museumID: MuseumIdentifier("tnm")),
             smallURL
         )
         XCTAssertEqual(
-            WidgetPreferredImageURLDecision.resolveCandidates(for: tokyoArtwork, museumID: .tnm),
+            WidgetPreferredImageURLDecision.resolveCandidates(for: tokyoArtwork, museumID: MuseumIdentifier("tnm")),
             [smallURL!, largeURL!]
         )
         XCTAssertEqual(
-            WidgetPreferredImageURLDecision.resolveCandidates(for: naraArtwork, museumID: .nnm),
+            WidgetPreferredImageURLDecision.resolveCandidates(for: naraArtwork, museumID: MuseumIdentifier("nnm")),
             [smallURL!, largeURL!]
         )
         XCTAssertEqual(
-            WidgetPreferredImageURLDecision.resolveCandidates(for: naraOfficialArtwork, museumID: .nnm),
+            WidgetPreferredImageURLDecision.resolveCandidates(for: naraOfficialArtwork, museumID: MuseumIdentifier("nnm")),
             [largeURL!, smallURL!]
         )
     }
@@ -896,7 +887,11 @@ final class WidgetStateAndSettingsTests: XCTestCase {
     func testWidgetImageRequestPolicyAddsBrowserHeadersForTokyoColbaseImage() {
         let url = URL(string: "https://colbase.nich.go.jp/media/tnm/A-9900/image/slideshow_s/A-9900_E0175464.jpg")!
 
-        let request = WidgetImageRequestPolicy.makeRequest(url: url, timeout: 3)
+        let request = WidgetImageRequestPolicy.makeRequest(
+            url: url,
+            timeout: 3,
+            headers: MuseumMetadataStore.cachedSourceMetadata(museumID: MuseumIdentifier("tnm"), sourceKey: "japan_search")?.imageRequestHeaders ?? [:]
+        )
 
         XCTAssertEqual(request.value(forHTTPHeaderField: "Referer"), "https://colbase.nich.go.jp/")
         XCTAssertNotNil(request.value(forHTTPHeaderField: "User-Agent"))
@@ -907,7 +902,11 @@ final class WidgetStateAndSettingsTests: XCTestCase {
     func testWidgetImageRequestPolicyAddsBrowserHeadersForNaraOfficialImage() {
         let url = URL(string: "https://www.narahaku.go.jp/photo/exhibition/D025456.jpg")!
 
-        let request = WidgetImageRequestPolicy.makeRequest(url: url, timeout: 3)
+        let request = WidgetImageRequestPolicy.makeRequest(
+            url: url,
+            timeout: 3,
+            headers: MuseumMetadataStore.cachedSourceMetadata(museumID: MuseumIdentifier("nnm"), sourceKey: "official")?.imageRequestHeaders ?? [:]
+        )
 
         XCTAssertEqual(request.value(forHTTPHeaderField: "Referer"), "https://www.narahaku.go.jp/chinese/collection/")
         XCTAssertNotNil(request.value(forHTTPHeaderField: "User-Agent"))
@@ -930,9 +929,9 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         let attempts = AttemptRecorder()
         let loader = StubBatchLoader(
             batches: [[
-                makeArtwork(museumID: .met, objectID: "missing", title: "No Image", imageURL: nil),
-                makeArtwork(museumID: .met, objectID: "flaky", title: "Flaky", imageURL: flakyURL),
-                makeArtwork(museumID: .met, objectID: "success", title: "Success", imageURL: successURL),
+                makeArtwork(museumID: MuseumIdentifier("met"), objectID: "missing", title: "No Image", imageURL: nil),
+                makeArtwork(museumID: MuseumIdentifier("met"), objectID: "flaky", title: "Flaky", imageURL: flakyURL),
+                makeArtwork(museumID: MuseumIdentifier("met"), objectID: "success", title: "Success", imageURL: successURL),
             ]]
         )
 
@@ -956,13 +955,13 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         )
 
         let payload = try await engine.fetchRenderableArtwork(
-            scope: .single(.met),
+            scope: .single(MuseumIdentifier("met")),
             refreshKey: "widget-met",
             logSource: "WidgetEngineTest"
         )
 
         XCTAssertEqual(payload.title, "Success")
-        XCTAssertEqual(payload.museumID, .met)
+        XCTAssertEqual(payload.museumID, MuseumIdentifier("met"))
         let requestedCandidates = await loader.requestedCandidateCount()
         let flakyAttempts = await attempts.value(for: flakyURL)
         let successAttempts = await attempts.value(for: successURL)
@@ -978,7 +977,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         let loader = StubBatchLoader(
             batches: [[
                 makeArtwork(
-                    museumID: .nnm,
+                    museumID: MuseumIdentifier("nnm"),
                     objectID: "narahaku-large",
                     title: "Large Nara Image",
                     imageURL: imageURL
@@ -993,7 +992,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         )
 
         let payload = try await engine.fetchRenderableArtwork(
-            scope: .single(.nnm),
+            scope: .single(MuseumIdentifier("nnm")),
             refreshKey: "single:nnm",
             logSource: "WidgetEngineDownsample"
         )
@@ -1012,13 +1011,13 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         let loader = StubBatchLoader(
             batches: [[
                 makeArtwork(
-                    museumID: .tnm,
+                    museumID: MuseumIdentifier("tnm"),
                     objectID: "first",
                     title: "First Success",
                     imageURL: URL(string: "https://example.com/first.jpg")
                 ),
                 makeArtwork(
-                    museumID: .tnm,
+                    museumID: MuseumIdentifier("tnm"),
                     objectID: "second",
                     title: "Second Should Not Load",
                     imageURL: URL(string: "https://example.com/second.jpg")
@@ -1036,13 +1035,13 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         )
 
         let payload = try await engine.fetchRenderableArtwork(
-            scope: .single(.tnm),
+            scope: .single(MuseumIdentifier("tnm")),
             refreshKey: "widget-tnm",
             logSource: "WidgetEngineSingleSuccess"
         )
 
         XCTAssertEqual(payload.title, "First Success")
-        XCTAssertEqual(payload.museumID, .tnm)
+        XCTAssertEqual(payload.museumID, MuseumIdentifier("tnm"))
         let requestedCandidates = await loader.requestedCandidateCount()
         XCTAssertEqual(requestedCandidates, 1)
     }
@@ -1050,16 +1049,16 @@ final class WidgetStateAndSettingsTests: XCTestCase {
     func testWidgetRefreshEngineSkipsPreviouslyDisplayedArtworkForSameMuseumAfterInstanceRemoval() async throws {
         let baseURL = temporaryBaseURL()
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
-        let scope = WidgetMuseumScope.single(.met)
+        let scope = WidgetMuseumScope.single(MuseumIdentifier("met"))
         let refreshKey = WidgetRefreshGroupKey.make(scope: scope, family: nil)
         _ = await store.beginRefresh(instanceToken: refreshKey, scopeRawValue: scope.rawValue)
         _ = await store.markSuccess(
             instanceToken: refreshKey,
             expectedNonce: 1,
             payload: WidgetRefreshPayload(
-                museumID: .met,
-                artworkKey: WidgetDisplayedArtworkKey.make(museumID: .met, objectID: "seen"),
-                museumName: MuseumID.met.displayName,
+                museumID: MuseumIdentifier("met"),
+                artworkKey: WidgetDisplayedArtworkKey.make(museumID: MuseumIdentifier("met"), objectID: "seen"),
+                museumName: MuseumIdentifier("met").displayName,
                 title: "Seen",
                 subtitle: "2026",
                 imageData: widgetValidPNGData,
@@ -1072,13 +1071,13 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         let loader = StubBatchLoader(
             batches: [[
                 makeArtwork(
-                    museumID: .met,
+                    museumID: MuseumIdentifier("met"),
                     objectID: "seen",
                     title: "Seen",
                     imageURL: URL(string: "https://example.com/seen.jpg")
                 ),
                 makeArtwork(
-                    museumID: .met,
+                    museumID: MuseumIdentifier("met"),
                     objectID: "fresh",
                     title: "Fresh",
                     imageURL: URL(string: "https://example.com/fresh.jpg")
@@ -1101,7 +1100,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         )
 
         XCTAssertEqual(payload.title, "Fresh")
-        XCTAssertEqual(payload.artworkKey, WidgetDisplayedArtworkKey.make(museumID: .met, objectID: "fresh"))
+        XCTAssertEqual(payload.artworkKey, WidgetDisplayedArtworkKey.make(museumID: MuseumIdentifier("met"), objectID: "fresh"))
         let requestedCandidates = await loader.requestedCandidateCount()
         XCTAssertEqual(requestedCandidates, 2)
     }
@@ -1109,16 +1108,16 @@ final class WidgetStateAndSettingsTests: XCTestCase {
     func testWidgetRefreshEngineClearsDisplayedHistoryOnceWhenOnlySeenCandidatesRemain() async throws {
         let baseURL = temporaryBaseURL()
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
-        let scope = WidgetMuseumScope.single(.met)
+        let scope = WidgetMuseumScope.single(MuseumIdentifier("met"))
         let refreshKey = WidgetRefreshGroupKey.make(scope: scope, family: nil)
         _ = await store.beginRefresh(instanceToken: refreshKey, scopeRawValue: scope.rawValue)
         _ = await store.markSuccess(
             instanceToken: refreshKey,
             expectedNonce: 1,
             payload: WidgetRefreshPayload(
-                museumID: .met,
-                artworkKey: WidgetDisplayedArtworkKey.make(museumID: .met, objectID: "repeat"),
-                museumName: MuseumID.met.displayName,
+                museumID: MuseumIdentifier("met"),
+                artworkKey: WidgetDisplayedArtworkKey.make(museumID: MuseumIdentifier("met"), objectID: "repeat"),
+                museumName: MuseumIdentifier("met").displayName,
                 title: "Repeat",
                 subtitle: "2026",
                 imageData: widgetValidPNGData,
@@ -1135,7 +1134,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
                 loaderFactoryCount.increment()
                 return StubBatchLoader(batches: [[
                     self.makeArtwork(
-                        museumID: .met,
+                        museumID: MuseumIdentifier("met"),
                         objectID: "repeat",
                         title: "Repeat",
                         imageURL: URL(string: "https://example.com/repeat.jpg")
@@ -1154,20 +1153,20 @@ final class WidgetStateAndSettingsTests: XCTestCase {
 
         XCTAssertEqual(payload.title, "Repeat")
         XCTAssertEqual(loaderFactoryCount.value, 2)
-        let displayedKeys = await store.displayedArtworkKeys(for: .met)
+        let displayedKeys = await store.displayedArtworkKeys(for: MuseumIdentifier("met"))
         XCTAssertEqual(displayedKeys, [])
     }
 
     func testWidgetRefreshEngineAllMuseumsUsesInjectedSelectionOrder() async throws {
         let selectedRanges = RangeRecorder()
         let metArtwork = makeArtwork(
-            museumID: .met,
+            museumID: MuseumIdentifier("met"),
             objectID: "met-1",
             title: "Met",
             imageURL: URL(string: "https://example.com/met.jpg")
         )
         let tnmArtwork = makeArtwork(
-            museumID: .tnm,
+            museumID: MuseumIdentifier("tnm"),
             objectID: "tnm-1",
             title: "TNM",
             imageURL: URL(string: "https://example.com/tnm.jpg")
@@ -1177,11 +1176,13 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             settingsReader: WidgetSettingsReader(defaults: defaults),
             loaderFactory: { museumID, _, _ in
                 switch museumID {
-                case .met:
+                case MuseumIdentifier("met"):
                     return StubBatchLoader(batches: [[metArtwork]])
-                case .tnm:
+                case MuseumIdentifier("tnm"):
                     return StubBatchLoader(batches: [[tnmArtwork]])
-                case .nnm, .nmc, .shm, .guimet:
+                case MuseumIdentifier("nnm"), MuseumIdentifier("nmc"), MuseumIdentifier("shm"), MuseumIdentifier("guimet"):
+                    return StubBatchLoader(batches: [])
+                default:
                     return StubBatchLoader(batches: [])
                 }
             },
@@ -1198,7 +1199,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             logSource: "WidgetEngineAllMuseums"
         )
 
-        XCTAssertEqual(payload.museumID, .tnm)
+        XCTAssertEqual(payload.museumID, MuseumIdentifier("tnm"))
         XCTAssertEqual(selectedRanges.recordedRanges, [0..<2])
     }
 
@@ -1214,14 +1215,14 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             }
         )
         let refreshKey = WidgetRefreshGroupKey.make(
-            scope: .single(.met),
+            scope: .single(MuseumIdentifier("met")),
             family: .systemSmall
         )
 
         let firstTask = Task {
             await coordinator.refresh(
                 refreshKey: refreshKey,
-                scope: .single(.met),
+                scope: .single(MuseumIdentifier("met")),
                 familyToken: WidgetFamily.systemSmall.debugToken,
                 logSource: "CoordinatorPreempt"
             )
@@ -1231,7 +1232,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         let secondTask = Task {
             await coordinator.refresh(
                 refreshKey: refreshKey,
-                scope: .single(.met),
+                scope: .single(MuseumIdentifier("met")),
                 familyToken: WidgetFamily.systemSmall.debugToken,
                 logSource: "CoordinatorPreempt"
             )
@@ -1273,23 +1274,23 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             }
         )
         let metKey = WidgetRefreshGroupKey.make(
-            scope: .single(.met),
+            scope: .single(MuseumIdentifier("met")),
             family: .systemSmall
         )
         let tnmKey = WidgetRefreshGroupKey.make(
-            scope: .single(.tnm),
+            scope: .single(MuseumIdentifier("tnm")),
             family: .systemSmall
         )
 
         async let firstRefresh: Void = coordinator.refresh(
             refreshKey: metKey,
-            scope: .single(.met),
+            scope: .single(MuseumIdentifier("met")),
             familyToken: WidgetFamily.systemSmall.debugToken,
             logSource: "CoordinatorIndependent"
         )
         async let secondRefresh: Void = coordinator.refresh(
             refreshKey: tnmKey,
-            scope: .single(.tnm),
+            scope: .single(MuseumIdentifier("tnm")),
             familyToken: WidgetFamily.systemSmall.debugToken,
             logSource: "CoordinatorIndependent"
         )
@@ -1298,8 +1299,8 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         let firstState = await store.state(for: metKey)
         let secondState = await store.state(for: tnmKey)
 
-        XCTAssertEqual(firstState?.artwork?.museumID, .met)
-        XCTAssertEqual(secondState?.artwork?.museumID, .tnm)
+        XCTAssertEqual(firstState?.artwork?.museumID, MuseumIdentifier("met"))
+        XCTAssertEqual(secondState?.artwork?.museumID, MuseumIdentifier("tnm"))
         XCTAssertEqual(firstState?.phase, .success)
         XCTAssertEqual(secondState?.phase, .success)
     }
@@ -1317,11 +1318,11 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         )
 
         let smallKey = WidgetRefreshGroupKey.make(
-            scope: .single(.met),
+            scope: .single(MuseumIdentifier("met")),
             family: .systemSmall
         )
         let mediumKey = WidgetRefreshGroupKey.make(
-            scope: .single(.met),
+            scope: .single(MuseumIdentifier("met")),
             family: .systemMedium
         )
 
@@ -1329,13 +1330,13 @@ final class WidgetStateAndSettingsTests: XCTestCase {
 
         async let firstRefresh: Void = coordinator.refresh(
             refreshKey: smallKey,
-            scope: .single(.met),
+            scope: .single(MuseumIdentifier("met")),
             familyToken: WidgetFamily.systemSmall.debugToken,
             logSource: "CoordinatorSameScope"
         )
         async let secondRefresh: Void = coordinator.refresh(
             refreshKey: mediumKey,
-            scope: .single(.met),
+            scope: .single(MuseumIdentifier("met")),
             familyToken: WidgetFamily.systemMedium.debugToken,
             logSource: "CoordinatorSameScope"
         )
@@ -1347,15 +1348,15 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(firstState?.phase, .success)
         XCTAssertEqual(secondState?.phase, .success)
         XCTAssertEqual(firstState?.artwork?.title, secondState?.artwork?.title)
-        XCTAssertEqual(firstState?.scopeRawValue, WidgetMuseumScope.single(.met).rawValue)
-        XCTAssertEqual(secondState?.scopeRawValue, WidgetMuseumScope.single(.met).rawValue)
+        XCTAssertEqual(firstState?.scopeRawValue, WidgetMuseumScope.single(MuseumIdentifier("met")).rawValue)
+        XCTAssertEqual(secondState?.scopeRawValue, WidgetMuseumScope.single(MuseumIdentifier("met")).rawValue)
     }
 
     func testWidgetRefreshCoordinatorRefreshesOnlyCurrentWidgetConfigurations() async throws {
         let baseURL = temporaryBaseURL()
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
         let staleAllKey = WidgetMuseumScope.all.rawValue
-        let metKey = WidgetMuseumScope.single(.met).rawValue
+        let metKey = WidgetMuseumScope.single(MuseumIdentifier("met")).rawValue
         _ = await store.renderState(
             for: staleAllKey,
             scopeRawValue: staleAllKey,
@@ -1374,12 +1375,12 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             currentConfigurationResolver: StubCurrentConfigurationResolver(targets: [
                 WidgetRefreshTarget(
                     refreshKey: metKey,
-                    scope: .single(.met),
+                    scope: .single(MuseumIdentifier("met")),
                     familyToken: WidgetFamily.systemSmall.debugToken
                 ),
                 WidgetRefreshTarget(
                     refreshKey: metKey,
-                    scope: .single(.met),
+                    scope: .single(MuseumIdentifier("met")),
                     familyToken: WidgetFamily.systemMedium.debugToken
                 )
             ]),
@@ -1447,7 +1448,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         let baseURL = temporaryBaseURL()
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
         let staleAllKey = WidgetMuseumScope.all.rawValue
-        let metKey = WidgetMuseumScope.single(.met).rawValue
+        let metKey = WidgetMuseumScope.single(MuseumIdentifier("met")).rawValue
         _ = await store.renderState(
             for: staleAllKey,
             scopeRawValue: staleAllKey,
@@ -1461,7 +1462,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             currentConfigurationResolver: StubCurrentConfigurationResolver(targets: [
                 WidgetRefreshTarget(
                     refreshKey: metKey,
-                    scope: .single(.met),
+                    scope: .single(MuseumIdentifier("met")),
                     familyToken: WidgetFamily.systemSmall.debugToken
                 )
             ]),
@@ -1493,6 +1494,31 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         configuration.protocolClasses = [WidgetStubURLProtocol.self]
         configuration.httpAdditionalHeaders = [WidgetStubURLProtocol.testIDHeader: testID]
         return URLSession(configuration: configuration)
+    }
+
+    private func setFeedPreference(
+        museumID: MuseumID,
+        selectedSourceKey: String? = nil,
+        categoriesBySource: [String: [String]] = [:],
+        in defaults: UserDefaults
+    ) {
+        var preferences: FeedPreferences
+        if let data = defaults.data(forKey: SettingsKeys.feedPreferences),
+           let decoded = try? JSONDecoder().decode(FeedPreferences.self, from: data) {
+            preferences = decoded
+        } else {
+            preferences = FeedPreferences()
+        }
+
+        var preference = preferences.museums[museumID.rawValue] ?? MuseumFeedPreference()
+        if let selectedSourceKey {
+            preference.selectedSourceKey = selectedSourceKey
+        }
+        for (sourceKey, categoryIDs) in categoriesBySource {
+            preference.selectedCategoryIDsBySource[sourceKey] = categoryIDs
+        }
+        preferences.museums[museumID.rawValue] = preference
+        defaults.set(try! JSONEncoder().encode(preferences), forKey: SettingsKeys.feedPreferences)
     }
 
     private func makeJSONResponse(url: URL, jsonObject: Any) -> WidgetStubbedResponse {
@@ -1666,9 +1692,9 @@ final class WidgetStateAndSettingsTests: XCTestCase {
             nonce: 1,
             phase: phase,
             artwork: WidgetArtworkSnapshotStore.ArtworkPayload(
-                museumID: .met,
-                artworkKey: WidgetDisplayedArtworkKey.make(museumID: .met, objectID: "1"),
-                museumName: MuseumID.met.displayName,
+                museumID: MuseumIdentifier("met"),
+                artworkKey: WidgetDisplayedArtworkKey.make(museumID: MuseumIdentifier("met"), objectID: "1"),
+                museumName: MuseumIdentifier("met").displayName,
                 title: "Test Artwork",
                 subtitle: "2026",
                 imageFileName: nil,

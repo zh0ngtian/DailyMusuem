@@ -10,7 +10,11 @@ struct ArtworkCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            CachedAsyncImage(url: item.artwork.primaryImageSmallURL ?? item.artwork.primaryImageURL) { image in
+            CachedAsyncImage(
+                url: item.artwork.primaryImageSmallURL ?? item.artwork.primaryImageURL,
+                waterfallPolicy: MuseumMetadataStore.cachedMuseum(id: item.artwork.museumID)?.waterfallImageFetchPolicy,
+                waterfallRateLimitScope: item.artwork.museumID.rawValue
+            ) { image in
                 imageContent(image: image)
             } placeholder: {
                 placeholderImage

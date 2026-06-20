@@ -34,6 +34,10 @@ export default {
         return envelopeResponse(env, await museums(env.DB));
       }
 
+      if (request.method === "GET" && path === "/v1/museums/metadata") {
+        return envelopeResponse(env, await museumMetadata(env.DB));
+      }
+
       const categoriesMatch = path.match(/^\/v1\/museums\/([^/]+)\/categories$/);
       if (request.method === "GET" && categoriesMatch) {
         const museumID = decodeURIComponent(categoriesMatch[1]);
@@ -52,7 +56,6 @@ export default {
           cursor: optionalParam(url, "cursor"),
           order: parseOrder(url.searchParams.get("order")),
           seed: parseOptionalInt(url.searchParams.get("seed")),
-          onlyOnView: parseBool(url.searchParams.get("only_on_view"), false),
           hasImage: parseBool(url.searchParams.get("has_image"), true)
         });
         return envelopeResponse(env, page);
@@ -323,10 +326,128 @@ async function museums(db) {
   }));
 }
 
+async function museumMetadata(db) {
+  const museumResult = await db.prepare(
+    `SELECT
+       m.museum_id,
+       m.display_name,
+       m.country,
+       m.city,
+       m.subtitle,
+       m.address,
+       m.text_punctuation_style,
+       m.icon_url,
+       m.icon_asset_name,
+       m.icon_background_color,
+       m.supports_translation,
+       m.supports_widget_content,
+       m.supports_favorites,
+       m.sort_order,
+       p.waterfall_image_qps
+     FROM museums m
+     LEFT JOIN museum_client_policies p ON p.museum_id = m.museum_id
+     ORDER BY m.sort_order, m.museum_id`
+  ).all();
+  const sourceResult = await db.prepare(
+    `SELECT
+       museum_id,
+       source_key,
+       display_name,
+       is_default,
+       artwork_source_key,
+       list_filter_json,
+       translation_source_language,
+       preferred_image_url_order_json,
+       image_request_headers_json
+     FROM data_sources
+     ORDER BY museum_id, is_default DESC, source_key`
+  ).all();
+  const categoryResult = await db.prepare(
+    `SELECT museum_id, source_key, category_id, display_name, sort_order
+     FROM categories
+     ORDER BY museum_id, source_key, sort_order, category_id`
+  ).all();
+  const sourcesByMuseum = new Map();
+  const sourceRowsByMuseum = new Map();
+  const defaultSourceByMuseum = new Map();
+  for (const row of rows(sourceResult)) {
+    const museumID = row.museum_id;
+    const source = {
+      sourceKey: row.source_key,
+      displayName: row.display_name,
+      isDefault: Boolean(row.is_default),
+      translationSourceLanguage: row.translation_source_language || null,
+      preferredImageURLOrder: parseStringArray(row.preferred_image_url_order_json),
+      imageRequestHeaders: parseStringRecord(row.image_request_headers_json)
+    };
+    const sources = sourcesByMuseum.get(museumID) || [];
+    sources.push(source);
+    sourcesByMuseum.set(museumID, sources);
+    const sourceRows = sourceRowsByMuseum.get(museumID) || [];
+    sourceRows.push(row);
+    sourceRowsByMuseum.set(museumID, sourceRows);
+    if (!defaultSourceByMuseum.has(museumID) || source.isDefault) {
+      defaultSourceByMuseum.set(museumID, source.sourceKey);
+    }
+  }
+
+  const categoriesByMuseum = new Map();
+  for (const row of rows(categoryResult)) {
+    const museumID = row.museum_id;
+    const visibleSources = sourceRowsByMuseum.get(museumID) || [];
+    const metadataSourceKeys = visibleSources
+      .filter((source) => (source.artwork_source_key || source.source_key) === row.source_key)
+      .map((source) => source.source_key);
+    const sourceKeys = metadataSourceKeys.length > 0 ? metadataSourceKeys : [row.source_key];
+    const categories = categoriesByMuseum.get(museumID) || [];
+    for (const sourceKey of sourceKeys) {
+      categories.push({
+        sourceKey,
+        categoryID: row.category_id,
+        displayName: row.display_name,
+        sortOrder: Number(row.sort_order || 0)
+      });
+    }
+    categoriesByMuseum.set(museumID, categories);
+  }
+
+  return {
+    museums: rows(museumResult).map((row) => ({
+      museumID: row.museum_id,
+      displayName: row.display_name,
+      subtitle: row.subtitle,
+      country: row.country,
+      city: row.city,
+      address: row.address || null,
+      textPunctuationStyle: row.text_punctuation_style || "western",
+      icon: {
+        url: row.icon_url || null,
+        assetName: row.icon_asset_name || null,
+        backgroundColor: row.icon_background_color || null
+      },
+      sortOrder: Number(row.sort_order || 0),
+      capabilities: {
+        supportsWidgetContent: Boolean(row.supports_widget_content),
+        supportsTranslation: Boolean(row.supports_translation),
+        supportsFavorites: Boolean(row.supports_favorites)
+      },
+      defaultSourceKey: defaultSourceByMuseum.get(row.museum_id) || "",
+      sources: sourcesByMuseum.get(row.museum_id) || [],
+      categories: categoriesByMuseum.get(row.museum_id) || [],
+      waterfallImageFetchPolicy: {
+        qps: row.waterfall_image_qps === null || row.waterfall_image_qps === undefined
+          ? null
+          : Number(row.waterfall_image_qps)
+      }
+    }))
+  };
+}
+
 async function categories(db, museumID, source) {
-  const sourceKey = await resolveSourceKey(db, museumID, source);
+  const sourceResolution = await resolveSource(db, museumID, source);
+  const sourceKey = sourceResolution.artworkSourceKey;
   const result = await db.prepare(
-    `SELECT museum_id, category_id, display_name, kind, remote_value
+    `SELECT museum_id, category_id, display_name
      FROM categories
      WHERE museum_id = ? AND source_key = ?
      ORDER BY sort_order, category_id`
@@ -334,9 +455,7 @@ async function categories(db, museumID, source) {
   return rows(result).map((row) => ({
     museumID: row.museum_id,
     id: row.category_id,
-    displayName: row.display_name,
-    kind: row.kind,
-    remoteValue: row.remote_value ?? null
+    displayName: row.display_name
   }));
 }
 
@@ -356,15 +475,18 @@ async function artworkDetail(db, museumID, objectID, source) {
 }
 
 async function artworkPage(db, query) {
-  const sourceKey = await resolveSourceKey(db, query.museumID, query.source);
+  const sourceResolution = await resolveSource(db, query.museumID, query.source);
+  const sourceKey = sourceResolution.artworkSourceKey;
+  const effectiveOnlyOnView = Boolean(sourceResolution.listFilter.only_on_view);
   const limit = Math.min(Math.max(query.limit, 1), 50);
   const filterHash = await makeFilterHash({
     museum_id: query.museumID,
-    source_key: sourceKey,
+    source_key: sourceResolution.sourceKey,
+    artwork_source_key: sourceKey,
     category_ids: query.categoryIDs,
     order: query.order,
     seed: query.seed,
-    only_on_view: query.onlyOnView,
+    only_on_view: effectiveOnlyOnView,
     has_image: query.hasImage
   });
   const offset = query.cursor ? decodeCursor(query.cursor, filterHash).offset : 0;
@@ -376,7 +498,7 @@ async function artworkPage(db, query) {
   if (query.hasImage) {
     where.push("a.has_image = 1");
   }
-  if (query.museumID === "met" && query.onlyOnView) {
+  if (effectiveOnlyOnView) {
     where.push("a.is_on_view = 1");
   }
   if (query.categoryIDs.length > 0) {
@@ -432,15 +554,14 @@ async function widgetCandidate(db, query) {
   }
 
   for (const museumID of museumIDs) {
-    const page = await artworkPage(db, {
+      const page = await artworkPage(db, {
       museumID,
-      source: museumID === "nnm" ? query.source : null,
+      source: query.source,
       categoryIDs: query.categoryIDs,
       limit: 10,
       cursor: null,
       order: "random",
       seed: null,
-      onlyOnView: false,
       hasImage: true
     });
     const match = page.items.find((artwork) => !query.excludeKeys.has(`${artwork.museumID}|${artwork.objectID}`));
@@ -452,15 +573,12 @@ async function widgetCandidate(db, query) {
   return null;
 }
 
-async function resolveSourceKey(db, museumID, source) {
-  if (museumID === "nnm" && (source === "official" || source === "colbase")) {
-    return source;
-  }
-
+async function resolveSource(db, museumID, source) {
   const row = await db.prepare(
-    `SELECT source_key
+    `SELECT source_key, artwork_source_key, list_filter_json
      FROM data_sources
-     WHERE museum_id = ? AND (? IS NULL OR source_key = ?)
+     WHERE museum_id = ?
+       AND (? IS NULL OR source_key = ?)
      ORDER BY is_default DESC, source_key
      LIMIT 1`
   ).bind(museumID, source, source).first();
@@ -468,12 +586,31 @@ async function resolveSourceKey(db, museumID, source) {
   if (!row) {
     throw new HttpError(400, "request_failed", `Unknown source for museum=${museumID}: ${source || "default"}`);
   }
-  return String(row.source_key);
+  const sourceKey = String(row.source_key);
+  return {
+    sourceKey,
+    artworkSourceKey: row.artwork_source_key ? String(row.artwork_source_key) : sourceKey,
+    listFilter: parseObjectRecord(row.list_filter_json)
+  };
+}
+
+async function resolveSourceKey(db, museumID, source) {
+  return (await resolveSource(db, museumID, source)).artworkSourceKey;
 }
 
 async function resolveDetailSourceKey(db, museumID, objectID, source) {
-  if (museumID === "nnm" && source === null) {
-    return objectID.startsWith("narahaku-") ? "official" : "colbase";
+  if (source === null) {
+    const result = await db.prepare(
+      `SELECT source_key
+       FROM artworks
+       WHERE museum_id = ? AND object_id = ?
+       ORDER BY source_key
+       LIMIT 2`
+    ).bind(museumID, objectID).all();
+    const matches = rows(result);
+    if (matches.length === 1) {
+      return String(matches[0].source_key);
+    }
   }
   return resolveSourceKey(db, museumID, source);
 }
@@ -524,6 +661,49 @@ function artworkDTO(row, images) {
     primaryImageSmallURL: images.thumbnail || images.primary || null,
     objectURL: row.object_url || null
   };
+}
+
+function parseJSONValue(rawValue) {
+  if (rawValue === null || rawValue === undefined) {
+    return null;
+  }
+  try {
+    return JSON.parse(String(rawValue));
+  } catch {
+    return String(rawValue);
+  }
+}
+
+function parseStringArray(rawValue) {
+  const parsed = parseJSONValue(rawValue);
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+  return parsed.map((value) => String(value)).filter(Boolean);
+}
+
+function parseStringRecord(rawValue) {
+  const parsed = parseJSONValue(rawValue);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(parsed)
+      .map(([key, value]) => [String(key), String(value)])
+      .filter(([key, value]) => key.length > 0 && value.length > 0)
+  );
+}
+
+function parseObjectRecord(rawValue) {
+  const parsed = parseJSONValue(rawValue);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(parsed)
+      .map(([key, value]) => [String(key), value])
+      .filter(([key]) => key.length > 0)
+  );
 }
 
 async function makeFilterHash(values) {

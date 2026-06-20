@@ -1,6 +1,11 @@
 import XCTest
 
 final class CoreLogicTests: XCTestCase {
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        try seedTestMuseumMetadata()
+    }
+
     func testSupportedMuseumsHaveHomepageLogoAssetCatalogEntries() throws {
         let projectRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -8,7 +13,7 @@ final class CoreLogicTests: XCTestCase {
         let assetCatalogURL = projectRoot.appendingPathComponent("DailyMuseum/Assets.xcassets", isDirectory: true)
         let fileManager = FileManager.default
 
-        for museumID in MuseumID.allCases {
+        for museumID in testMuseumMetadata().map(\.id) {
             let assetName = museumID.homepageLogoAssetName
             XCTAssertFalse(assetName.isEmpty)
 
@@ -32,32 +37,32 @@ final class CoreLogicTests: XCTestCase {
     }
 
     func testFeedCategoriesStoredValueDefaultsToAllSelectableCategories() {
-        let categories = MuseumID.met.feedCategories(withStoredValue: nil)
+        let categories = MuseumIdentifier("met").feedCategories(withStoredValue: nil)
 
-        XCTAssertEqual(categories.count, MuseumID.met.selectableFeedCategories.count)
+        XCTAssertEqual(categories.count, MuseumIdentifier("met").selectableFeedCategories.count)
         XCTAssertFalse(categories.contains(where: { $0.isAll }))
     }
 
     func testFeedCategoriesStoredValueFallsBackToAllForAllAndUnknownValues() {
-        let allFromAll = MuseumID.tnm.feedCategories(withStoredValue: "all")
-        let allFromUnknown = MuseumID.tnm.feedCategories(withStoredValue: "unknown")
+        let allFromAll = MuseumIdentifier("tnm").feedCategories(withStoredValue: "all")
+        let allFromUnknown = MuseumIdentifier("tnm").feedCategories(withStoredValue: "unknown")
 
-        XCTAssertEqual(allFromAll, MuseumID.tnm.selectableFeedCategories)
-        XCTAssertEqual(allFromUnknown, MuseumID.tnm.selectableFeedCategories)
+        XCTAssertEqual(allFromAll, MuseumIdentifier("tnm").selectableFeedCategories)
+        XCTAssertEqual(allFromUnknown, MuseumIdentifier("tnm").selectableFeedCategories)
     }
 
     func testNormalizedFeedCategoriesIgnoresCrossMuseumSelectionsAndFallsBackToAll() {
-        let categories = MuseumID.met.normalizedFeedCategories(MuseumID.tnm.selectableFeedCategories)
+        let categories = MuseumIdentifier("met").normalizedFeedCategories(MuseumIdentifier("tnm").selectableFeedCategories)
 
-        XCTAssertEqual(categories, MuseumID.met.selectableFeedCategories)
+        XCTAssertEqual(categories, MuseumIdentifier("met").selectableFeedCategories)
     }
 
     func testFeedCategoryStorageValueNormalizesSubsetOrder() {
-        let modernArt = MuseumID.met.feedCategory(withID: "modern-art")
-        let americanDecorativeArts = MuseumID.met.feedCategory(withID: "american-decorative-arts")
-        let foreignCategory = MuseumID.tnm.feedCategory(withID: "paint")
+        let modernArt = MuseumIdentifier("met").feedCategory(withID: "modern-art")
+        let americanDecorativeArts = MuseumIdentifier("met").feedCategory(withID: "american-decorative-arts")
+        let foreignCategory = MuseumIdentifier("tnm").feedCategory(withID: "paint")
 
-        let value = MuseumID.met.feedCategoryStorageValue(for: [
+        let value = MuseumIdentifier("met").feedCategoryStorageValue(for: [
             modernArt!,
             foreignCategory!,
             americanDecorativeArts!
@@ -66,14 +71,14 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertEqual(value, "american-decorative-arts,modern-art")
     }
 
-    func testNaraMuseumDataSourceDefaultsToOfficialWithExpectedDisplayNames() {
-        XCTAssertEqual(NaraMuseumDataSource.defaultValue, .official)
-        XCTAssertEqual(NaraMuseumDataSource.official.displayName, "馆方数据源")
-        XCTAssertEqual(NaraMuseumDataSource.colbase.displayName, "ColBase")
+    func testNaraMuseumSourcesComeFromMetadata() {
+        XCTAssertEqual(MuseumIdentifier("nnm").defaultSourceKey, "official")
+        XCTAssertEqual(MuseumIdentifier("nnm").sources.map(\.sourceKey), ["official", "colbase"])
+        XCTAssertEqual(MuseumIdentifier("nnm").sources.map(\.displayName), ["馆方数据源", "ColBase"])
     }
 
     func testNaraMuseumOfficialCategoriesUseOfficialDepartments() {
-        let officialCategories = MuseumID.nnm.selectableFeedCategories(naraDataSource: .official)
+        let officialCategories = MuseumIdentifier("nnm").selectableFeedCategories(sourceKey: "official")
 
         XCTAssertEqual(
             officialCategories.map(\.displayName),
@@ -91,75 +96,73 @@ final class CoreLogicTests: XCTestCase {
                 "official-other"
             ]
         )
-        XCTAssertTrue(officialCategories.allSatisfy { $0.kind == .naraMuseumOfficialDepartment })
         XCTAssertEqual(
-            MuseumID.nnm.feedCategoryStorageValue(
+            MuseumIdentifier("nnm").feedCategoryStorageValue(
                 for: officialCategories,
-                naraDataSource: .official
+                sourceKey: "official"
             ),
             "all"
         )
     }
 
     func testNaraMuseumColbaseCategoriesRemainJapanSearchTypes() {
-        let colbaseCategories = MuseumID.nnm.selectableFeedCategories(naraDataSource: .colbase)
+        let colbaseCategories = MuseumIdentifier("nnm").selectableFeedCategories(sourceKey: "colbase")
 
         XCTAssertEqual(
             colbaseCategories.map(\.id),
             ["archeology", "ancdoc", "paint", "craft", "sculpture", "ceramic", "metal", "lacquer", "weaponry", "daw"]
         )
-        XCTAssertTrue(colbaseCategories.allSatisfy { $0.kind == .japanSearchType })
     }
 
     func testMuseumRepositoryPreferredOrderDeduplicatesAndAppendsMissingMuseums() {
-        let museums = MuseumRepository.museums(inPreferredOrder: [.tnm, .tnm, .met])
-        let widgetMuseums = MuseumRepository.widgetMuseums(inPreferredOrder: [.tnm, .tnm, .met])
+        let museums = MuseumRepository.museums(inPreferredOrder: [MuseumIdentifier("tnm"), MuseumIdentifier("tnm"), MuseumIdentifier("met")])
+        let widgetMuseums = MuseumRepository.widgetMuseums(inPreferredOrder: [MuseumIdentifier("tnm"), MuseumIdentifier("tnm"), MuseumIdentifier("met")])
 
-        XCTAssertEqual(museums.map(\.id), [.tnm, .met, .nnm, .nmc, .shm, .guimet])
-        XCTAssertEqual(widgetMuseums.map(\.id), [.tnm, .met, .nnm, .nmc, .shm, .guimet])
+        XCTAssertEqual(museums.map(\.id), [MuseumIdentifier("tnm"), MuseumIdentifier("met"), MuseumIdentifier("nmc"), MuseumIdentifier("shm"), MuseumIdentifier("nnm"), MuseumIdentifier("guimet")])
+        XCTAssertEqual(widgetMuseums.map(\.id), [MuseumIdentifier("tnm"), MuseumIdentifier("met"), MuseumIdentifier("nmc"), MuseumIdentifier("shm"), MuseumIdentifier("nnm"), MuseumIdentifier("guimet")])
     }
 
     func testMuseumRepositoryHomepageCountrySectionsPlaceChinaFirst() {
         let sections = MuseumRepository.homepageCountrySections
 
         XCTAssertEqual(sections.map(\.country), ["中国", "美国", "日本", "法国"])
-        XCTAssertEqual(sections[0].museums.map(\.id), [.nmc, .shm])
-        XCTAssertEqual(sections[1].museums.map(\.id), [.met])
-        XCTAssertEqual(sections[2].museums.map(\.id), [.tnm, .nnm])
-        XCTAssertEqual(sections[3].museums.map(\.id), [.guimet])
-        XCTAssertEqual(MuseumRepository.homepageMuseumIDs, [.nmc, .shm, .met, .tnm, .nnm, .guimet])
+        XCTAssertEqual(sections[0].museums.map(\.id), [MuseumIdentifier("nmc"), MuseumIdentifier("shm")])
+        XCTAssertEqual(sections[1].museums.map(\.id), [MuseumIdentifier("met")])
+        XCTAssertEqual(sections[2].museums.map(\.id), [MuseumIdentifier("tnm"), MuseumIdentifier("nnm")])
+        XCTAssertEqual(sections[3].museums.map(\.id), [MuseumIdentifier("guimet")])
+        XCTAssertEqual(MuseumRepository.homepageMuseumIDs, [MuseumIdentifier("nmc"), MuseumIdentifier("shm"), MuseumIdentifier("met"), MuseumIdentifier("tnm"), MuseumIdentifier("nnm"), MuseumIdentifier("guimet")])
     }
 
     func testMuseumRepositoryWidgetMuseumsFollowHomepageOrderWithoutGrouping() {
         let widgetMuseums = MuseumRepository.widgetMuseums(inPreferredOrder: MuseumRepository.homepageMuseumIDs)
 
-        XCTAssertEqual(widgetMuseums.map(\.id), [.nmc, .shm, .met, .tnm, .nnm, .guimet])
+        XCTAssertEqual(widgetMuseums.map(\.id), [MuseumIdentifier("nmc"), MuseumIdentifier("shm"), MuseumIdentifier("met"), MuseumIdentifier("tnm"), MuseumIdentifier("nnm"), MuseumIdentifier("guimet")])
     }
 
     func testMuseumMetadataUsesStableCountryAndCityFieldsForHomepageCopy() {
-        XCTAssertEqual(MuseumRepository.museum(for: .met).country, "美国")
-        XCTAssertEqual(MuseumRepository.museum(for: .met).city, "纽约")
-        XCTAssertEqual(MuseumRepository.museum(for: .met).subtitle, "纽约")
-        XCTAssertEqual(MuseumRepository.museum(for: .tnm).country, "日本")
-        XCTAssertEqual(MuseumRepository.museum(for: .tnm).city, "东京")
-        XCTAssertEqual(MuseumRepository.museum(for: .tnm).subtitle, "东京")
-        XCTAssertEqual(MuseumRepository.museum(for: .nnm).country, "日本")
-        XCTAssertEqual(MuseumRepository.museum(for: .nnm).city, "奈良")
-        XCTAssertEqual(MuseumRepository.museum(for: .nnm).subtitle, "奈良")
-        XCTAssertEqual(MuseumRepository.museum(for: .nmc).country, "中国")
-        XCTAssertEqual(MuseumRepository.museum(for: .nmc).city, "北京")
-        XCTAssertEqual(MuseumRepository.museum(for: .nmc).subtitle, "北京")
-        XCTAssertEqual(MuseumRepository.museum(for: .shm).country, "中国")
-        XCTAssertEqual(MuseumRepository.museum(for: .shm).city, "上海")
-        XCTAssertEqual(MuseumRepository.museum(for: .shm).subtitle, "上海")
-        XCTAssertEqual(MuseumRepository.museum(for: .guimet).country, "法国")
-        XCTAssertEqual(MuseumRepository.museum(for: .guimet).city, "巴黎")
-        XCTAssertEqual(MuseumRepository.museum(for: .guimet).subtitle, "巴黎")
+        XCTAssertEqual(MuseumRepository.museum(for: MuseumIdentifier("met")).country, "美国")
+        XCTAssertEqual(MuseumRepository.museum(for: MuseumIdentifier("met")).city, "纽约")
+        XCTAssertEqual(MuseumRepository.museum(for: MuseumIdentifier("met")).subtitle, "纽约")
+        XCTAssertEqual(MuseumRepository.museum(for: MuseumIdentifier("tnm")).country, "日本")
+        XCTAssertEqual(MuseumRepository.museum(for: MuseumIdentifier("tnm")).city, "东京")
+        XCTAssertEqual(MuseumRepository.museum(for: MuseumIdentifier("tnm")).subtitle, "东京")
+        XCTAssertEqual(MuseumRepository.museum(for: MuseumIdentifier("nnm")).country, "日本")
+        XCTAssertEqual(MuseumRepository.museum(for: MuseumIdentifier("nnm")).city, "奈良")
+        XCTAssertEqual(MuseumRepository.museum(for: MuseumIdentifier("nnm")).subtitle, "奈良")
+        XCTAssertEqual(MuseumRepository.museum(for: MuseumIdentifier("nmc")).country, "中国")
+        XCTAssertEqual(MuseumRepository.museum(for: MuseumIdentifier("nmc")).city, "北京")
+        XCTAssertEqual(MuseumRepository.museum(for: MuseumIdentifier("nmc")).subtitle, "北京")
+        XCTAssertEqual(MuseumRepository.museum(for: MuseumIdentifier("shm")).country, "中国")
+        XCTAssertEqual(MuseumRepository.museum(for: MuseumIdentifier("shm")).city, "上海")
+        XCTAssertEqual(MuseumRepository.museum(for: MuseumIdentifier("shm")).subtitle, "上海")
+        XCTAssertEqual(MuseumRepository.museum(for: MuseumIdentifier("guimet")).country, "法国")
+        XCTAssertEqual(MuseumRepository.museum(for: MuseumIdentifier("guimet")).city, "巴黎")
+        XCTAssertEqual(MuseumRepository.museum(for: MuseumIdentifier("guimet")).subtitle, "巴黎")
     }
 
     func testAppDeepLinkRoundTripPreservesReference() throws {
         let reference = ArtworkReference(
-            museumID: .met,
+            museumID: MuseumIdentifier("met"),
             objectID: "12345",
             imageAspectRatio: 1.75
         )
@@ -167,7 +170,7 @@ final class CoreLogicTests: XCTestCase {
         let url = try XCTUnwrap(AppDeepLink.artworkURL(reference: reference))
         let parsed = AppDeepLink.parse(url: url)
 
-        XCTAssertEqual(parsed?.museumID, .met)
+        XCTAssertEqual(parsed?.museumID, MuseumIdentifier("met"))
         XCTAssertEqual(parsed?.objectID, "12345")
         XCTAssertEqual(parsed?.imageAspectRatio, 1.75)
     }
@@ -176,7 +179,8 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertNil(AppDeepLink.parse(url: URL(string: "https://example.com/artwork/met/1")!))
         XCTAssertNil(AppDeepLink.parse(url: URL(string: "dailymuseum://museum/met/1")!))
         XCTAssertNil(AppDeepLink.parse(url: URL(string: "dailymuseum://artwork/met")!))
-        XCTAssertNil(AppDeepLink.parse(url: URL(string: "dailymuseum://artwork/unknown/1")!))
+        XCTAssertNil(AppDeepLink.parse(url: URL(string: "dailymuseum://artwork//1")!))
+        XCTAssertEqual(AppDeepLink.parse(url: URL(string: "dailymuseum://artwork/unknown/1")!)?.museumID.rawValue, "unknown")
     }
 
     func testShortcutInstallPromptDeepLinkRoundTripPreservesPayload() throws {
@@ -224,14 +228,14 @@ final class CoreLogicTests: XCTestCase {
 
     func testWidgetMuseumScopeRawValueRoundTrip() {
         XCTAssertEqual(WidgetMuseumScope(rawValue: WidgetMuseumScope.all.rawValue), .all)
-        XCTAssertEqual(WidgetMuseumScope(rawValue: WidgetMuseumScope.single(.tnm).rawValue), .single(.tnm))
-        XCTAssertEqual(WidgetMuseumScope(rawValue: WidgetMuseumScope.single(.nnm).rawValue), .single(.nnm))
-        XCTAssertNil(WidgetMuseumScope(rawValue: "single:unknown"))
+        XCTAssertEqual(WidgetMuseumScope(rawValue: WidgetMuseumScope.single(MuseumIdentifier("tnm")).rawValue), .single(MuseumIdentifier("tnm")))
+        XCTAssertEqual(WidgetMuseumScope(rawValue: WidgetMuseumScope.single(MuseumIdentifier("nnm")).rawValue), .single(MuseumIdentifier("nnm")))
+        XCTAssertEqual(WidgetMuseumScope(rawValue: "single:unknown"), .single(MuseumIdentifier("unknown")))
     }
 
     func testArtworkNormalizedDescriptionTextRemovesHTMLAndNoise() {
         let artwork = makeArtwork(
-            museumID: .met,
+            museumID: MuseumIdentifier("met"),
             title: "Test",
             description: """
             <p> First&nbsp;line </p><br>
@@ -253,7 +257,7 @@ final class CoreLogicTests: XCTestCase {
 
     func testArtworkNormalizedDescriptionTextDecodesPunctuationEntities() {
         let artwork = makeArtwork(
-            museumID: .met,
+            museumID: MuseumIdentifier("met"),
             title: "Test",
             description: """
             <p>&ldquo;Quoted&rdquo; text&nbsp;&mdash;&#8212;&#x2013;&rsquo;</p>
@@ -270,7 +274,7 @@ final class CoreLogicTests: XCTestCase {
 
     func testArtworkNormalizedDescriptionTextUsesChinesePunctuationForChineseMuseums() {
         let artwork = makeArtwork(
-            museumID: .nmc,
+            museumID: MuseumIdentifier("nmc"),
             title: "Test",
             description: """
             <p>&ldquo;引号&rdquo;&nbsp;&mdash;&#8212;&#x2013;&hellip;&lsquo;内嵌&rsquo;</p>
@@ -286,9 +290,9 @@ final class CoreLogicTests: XCTestCase {
     }
 
     func testArtworkSupportsTranslationRequiresSupportedMuseumAndMeaningfulContent() {
-        let translatable = makeArtwork(museumID: .met, title: "Water Lilies", description: nil)
-        let unsupportedMuseum = makeArtwork(museumID: .nmc, title: "后母戊鼎", description: nil)
-        let blankContent = makeArtwork(museumID: .met, title: "   ", description: nil)
+        let translatable = makeArtwork(museumID: MuseumIdentifier("met"), title: "Water Lilies", description: nil)
+        let unsupportedMuseum = makeArtwork(museumID: MuseumIdentifier("nmc"), title: "后母戊鼎", description: nil)
+        let blankContent = makeArtwork(museumID: MuseumIdentifier("met"), title: "   ", description: nil)
 
         XCTAssertTrue(translatable.supportsTranslation)
         XCTAssertFalse(unsupportedMuseum.supportsTranslation)
@@ -297,7 +301,7 @@ final class CoreLogicTests: XCTestCase {
 
     func testArtworkTranslationEntriesIncludeVisibleFieldsOnly() {
         let artwork = makeArtwork(
-            museumID: .met,
+            museumID: MuseumIdentifier("met"),
             title: "Water Lilies",
             description: "A large oil painting.",
             artistDisplayName: "Claude Monet",
@@ -327,7 +331,7 @@ final class CoreLogicTests: XCTestCase {
 
     func testArtworkApplyingTranslationsUpdatesOnlyTranslatedFields() {
         let artwork = makeArtwork(
-            museumID: .met,
+            museumID: MuseumIdentifier("met"),
             title: "Water Lilies",
             description: "A large oil painting.",
             artistDisplayName: "Claude Monet",
@@ -347,17 +351,17 @@ final class CoreLogicTests: XCTestCase {
     }
 
     func testMuseumCopyrightNoticeUsesExpectedFormat() {
-        XCTAssertEqual(MuseumID.met.copyrightNotice, "©大都会艺术博物馆 版权所有")
-        XCTAssertEqual(MuseumID.tnm.copyrightNotice, "©东京国立博物馆 版权所有")
-        XCTAssertEqual(MuseumID.nnm.copyrightNotice, "©奈良国立博物馆 版权所有")
-        XCTAssertEqual(MuseumID.nmc.copyrightNotice, "©中国国家博物馆 版权所有")
-        XCTAssertEqual(MuseumID.shm.copyrightNotice, "©上海博物馆 版权所有")
+        XCTAssertEqual(MuseumIdentifier("met").copyrightNotice, "©大都会艺术博物馆 版权所有")
+        XCTAssertEqual(MuseumIdentifier("tnm").copyrightNotice, "©东京国立博物馆 版权所有")
+        XCTAssertEqual(MuseumIdentifier("nnm").copyrightNotice, "©奈良国立博物馆 版权所有")
+        XCTAssertEqual(MuseumIdentifier("nmc").copyrightNotice, "©中国国家博物馆 版权所有")
+        XCTAssertEqual(MuseumIdentifier("shm").copyrightNotice, "©上海博物馆 版权所有")
     }
 
     func testArtworkShareContentUsesUnifiedShareTextFormat() throws {
         let officialURL = try XCTUnwrap(URL(string: "https://example.com/object/1"))
         let artwork = makeArtwork(
-            museumID: .met,
+            museumID: MuseumIdentifier("met"),
             title: "睡莲",
             description: nil,
             objectURL: officialURL
@@ -373,7 +377,7 @@ final class CoreLogicTests: XCTestCase {
     func testArtworkShareContentBuildsDoubaoShortcutInputTextFromOfficialURL() throws {
         let officialURL = try XCTUnwrap(URL(string: "https://example.com/object/2"))
         let artwork = makeArtwork(
-            museumID: .shm,
+            museumID: MuseumIdentifier("shm"),
             title: "青铜鼎",
             description: nil,
             objectURL: officialURL
@@ -389,7 +393,7 @@ final class CoreLogicTests: XCTestCase {
     func testArtworkShareContentUsesArtworkTitleAndOfficialURLForMetadata() throws {
         let officialURL = try XCTUnwrap(URL(string: "https://example.com/object/3"))
         let artwork = makeArtwork(
-            museumID: .nmc,
+            museumID: MuseumIdentifier("nmc"),
             title: "后母戊鼎",
             description: nil,
             objectURL: officialURL
@@ -399,100 +403,6 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertEqual(content.shareSheetSubject, "后母戊鼎")
         XCTAssertEqual(content.linkMetadataTitle, "后母戊鼎")
         XCTAssertEqual(content.officialURL, officialURL)
-    }
-
-    func testJapanSearchItemSortValueAndArtworkMapping() throws {
-        let item = try decodeJapanSearchItem(
-            """
-            {
-              "id": "jpsearch-20",
-              "common": {
-                "id": "jpsearch-20",
-                "title": "国宝 太刀",
-                "linkUrl": "https://example.com/object",
-                "thumbnailUrl": ["https://example.com/slideshow_s/thumb.jpg"],
-                "contentsUrl": ["https://example.com/slideshow_s/full.jpg"],
-                "contributor": ["Tokyo National Museum", "東京国立博物館", "刀工"],
-                "temporal": ["鎌倉時代"],
-                "description": "sample description",
-                "provider": "tnm",
-                "database": "cobas"
-              },
-              "cobas-22-s": "20",
-              "cobas-16-s": "東京国立博物館",
-              "cobas-11-s": "鎌倉時代",
-              "cobas-12-s": "鉄",
-              "cobas-13-s": "長さ70cm",
-              "cobas-4-s": "刀剣"
-            }
-            """
-        )
-
-        let artwork = item.toArtwork(museumID: .tnm)
-
-        XCTAssertEqual(item.sortValue, 20)
-        XCTAssertEqual(artwork.objectID, "jpsearch-20")
-        XCTAssertEqual(artwork.artistDisplayName, "刀工")
-        XCTAssertEqual(artwork.repository, "東京国立博物館")
-        XCTAssertEqual(artwork.objectDate, "鎌倉時代")
-        XCTAssertEqual(artwork.department, "刀剣")
-        XCTAssertEqual(artwork.primaryImageURL?.absoluteString, "https://example.com/slideshow/full.jpg")
-        XCTAssertEqual(artwork.primaryImageSmallURL?.absoluteString, "https://example.com/slideshow_s/thumb.jpg")
-    }
-
-    func testJapanSearchItemMapsNaraArtworkWithMuseumProfile() throws {
-        let item = try decodeJapanSearchItem(
-            """
-            {
-              "id": "cobas-16086",
-              "common": {
-                "id": "cobas-16086",
-                "title": "刺繍釈迦阿弥陀二尊像",
-                "linkUrl": "https://colbase.nich.go.jp/collection_items/narahaku/1266-0",
-                "thumbnailUrl": ["https://colbase.nich.go.jp/media/narahaku/1266-0/image/slideshow_s/H015391.jpg"],
-                "contentsUrl": ["https://colbase.nich.go.jp/media/narahaku/1266-0/image/slideshow_s/H015391.jpg"],
-                "contributor": ["奈良国立博物館", "Nara National Museum"],
-                "temporal": ["13～14世紀"],
-                "provider": "narahaku",
-                "database": "cobas"
-              },
-              "cobas-22-s": "16086",
-              "cobas-16-s": "奈良国立博物館",
-              "cobas-11-s": "13～14世紀",
-              "cobas-12-s": "刺繍",
-              "cobas-13-s": "縦127.0　横52.0",
-              "cobas-4-s": "工芸"
-            }
-            """
-        )
-
-        let artwork = item.toArtwork(museumID: .nnm)
-
-        XCTAssertEqual(artwork.id, "nnm-cobas-16086")
-        XCTAssertEqual(artwork.museumID, .nnm)
-        XCTAssertEqual(artwork.repository, "奈良国立博物館")
-        XCTAssertEqual(artwork.country, "日本")
-        XCTAssertEqual(artwork.primaryImageURL?.absoluteString, "https://colbase.nich.go.jp/media/narahaku/1266-0/image/slideshow/H015391.jpg")
-    }
-
-    func testJapanSearchItemSortValueFallsBackToItemIDSuffix() throws {
-        let item = try decodeJapanSearchItem(
-            """
-            {
-              "id": "jpsearch-314",
-              "common": {
-                "id": "jpsearch-314",
-                "title": "Test",
-                "thumbnailUrl": [],
-                "contentsUrl": [],
-                "contributor": [],
-                "temporal": []
-              }
-            }
-            """
-        )
-
-        XCTAssertEqual(item.sortValue, 314)
     }
 
     func testRequestLogTimestampIncludesThreeDigitMilliseconds() throws {
@@ -654,10 +564,6 @@ final class CoreLogicTests: XCTestCase {
         )
     }
 
-    private func decodeJapanSearchItem(_ json: String) throws -> JapanSearchItem {
-        try JSONDecoder().decode(JapanSearchItem.self, from: Data(json.utf8))
-    }
-
     private func makeDate(
         year: Int,
         month: Int,
@@ -682,4 +588,230 @@ final class CoreLogicTests: XCTestCase {
         )
         return try XCTUnwrap(calendar.date(from: components))
     }
+}
+
+struct TestMuseumMetadataSeed: Codable {
+    let dataVersion: String
+    let updatedAt: Date
+    let museums: [MuseumMetadata]
+}
+
+func seedTestMuseumMetadata(
+    defaults: UserDefaults = UserDefaults(suiteName: SettingsKeys.appGroupID) ?? .standard
+) throws {
+    let seed = TestMuseumMetadataSeed(
+        dataVersion: "test-metadata",
+        updatedAt: Date(timeIntervalSince1970: 1),
+        museums: testMuseumMetadata()
+    )
+    let data = try JSONEncoder().encode(seed)
+    defaults.set(data, forKey: "museum.metadata.snapshot.v1")
+    defaults.synchronize()
+}
+
+func testMuseumMetadata() -> [MuseumMetadata] {
+    [
+        testMuseum(
+            id: MuseumIdentifier("nmc"),
+            name: "中国国家博物馆",
+            country: "中国",
+            city: "北京",
+            iconAssetName: "NmcHomepageLogo",
+            sortOrder: 10,
+            textPunctuationStyle: .chinese,
+            supportsTranslation: false,
+            source: MuseumSourceMetadata(
+                sourceKey: "nmc_api",
+                displayName: "中国国家博物馆 App API",
+                isDefault: true,
+                translationSourceLanguage: nil,
+                preferredImageURLOrder: [.primary, .thumbnail],
+                imageRequestHeaders: [:]
+            ),
+            categories: [
+                MuseumCategoryMetadata(sourceKey: "nmc_api", categoryID: "archaeology", displayName: "考古发掘品", sortOrder: 10)
+            ],
+            waterfallQPS: 1
+        ),
+        testMuseum(
+            id: MuseumIdentifier("shm"),
+            name: "上海博物馆",
+            country: "中国",
+            city: "上海",
+            iconAssetName: "ShmHomepageLogo",
+            sortOrder: 20,
+            textPunctuationStyle: .chinese,
+            supportsTranslation: false,
+            source: MuseumSourceMetadata(
+                sourceKey: "shm_web",
+                displayName: "上海博物馆官网",
+                isDefault: true,
+                translationSourceLanguage: nil,
+                preferredImageURLOrder: [.primary, .thumbnail],
+                imageRequestHeaders: [:]
+            ),
+            categories: [
+                MuseumCategoryMetadata(sourceKey: "shm_web", categoryID: "礼器", displayName: "礼器", sortOrder: 10)
+            ]
+        ),
+        MuseumMetadata(
+            id: MuseumIdentifier("met"),
+            displayName: "大都会艺术博物馆",
+            subtitle: "纽约",
+            country: "美国",
+            city: "纽约",
+            address: nil,
+            textPunctuationStyle: .western,
+            icon: MuseumIconMetadata(url: nil, assetName: "MetHomepageLogo", backgroundColor: nil),
+            sortOrder: 30,
+            capabilities: MuseumCapabilities(supportsWidgetContent: true, supportsTranslation: true, supportsFavorites: true),
+            defaultSourceKey: "met_all",
+            sources: [
+                MuseumSourceMetadata(
+                    sourceKey: "met_all",
+                    displayName: "全部展品",
+                    isDefault: true,
+                    translationSourceLanguage: "en",
+                    preferredImageURLOrder: [.primary, .thumbnail],
+                    imageRequestHeaders: [:]
+                ),
+                MuseumSourceMetadata(
+                    sourceKey: "met_on_view",
+                    displayName: "在展展品",
+                    isDefault: false,
+                    translationSourceLanguage: "en",
+                    preferredImageURLOrder: [.primary, .thumbnail],
+                    imageRequestHeaders: [:]
+                )
+            ],
+            categories: [
+                MuseumCategoryMetadata(sourceKey: "met_all", categoryID: "american-decorative-arts", displayName: "美国装饰艺术", sortOrder: 10),
+                MuseumCategoryMetadata(sourceKey: "met_all", categoryID: "modern-art", displayName: "现代艺术", sortOrder: 20),
+                MuseumCategoryMetadata(sourceKey: "met_all", categoryID: "asian-art", displayName: "亚洲艺术", sortOrder: 30),
+                MuseumCategoryMetadata(sourceKey: "met_on_view", categoryID: "american-decorative-arts", displayName: "美国装饰艺术", sortOrder: 10),
+                MuseumCategoryMetadata(sourceKey: "met_on_view", categoryID: "modern-art", displayName: "现代艺术", sortOrder: 20),
+                MuseumCategoryMetadata(sourceKey: "met_on_view", categoryID: "asian-art", displayName: "亚洲艺术", sortOrder: 30)
+            ],
+            waterfallImageFetchPolicy: WaterfallImageFetchPolicy(qps: nil)
+        ),
+        testMuseum(
+            id: MuseumIdentifier("tnm"),
+            name: "东京国立博物馆",
+            country: "日本",
+            city: "东京",
+            iconAssetName: "TnmHomepageLogo",
+            sortOrder: 40,
+            supportsTranslation: true,
+            source: MuseumSourceMetadata(
+                sourceKey: "japan_search",
+                displayName: "Japan Search",
+                isDefault: true,
+                translationSourceLanguage: "ja",
+                preferredImageURLOrder: [.thumbnail, .primary],
+                imageRequestHeaders: testImageRequestHeaders(referer: "https://colbase.nich.go.jp/")
+            ),
+            categories: [
+                MuseumCategoryMetadata(sourceKey: "japan_search", categoryID: "paint", displayName: "绘画", sortOrder: 10)
+            ]
+        ),
+        MuseumMetadata(
+            id: MuseumIdentifier("nnm"),
+            displayName: "奈良国立博物馆",
+            subtitle: "奈良",
+            country: "日本",
+            city: "奈良",
+            address: nil,
+            textPunctuationStyle: .western,
+            icon: MuseumIconMetadata(url: nil, assetName: "NnmHomepageLogo", backgroundColor: nil),
+            sortOrder: 50,
+            capabilities: MuseumCapabilities(supportsWidgetContent: true, supportsTranslation: true, supportsFavorites: true),
+            defaultSourceKey: "official",
+            sources: [
+                MuseumSourceMetadata(sourceKey: "official", displayName: "馆方数据源", isDefault: true, translationSourceLanguage: "zh-Hans", preferredImageURLOrder: [.primary, .thumbnail], imageRequestHeaders: testImageRequestHeaders(referer: "https://www.narahaku.go.jp/chinese/collection/")),
+                MuseumSourceMetadata(sourceKey: "colbase", displayName: "ColBase", isDefault: false, translationSourceLanguage: "ja", preferredImageURLOrder: [.thumbnail, .primary], imageRequestHeaders: testImageRequestHeaders(referer: "https://colbase.nich.go.jp/"))
+            ],
+            categories: [
+                MuseumCategoryMetadata(sourceKey: "official", categoryID: "official-sculpture", displayName: "雕刻", sortOrder: 10),
+                MuseumCategoryMetadata(sourceKey: "official", categoryID: "official-painting", displayName: "绘画", sortOrder: 20),
+                MuseumCategoryMetadata(sourceKey: "official", categoryID: "official-calligraphy", displayName: "书迹", sortOrder: 30),
+                MuseumCategoryMetadata(sourceKey: "official", categoryID: "official-craft", displayName: "工艺", sortOrder: 40),
+                MuseumCategoryMetadata(sourceKey: "official", categoryID: "official-archaeology", displayName: "考古", sortOrder: 50),
+                MuseumCategoryMetadata(sourceKey: "official", categoryID: "official-ancient-chinese-bronze", displayName: "中国古代青铜器", sortOrder: 60),
+                MuseumCategoryMetadata(sourceKey: "official", categoryID: "official-other", displayName: "其他", sortOrder: 70),
+                MuseumCategoryMetadata(sourceKey: "colbase", categoryID: "archeology", displayName: "考古与历史资料", sortOrder: 10),
+                MuseumCategoryMetadata(sourceKey: "colbase", categoryID: "ancdoc", displayName: "书迹与古文书", sortOrder: 20),
+                MuseumCategoryMetadata(sourceKey: "colbase", categoryID: "paint", displayName: "绘画", sortOrder: 30),
+                MuseumCategoryMetadata(sourceKey: "colbase", categoryID: "craft", displayName: "工艺", sortOrder: 40),
+                MuseumCategoryMetadata(sourceKey: "colbase", categoryID: "sculpture", displayName: "雕刻", sortOrder: 50),
+                MuseumCategoryMetadata(sourceKey: "colbase", categoryID: "ceramic", displayName: "陶瓷", sortOrder: 60),
+                MuseumCategoryMetadata(sourceKey: "colbase", categoryID: "metal", displayName: "金属工艺", sortOrder: 70),
+                MuseumCategoryMetadata(sourceKey: "colbase", categoryID: "lacquer", displayName: "漆器", sortOrder: 80),
+                MuseumCategoryMetadata(sourceKey: "colbase", categoryID: "weaponry", displayName: "刀剑与兵器", sortOrder: 90),
+                MuseumCategoryMetadata(sourceKey: "colbase", categoryID: "daw", displayName: "染织", sortOrder: 100)
+            ],
+            waterfallImageFetchPolicy: WaterfallImageFetchPolicy(qps: nil)
+        ),
+        testMuseum(
+            id: MuseumIdentifier("guimet"),
+            name: "吉美国立亚洲艺术博物馆",
+            country: "法国",
+            city: "巴黎",
+            iconAssetName: "GuimetHomepageLogo",
+            sortOrder: 60,
+            supportsTranslation: true,
+            source: MuseumSourceMetadata(
+                sourceKey: "guimet_web",
+                displayName: "吉美官网中文藏品页",
+                isDefault: true,
+                translationSourceLanguage: nil,
+                preferredImageURLOrder: [.primary, .thumbnail],
+                imageRequestHeaders: [:]
+            ),
+            categories: [
+                MuseumCategoryMetadata(sourceKey: "guimet_web", categoryID: "china", displayName: "中国", sortOrder: 10)
+            ]
+        )
+    ]
+}
+
+private func testMuseum(
+    id: MuseumID,
+    name: String,
+    country: String,
+    city: String,
+    iconAssetName: String,
+    sortOrder: Int,
+    textPunctuationStyle: TextPunctuationStyle = .western,
+    supportsTranslation: Bool,
+    source: MuseumSourceMetadata,
+    categories: [MuseumCategoryMetadata],
+    waterfallQPS: Double? = nil
+) -> MuseumMetadata {
+    MuseumMetadata(
+        id: id,
+        displayName: name,
+        subtitle: city,
+        country: country,
+        city: city,
+        address: nil,
+        textPunctuationStyle: textPunctuationStyle,
+        icon: MuseumIconMetadata(url: nil, assetName: iconAssetName, backgroundColor: nil),
+        sortOrder: sortOrder,
+        capabilities: MuseumCapabilities(supportsWidgetContent: true, supportsTranslation: supportsTranslation, supportsFavorites: true),
+        defaultSourceKey: source.sourceKey,
+        sources: [source],
+        categories: categories,
+        waterfallImageFetchPolicy: WaterfallImageFetchPolicy(qps: waterfallQPS)
+    )
+}
+
+private func testImageRequestHeaders(referer: String) -> [String: String] {
+    [
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        "Accept-Language": "ja-JP,ja;q=0.9,en-US;q=0.8,zh-CN;q=0.7",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+        "Referer": referer
+    ]
 }

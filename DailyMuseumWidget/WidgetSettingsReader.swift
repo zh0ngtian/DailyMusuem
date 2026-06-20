@@ -8,20 +8,32 @@ struct WidgetSettingsReader {
     }
 
     func categories(for museumID: MuseumID) -> [MuseumCategory] {
-        let naraDataSource = museumID == .nnm ? naraMuseumDataSource() : nil
-        let storedValue = defaults.string(forKey: SettingsKeys.feedCategoryKey(for: museumID, naraDataSource: naraDataSource))
-        if museumID == .nnm, let naraDataSource {
-            return museumID.feedCategories(withStoredValue: storedValue, naraDataSource: naraDataSource)
+        let sourceKey = selectedSourceKey(for: museumID)
+        let storedIDs = sourceKey.flatMap {
+            feedPreferences().museums[museumID.rawValue]?.selectedCategoryIDsBySource[$0]
         }
-        return museumID.feedCategories(withStoredValue: storedValue)
+        guard let storedIDs, !storedIDs.isEmpty else {
+            return museumID.defaultFeedCategories(sourceKey: sourceKey)
+        }
+        return museumID.feedCategories(withStoredValue: storedIDs.joined(separator: ","), sourceKey: sourceKey)
     }
 
-    func naraMuseumDataSource() -> NaraMuseumDataSource {
-        NaraMuseumDataSource.storedValue(in: defaults)
+    func selectedSourceKey(for museumID: MuseumID) -> String? {
+        let storedValue = feedPreferences().museums[museumID.rawValue]?.selectedSourceKey?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let storedValue, !storedValue.isEmpty,
+           museumID.sources.contains(where: { $0.sourceKey == storedValue }) {
+            return storedValue
+        }
+        return museumID.defaultSourceKey
     }
 
-    func metShowsOnlyOnViewArtworks() -> Bool {
-        defaults.bool(forKey: SettingsKeys.metShowsOnlyOnViewArtworks)
+    private func feedPreferences() -> FeedPreferences {
+        guard let data = defaults.data(forKey: SettingsKeys.feedPreferences),
+              let preferences = try? JSONDecoder().decode(FeedPreferences.self, from: data) else {
+            return FeedPreferences()
+        }
+        return preferences
     }
 
     func widgetRefreshInterval() -> WidgetRefreshInterval {
@@ -142,9 +154,9 @@ actor ArtworkBatchLoader {
     }
 
     private let museumID: MuseumID
+    private let sourceKey: String?
     private let categories: [MuseumCategory]
     private let randomOrder: Bool
-    private let metShowsOnlyOnViewArtworks: Bool
     private let cachePolicy: MuseumRequestCachePolicy
     private let onLog: (@Sendable (String) async -> Void)?
     private let backendClient: MuseumBackendClient
@@ -159,20 +171,17 @@ actor ArtworkBatchLoader {
 
     init(
         museumID: MuseumID,
+        sourceKey: String? = nil,
         categories: [MuseumCategory],
         randomOrder: Bool,
-        metShowsOnlyOnViewArtworks: Bool = false,
         cachePolicy: MuseumRequestCachePolicy,
         onLog: (@Sendable (String) async -> Void)? = nil,
         backendClient: MuseumBackendClient = .shared
     ) {
         self.museumID = museumID
-        let naraDataSource = Self.inferredNaraDataSource(museumID: museumID, categories: categories)
-        self.categories = museumID == .nnm
-            ? museumID.normalizedFeedCategories(categories, naraDataSource: naraDataSource)
-            : museumID.normalizedFeedCategories(categories)
+        self.sourceKey = sourceKey
+        self.categories = museumID.normalizedFeedCategories(categories, sourceKey: sourceKey)
         self.randomOrder = randomOrder
-        self.metShowsOnlyOnViewArtworks = museumID == .met && metShowsOnlyOnViewArtworks
         self.cachePolicy = cachePolicy
         self.onLog = onLog
         self.backendClient = backendClient
@@ -258,15 +267,13 @@ actor ArtworkBatchLoader {
             cursor: nextCursor,
             order: randomOrder ? .random : .stable,
             seed: randomOrder ? seed : nil,
-            onlyOnView: metShowsOnlyOnViewArtworks,
             hasImage: true,
             cachePolicy: cachePolicy
         )
     }
 
     private var backendSource: String? {
-        guard museumID == .nnm else { return nil }
-        return naraMuseumDataSource.rawValue
+        sourceKey
     }
 
     private var backendCategoryIDs: [String] {
@@ -289,18 +296,11 @@ actor ArtworkBatchLoader {
     }
 
     private var isAllCategoriesSelected: Bool {
-        if museumID == .nnm {
-            return museumID.areAllFeedCategoriesSelected(categories, naraDataSource: naraMuseumDataSource)
-        }
-        return museumID.areAllFeedCategoriesSelected(categories)
+        museumID.areAllFeedCategoriesSelected(categories, sourceKey: sourceKey)
     }
 
     private var selectedCategoriesLogLabel: String {
         isAllCategoriesSelected ? "全部" : categories.map(\.displayName).joined(separator: "、")
-    }
-
-    private var naraMuseumDataSource: NaraMuseumDataSource {
-        Self.inferredNaraDataSource(museumID: museumID, categories: categories)
     }
 
     private static func stableUniqueStrings(_ values: [String]) -> [String] {
@@ -314,11 +314,4 @@ actor ArtworkBatchLoader {
         return result
     }
 
-    private static func inferredNaraDataSource(museumID: MuseumID, categories: [MuseumCategory]) -> NaraMuseumDataSource {
-        guard museumID == .nnm else { return .colbase }
-        if categories.contains(where: { $0.kind == .naraMuseumOfficialDepartment }) {
-            return .official
-        }
-        return .colbase
-    }
 }

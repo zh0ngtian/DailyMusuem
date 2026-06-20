@@ -406,9 +406,9 @@ struct WidgetRefreshEngine {
         self.loaderFactory = loaderFactory ?? { museumID, categories, onLog in
             return ArtworkBatchLoader(
                 museumID: museumID,
+                sourceKey: settingsReader.selectedSourceKey(for: museumID),
                 categories: categories,
                 randomOrder: true,
-                metShowsOnlyOnViewArtworks: museumID == .met && settingsReader.metShowsOnlyOnViewArtworks(),
                 cachePolicy: MuseumRequestCachePolicy.networkOnly,
                 onLog: onLog,
                 backendClient: backendClient
@@ -661,7 +661,8 @@ struct WidgetRefreshEngine {
                 } else {
                     let request = WidgetImageRequestPolicy.makeRequest(
                         url: url,
-                        timeout: Constants.imageRequestTimeout
+                        timeout: Constants.imageRequestTimeout,
+                        headers: MuseumMetadataStore.cachedSourceMetadata(museumID: artwork.museumID, sourceKey: artwork.sourceKey)?.imageRequestHeaders ?? [:]
                     )
                     let (responseData, response) = try await urlSession.data(for: request)
                     try Task.checkCancellation()
@@ -707,14 +708,10 @@ struct WidgetRefreshEngine {
 
     private func categorySummary(for museumID: MuseumID) -> String {
         let categories = settingsReader.categories(for: museumID)
-        let isAllSelected = if museumID == .nnm {
-            museumID.areAllFeedCategoriesSelected(
-                categories,
-                naraDataSource: settingsReader.naraMuseumDataSource()
-            )
-        } else {
-            museumID.areAllFeedCategoriesSelected(categories)
-        }
+        let isAllSelected = museumID.areAllFeedCategoriesSelected(
+            categories,
+            sourceKey: settingsReader.selectedSourceKey(for: museumID)
+        )
         if isAllSelected {
             return "全部"
         }
@@ -735,38 +732,15 @@ struct WidgetRefreshEngine {
 }
 
 enum WidgetImageRequestPolicy {
-    private enum Constants {
-        static let safariUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
-        static let accept = "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
-        static let acceptLanguage = "ja-JP,ja;q=0.9,en-US;q=0.8,zh-CN;q=0.7"
-    }
-
-    static func makeRequest(url: URL, timeout: TimeInterval) -> URLRequest {
+    static func makeRequest(url: URL, timeout: TimeInterval, headers: [String: String] = [:]) -> URLRequest {
         var request = URLRequest(url: url, timeoutInterval: timeout)
         request.httpMethod = "GET"
         request.cachePolicy = .reloadIgnoringLocalCacheData
 
-        if let referer = browserLikeHeaderReferer(url: url) {
-            request.setValue(Constants.safariUserAgent, forHTTPHeaderField: "User-Agent")
-            request.setValue(Constants.accept, forHTTPHeaderField: "Accept")
-            request.setValue(Constants.acceptLanguage, forHTTPHeaderField: "Accept-Language")
-            request.setValue(referer, forHTTPHeaderField: "Referer")
-            request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
-            request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+        for (field, value) in headers {
+            request.setValue(value, forHTTPHeaderField: field)
         }
-
         return request
-    }
-
-    private static func browserLikeHeaderReferer(url: URL) -> String? {
-        guard let host = url.host else { return nil }
-        if host.contains("colbase.nich.go.jp") {
-            return "https://colbase.nich.go.jp/"
-        }
-        if host.contains("narahaku.go.jp") {
-            return "https://www.narahaku.go.jp/chinese/collection/"
-        }
-        return nil
     }
 }
 
@@ -776,17 +750,16 @@ enum WidgetPreferredImageURLDecision {
     }
 
     static func resolveCandidates(for artwork: Artwork, museumID: MuseumID) -> [URL] {
-        switch museumID {
-        case .tnm:
-            return compactUniqueURLs([artwork.primaryImageSmallURL, artwork.primaryImageURL])
-        case .nnm:
-            if NaraMuseumAPI.isOfficialObjectID(artwork.objectID) {
-                return compactUniqueURLs([artwork.primaryImageURL, artwork.primaryImageSmallURL])
+        let order = MuseumMetadataStore.cachedSourceMetadata(museumID: museumID, sourceKey: artwork.sourceKey)?.preferredImageURLOrder ?? [.primary, .thumbnail]
+        let urls = order.map { role -> URL? in
+            switch role {
+            case .primary:
+                return artwork.primaryImageURL
+            case .thumbnail:
+                return artwork.primaryImageSmallURL
             }
-            return compactUniqueURLs([artwork.primaryImageSmallURL, artwork.primaryImageURL])
-        case .met, .nmc, .shm, .guimet:
-            return compactUniqueURLs([artwork.primaryImageURL, artwork.primaryImageSmallURL])
         }
+        return compactUniqueURLs(urls + [artwork.primaryImageURL, artwork.primaryImageSmallURL])
     }
 
     private static func compactUniqueURLs(_ urls: [URL?]) -> [URL] {

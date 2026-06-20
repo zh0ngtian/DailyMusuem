@@ -1,6 +1,6 @@
 import Foundation
 
-enum TextPunctuationStyle {
+enum TextPunctuationStyle: String, Hashable, Codable, Sendable {
     case western
     case chinese
 }
@@ -33,6 +33,7 @@ struct ArtworkShareContent: Equatable {
 struct Artwork: Identifiable, Hashable, Codable {
     let id: String
     let museumID: MuseumID
+    let sourceKey: String?
     let objectID: String
 
     let title: String
@@ -50,6 +51,44 @@ struct Artwork: Identifiable, Hashable, Codable {
     let primaryImageSmallURL: URL?
     let objectURL: URL?
 
+    init(
+        id: String,
+        museumID: MuseumID,
+        sourceKey: String? = nil,
+        objectID: String,
+        title: String,
+        artworkDescription: String?,
+        artistDisplayName: String?,
+        objectDate: String?,
+        medium: String?,
+        dimensions: String?,
+        department: String?,
+        culture: String?,
+        country: String?,
+        repository: String?,
+        primaryImageURL: URL?,
+        primaryImageSmallURL: URL?,
+        objectURL: URL?
+    ) {
+        self.id = id
+        self.museumID = museumID
+        self.sourceKey = sourceKey
+        self.objectID = objectID
+        self.title = title
+        self.artworkDescription = artworkDescription
+        self.artistDisplayName = artistDisplayName
+        self.objectDate = objectDate
+        self.medium = medium
+        self.dimensions = dimensions
+        self.department = department
+        self.culture = culture
+        self.country = country
+        self.repository = repository
+        self.primaryImageURL = primaryImageURL
+        self.primaryImageSmallURL = primaryImageSmallURL
+        self.objectURL = objectURL
+    }
+
     var subtitle: String? {
         let parts = [artistDisplayName, objectDate]
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -62,6 +101,7 @@ struct Artwork: Identifiable, Hashable, Codable {
         Artwork(
             id: id,
             museumID: museumID,
+            sourceKey: sourceKey,
             objectID: objectID,
             title: title,
             artworkDescription: description,
@@ -86,6 +126,7 @@ struct Artwork: Identifiable, Hashable, Codable {
         Artwork(
             id: id,
             museumID: museumID,
+            sourceKey: sourceKey,
             objectID: objectID,
             title: title,
             artworkDescription: artworkDescription,
@@ -151,6 +192,7 @@ struct Artwork: Identifiable, Hashable, Codable {
         Artwork(
             id: id,
             museumID: museumID,
+            sourceKey: sourceKey,
             objectID: objectID,
             title: translationsByID["title"] ?? title,
             artworkDescription: translationsByID["description"] ?? normalizedDescriptionText,
@@ -303,11 +345,5 @@ extension String {
         }
 
         return transformed
-    }
-}
-
-private extension MuseumID {
-    var punctuationStyle: TextPunctuationStyle {
-        usesChinesePunctuation ? .chinese : .western
     }
 }

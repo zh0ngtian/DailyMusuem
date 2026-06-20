@@ -62,7 +62,7 @@ class ManifestTests(unittest.TestCase):
             met_source = next(
                 source
                 for source in manifest["sources"]
-                if source["museum_id"] == "met" and source["source_key"] == "met_api"
+                if source["museum_id"] == "met" and source["source_key"] == "met_all"
             )
             self.assertEqual(met_source["artwork_count"], 1)
 

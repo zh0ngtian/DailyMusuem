@@ -103,28 +103,36 @@
 ### 2.3 常见漏改点
 
 - 新增博物馆时，不能只改一个入口；至少要全局搜索下面这些关键词，确认所有分发点都覆盖：
-  - `switch museumID`
+  - `/v1/museums/metadata`
+  - `museum_client_policies`
+  - `data_sources`
   - `switch scope`
-  - `MuseumID.allCases`
   - `WidgetConfiguredMuseumScope`
   - `supportsWidgetContent`
 - 当前高频落点包括：
+  - `server/crawler/stores.py`
+    - metadata seed、`museums` 扩展字段、`data_sources`、`museum_client_policies`
+  - `server/api/db.py` / `server/worker/src/index.js`
+    - Python API 和 Cloudflare Worker 的 metadata 字段必须一致
   - `Shared/Museum.swift`
-    - 博物馆枚举、名称、副标题、翻译能力、Widget 支持、类别定义
+    - 只能保留字符串标识和通用格式化；馆名、副标题、Widget 支持、类别等正式数据必须来自 metadata，不能恢复本地六馆全集 fallback
+  - `Shared/MuseumMetadataStore.swift`
+    - App Group metadata 快照读写、Widget extension 读取路径
   - `Shared/ArtworkFeed/ArtworkFeedViewModel.swift`
     - 二级页批量加载、缓存恢复、分类切换后的刷新策略
   - `DailyMuseum/Views/ArtworkDetailLoaderView.swift`
-    - 详情页按馆分发逻辑
-  - `DailyMuseumWidget/DailyMuseumWidget.swift`
-    - Widget 配置项中的单馆 scope 枚举与展示文案
+    - 详情页必须优先走后端详情接口，避免重新引入按馆官方 API 分发
+  - `Shared/Settings/WidgetConfigurationIntent.swift`
+    - Widget 展示范围使用动态 AppEntity，从 metadata 快照读取可配置单馆
   - `DailyMuseumWidget/WidgetSettingsReader.swift`
-    - Widget 侧分类读取、候选池准备、按馆详情拉取
+    - Widget 侧分类读取、候选池准备
   - `DailyMuseumWidget/WidgetRefreshDeliveryTracker.swift`
-    - Widget 刷新时的候选推进、图片优先级、按馆特殊策略
-- 如果只是把新馆加进 `MuseumID.allCases`，往往会导致：
+    - Widget 刷新时的候选推进、metadata 图片优先级和 source 图片请求头
+- 如果只把新馆写进客户端静态 fallback，而没有补服务端 metadata，往往会导致：
   - 一级页提前暴露未完成馆
-  - Widget scope 提前出现未完成馆
-  - 深链接、详情页或刷新分发逻辑遗漏 case 后在运行时暴露问题
+  - Widget scope 拿不到动态配置项
+  - 分类、瀑布流图片 QPS、图标、能力开关缺失
+  - 深链接、详情页或刷新分发逻辑在运行时暴露问题
 
 ### 2.4 接入红线
 
@@ -145,6 +153,14 @@
 - 主 App 二级页、详情页和 Widget 默认不再直接请求各馆官方展品接口；各馆官方 API / 官网解析代码保留为爬虫规则参考和短期排查依据。
 - SQLite 只保存展品文字字段、分类、官网链接、图片 URL 和抓取元信息，不保存图片二进制。
 - 图片仍由客户端按服务端返回的 `primaryImageURL` / `primaryImageSmallURL` 异步拉取。
+- 客户端博物馆元数据由服务端 `/v1/museums/metadata` 下发，主 App 首页、分类、能力开关、Widget scope 建议项、详情页翻译语言、文本标点风格和图片策略都以该 metadata 为正式来源；客户端不再维护 `MuseumID.allCases` 作为正式博物馆列表或无 metadata fallback。
+- `/v1/museums/metadata` 需要返回 `museumID`、馆名、副标题、国家、城市、地址、`textPunctuationStyle`、`icon.url` / `icon.assetName` / `icon.backgroundColor`、`capabilities`、`defaultSourceKey`、`sources`、`categories` 和 `waterfallImageFetchPolicy`。当前六馆的 `icon.assetName` 使用现有首页 logo asset 名，例如 `NmcHomepageLogo`、`MetHomepageLogo`。
+- 服务端 SQLite / D1 的 `museums` 表需要包含 `address`、`icon_url`、`icon_asset_name`、`icon_background_color`、`text_punctuation_style` 和 `supports_favorites`；`data_sources` 需要包含 `translation_source_language`、`preferred_image_url_order_json`、`image_request_headers_json`、`artwork_source_key` 和 `list_filter_json`。客户端策略放在 `museum_client_policies`，其中 `waterfall_image_qps` 只控制二级页瀑布流缩略图请求启动速率。
+- 瀑布流图片限流不是全局 QPS，也不限制详情页主图、全屏预览图、首页图标或 Widget 图片。默认 `waterfall_image_qps=NULL` 表示不限流；当前只有中国国家博物馆配置 `waterfall_image_qps=1`。
+- 页面设置统一存入 App Group `feed.preferences.v2` JSON；不要恢复 `feed.source.*`、`feed.category.*`、`naraMuseumDataSource`、`metShowsOnlyOnViewArtworks` 或其它按馆专用设置。
+- 二级页“页面设置”只在 `sources.count > 1` 时显示数据源选择器；当前大都会显示 `全部展品` / `在展展品`，奈良显示 `馆方数据源` / `ColBase`，其它单源博物馆不显示数据源选择。
+- Widget 配置中的展示范围使用动态 AppIntents entity，从 App Group 中最近一次成功的 metadata 快照读取 `capabilities.supportsWidgetContent` 的博物馆；没有 metadata 快照时只能展示 `所有博物馆` 虚拟项。
+- 旧 Swift 直连抓源 API 文件已从工程删除；不要重新引入 `Shared/MetMuseum`、`Shared/JapanSearch`、`Shared/NaraMuseum`、`Shared/NationalMuseumChina`、`Shared/ShanghaiMuseum`、`Shared/GuimetMuseum` 下的客户端官方源请求。源站规则参考和解析器回归应放在 `server/crawler/museums/` 及其测试中。
 - 当前 `server.crawler.main crawl` 成功后会按 SQLite 当前状态写出 manifest；默认库 `museummuse.sqlite` 使用同目录 `manifest.json`，非默认库使用同目录 `{db_stem}.manifest.json`，避免多个 SQLite 在同一目录时互相覆盖 manifest。`--museum all` 只允许显式传入 `--allow-network` 后顺序执行全部正式源，避免误触发真实源站请求。
 - 本地后端 / 客户端功能测试可先运行 `python -m server.crawler.seed_sample_data --db server/data/museummuse.sqlite` 生成最小样本 SQLite；该脚本复用各馆 crawler parser / store 函数，不触发任何源站网络请求，不能当作真实全量抓取完成证据。
 - 真实数据交付仍以 `python -m server.crawler.main crawl --museum all --db server/data/museummuse.sqlite --allow-network --max-details {明确预算}` 或 `--full --skip-existing` 生成的 SQLite、`manifest.json` 和抓取日志为准；live crawl 必须显式传入大于 `0` 的 `--max-details` 或显式传入 `--full`，避免默认命令产生无详情数据的假成功。
@@ -153,7 +169,12 @@
 - `--page-size {N}` 可用于支持分页大小的候选搜索 crawler，例如 Japan Search 和上海博物馆；它只减少候选页请求次数，不改变详情页抓取上限。用户已允许后续批量尝试 `50`，但若源站失败率升高，应回退到默认 `10`。
 - `--request-interval {seconds}` 可用于支持该参数的非国博 crawler 调整请求间隔；`--concurrency {N}` 可用于支持该参数的非国博长详情 crawler 并发抓取详情。用户已允许后续非国博来源尝试 `--request-interval 0.1 --concurrency 10`（约 `10 QPS` 上限）。这两个参数禁止用于国博，国博仍必须遵守单独 API 调用预算和反爬限制。
 - 本地客户端连接后端验证全量数据时，后端必须显式设置 `MUSEUMMUSE_DB_PATH=server/data/museummuse-live-all.sqlite`；`server/data/museummuse-live-full.sqlite` 是早期每源 `10` 条的小样本库，继续指向它会导致客户端看起来只能加载 `10` 条。
-- Cloudflare serverless 部署使用 `server/worker` 中的 Worker 实现，Worker 名称为 `museummuse-api`，D1 绑定名为 `DB`，当前 D1 数据库为 `musuem_muse`（UUID：`9ab953e7-0af0-4c08-863a-85717e4fc941`）。iOS 主 App 和 Widget 的默认 `MuseumBackendBaseURL` 指向 `https://museummuse-api.305301890.workers.dev`，当前 Worker 配置为 `AUTH_MODE=simple`。
+- 模拟器或本地服务验证客户端时，客户端可通过进程环境变量 `MUSEUMMUSE_BACKEND_BASE_URL` 覆盖 Info.plist 中的 `MuseumBackendBaseURL`；没有该环境变量时才使用 Info.plist 默认值。
+- 后续涉及服务端 schema、metadata、数据源、crawler 入库规则或 Worker 的调试，必须先使用本地 SQLite 和本地 Python API 完成验证，客户端通过 `MUSEUMMUSE_BACKEND_BASE_URL=http://127.0.0.1:8000` 指向本地服务；本地服务端测试、Worker 语法检查、iOS 单元测试 / 构建和必要的模拟器交互验证全部通过后，才能同步 Worker 和 SQLite / D1 到 Cloudflare。
+- 后续部署或修改 Cloudflare Worker / D1 时，必须使用 `[@cloudflare](plugin://cloudflare@openai-curated-remote)` 插件能力完成远端检查、D1 SQL 执行和 Worker 发布；不要只依赖本地猜测或未认证的手工命令。
+- 同步 Cloudflare 后，必须把客户端后端地址切回 Info.plist 默认 Worker URL，或显式设置为 `https://museummuse-api.305301890.workers.dev`，再跑一遍覆盖 metadata、列表、详情、Widget 候选和后端客户端 DTO 映射的单元测试，以及必要的模拟器 smoke 验证，确认线上 Worker + D1 与本地行为一致。
+- 如果本地通过但 Cloudflare 验证失败，优先排查 Worker 版本、D1 schema、D1 数据、metadata 响应和鉴权配置是否与本地一致；不允许在客户端加旧 source key、旧字段或按馆 fallback 来掩盖线上数据未同步。
+- Cloudflare serverless 部署使用 `server/worker` 中的 Worker 实现，Worker 名称为 `museummuse-api`，D1 绑定名为 `DB`，当前 D1 数据库为 `musuem_muse`（UUID：`9ab953e7-0af0-4c08-863a-85717e4fc941`）。iOS 主 App 和 Widget 的默认 `MuseumBackendBaseURL` 指向 `https://museummuse-api.305301890.workers.dev`，当前线上 Worker 暂时保持 `AUTH_MODE=disabled`，因为尚未配置 `SIMPLE_AUTH_SECRET` / `MUSEUMMUSE_SIMPLE_AUTH_SECRET`；切换到 `simple` 前必须先配置 secret 并完成客户端签名验证。
 - 将 `server/data` 中的 SQLite 迁移到 D1 时，以 `server/data/museummuse-live-all.sqlite` 和同名 manifest 为准；导入 SQL 需要使用 `sqlite3 {db} ".dump --newlines"` 生成，并移除 `BEGIN TRANSACTION` / `COMMIT` 等 D1 不接受的事务包装，不能使用会输出 `unistr(...)` 的默认 `.dump`。
 - 上海博物馆和 Met 这类长详情任务会在 live crawl 中逐条提交，并每 `100` 个候选输出一次进度；如果任务中断，后续应使用 `--skip-existing` 续跑，不能直接认为已完成。
 - 全量交付前必须运行 `python -m server.crawler.main status --db {SQLite}`；只有所有正式 crawler target 都显示 `completion=complete`，才能视为“全量爬取完成”。样本数据、`--max-details` smoke run 或只有部分来源成功不能当作全量完成证据。
@@ -171,9 +192,10 @@
     - `https://collectionapi.metmuseum.org/public/collection/v1/objects/{objectID}`
 - 大都会当前搜索请求约束：
   - 搜索继续使用 `q`、`hasImages` 和可选的 `departmentId`
-  - 默认不附带 `isOnView` 过滤条件，不把搜索结果限制为“正在展出”
-  - 大都会二级页页面设置提供 `仅显示展出展品` 开关，默认关闭；开启后主 App 和 Widget 的大都会候选池搜索请求需要附带 `isOnView=true`
-  - 大都会 objectIDs 缓存 key 必须区分 `仅显示展出展品` 开关状态，避免开启和关闭状态复用同一候选池
+  - 当前服务端 metadata 把大都会配置为两个客户端可选数据源：默认 `met_all`（全部展品）和 `met_on_view`（在展展品）
+  - `met_on_view` 不单独入库；它在 `data_sources.artwork_source_key=met_all` 的基础上通过 `list_filter_json={"only_on_view":true}` 复用 `met_all` 展品并过滤 `artworks.is_on_view=1`
+  - 大都会二级页页面设置和 Widget 与奈良馆共用同一套数据源选择逻辑；客户端只发送 `source=met_on_view`，不再发送 `only_on_view` query 参数
+  - Met object JSON 中的 `isOnView` 必须入库到 `artworks.is_on_view`，否则 `met_on_view` 会没有候选
 - 大都会详情页中的“展品介绍/官网概述”不完全依赖公开 API：
   - 当公开 API 未返回可用介绍字段时，需要继续访问官网页面：
     - 先尝试中文页面：`https://www.metmuseum.org/zh/art/collection/search/{objectID}`
@@ -217,7 +239,7 @@
 - 奈良国立博物馆当前支持两套数据源：
   - 默认数据源：馆方中文藏品数据库 `https://www.narahaku.go.jp/chinese/collection/`
   - 可选数据源：`Japan Search Web API` / `ColBase`
-- 奈良馆数据源选择只在奈良二级页“页面设置”中展示：
+- 奈良馆数据源选择通过通用二级页“页面设置”source selector 展示：
   - 默认值为 `馆方数据源`
   - 可切换为 `ColBase`
   - 数据源选择通过 App Group `UserDefaults` 持久化，主 App 列表、详情页和 Widget 刷新读取同一设置
@@ -236,8 +258,8 @@
 - 奈良馆方源展品 `objectID` 必须使用 `narahaku-{原始ID}`：
   - 示例：`narahaku-1032-0`
   - 用于区分收藏 key、feed cache key、Widget candidate key 和深链接
-  - 详情 loader 对 `.nnm` 需要按 `objectID` 前缀分发：`narahaku-` 走馆方详情，否则走 Japan Search / ColBase
-- 当前 Python 离线爬虫已支持 `server.crawler.main crawl --museum nnm-official --sample-detail-html --sample-object-id {原始ID}` 验证奈良馆方详情 HTML 解析和 SQLite 入库；搜索页解析、`narahaku-` objectID、图片 URL 规范化、说明文本清洗、缺失材质行处理和官方门类 membership 都必须继续与 Swift 侧规则保持一致。
+  - 详情页、列表和 Widget 均通过后端 `source` + `objectID` 查询，不允许客户端按 `narahaku-` 前缀重新分发到馆方 / ColBase 抓源逻辑
+- 当前 Python 离线爬虫已支持 `server.crawler.main crawl --museum nnm-official --sample-detail-html --sample-object-id {原始ID}` 验证奈良馆方详情 HTML 解析和 SQLite 入库；搜索页解析、`narahaku-` objectID、图片 URL 规范化、说明文本清洗、缺失材质行处理和官方门类 membership 都必须继续由服务端 crawler 维护。
 - 奈良 ColBase 源继续复用 `Japan Search Web API`：
   - 搜索 itemIDs：
     - `https://jpsearch.go.jp/api/item/search/jps-cross`
@@ -578,7 +600,7 @@
   - 设置页需要根据当前配置显示“今日自动刷新时间”明细；自动刷新关闭时显示已关闭状态
   - “今日自动刷新时间”文案需要居中；各时间点按多行多列等距排布，不使用顿号拼接，并使用等宽字体
   - 设置页需要支持将 App 配置导出为 JSON 文件，并支持从 JSON 文件导入恢复
-  - 配置导入 / 导出范围包括全局设置、详情页全局字号、各馆二级页显示和分类设置、奈良数据源、收藏、旧博物馆排序 key，以及按博物馆记录的 Widget 已刷新展品历史
+  - 配置导入 / 导出范围包括全局设置、详情页全局字号、各馆二级页显示模式、分类设置、动态 source 选择、收藏，以及按博物馆记录的 Widget 已刷新展品历史
   - 配置导入后需要刷新主 App 内存状态，并触发 Widget timeline 重新加载
 - 首页设置页不展示翻译相关项目。
 - 详情页翻译能力继续保留：
@@ -794,14 +816,13 @@
 - 收藏夹页从首页右上角的收藏夹图标进入。
 - 收藏夹页按博物馆分组展示已收藏展品。
 - 收藏夹中的展品卡片样式、宽度、间距需要对齐对应博物馆二级页的列表模式，不允许继续使用额外的系统列表 inset 把卡片压窄。
-- 分组顺序需要跟随首页当前固定的国家分组顺序：
-  - 当前顺序为 `中国国家博物馆`、`上海博物馆`、`大都会艺术博物馆`、`东京国立博物馆`、`奈良国立博物馆`、`吉美国立亚洲艺术博物馆`
+- 分组顺序需要跟随首页当前 metadata 分组和 `sortOrder` 顺序。
 - 每个分组内的展品按收藏时间倒序排序。
 - 收藏夹页点击展品后，需要进入对应展品详情页。
-- 奈良国立博物馆的数据源切换不影响已经收藏的文物：
-  - 收藏夹不按当前奈良数据源过滤
-  - 已收藏的 `narahaku-*` 馆方源展品和 ColBase 展品都必须继续显示
-  - 点击收藏夹中的奈良展品时，详情页按 `objectID` 前缀分发到正确数据源
+- 当前 source 切换不影响已经收藏的文物：
+  - 收藏夹不按当前 source 过滤
+  - 已收藏的不同 source 展品都必须继续显示
+  - 点击收藏夹中的展品时，详情页通过收藏记录中的 `sourceKey` 或后端唯一 `(museum_id, object_id)` 解析到正确数据源
 - 收藏夹页中的展品需要支持左滑删除，左滑删除等价于取消收藏。
 - 收藏夹列表左滑删除后，同一展品详情页右上角星标状态也必须同步为未收藏；反过来，在详情页取消收藏后返回收藏夹时，对应卡片也必须立即消失。
 - 取消收藏可通过收藏夹列表左滑删除，或通过详情页右上角星标完成。
@@ -906,12 +927,11 @@
   - 仅允许持久化当前共享组上一次渲染结果和刷新状态，供 WidgetKit 重绘
 - 中国国家博物馆小组件刷新不再直连 `exhibit_list` 或详情源站，必须通过服务端候选 / 列表接口获取服务端已入库展品。
 - 国博源站 API 调用量控制属于离线爬虫职责；不能在 Widget provider 中重新实现国博源站随机页候选逻辑。
-- 奈良国立博物馆小组件刷新必须跟随当前奈良数据源：
-  - 馆方源使用 network-only 馆方候选和馆方详情，不复用主 App 缓存
-  - ColBase 源继续使用 network-only Japan Search / ColBase 候选和详情
-  - 单馆 scope 时，只能使用当前数据源下当前生效类别
-  - 对 `narahaku.go.jp` 图片需要使用浏览器风格请求头和馆方 Referer：`https://www.narahaku.go.jp/chinese/collection/`
-  - 对 ColBase 图片继续优先使用缩略图和 ColBase Referer
+- 小组件刷新必须跟随当前 metadata source：
+  - network-only 候选请求需要携带当前 `sourceKey` 和当前 source 下的生效类别
+  - 单馆 scope 时，只能使用当前 source 下当前生效类别
+  - Widget 图片 URL 优先级使用 `sources.preferredImageURLOrder`
+  - Widget 图片请求头使用 `sources.imageRequestHeaders`
 - 单馆 scope 时：
   - 只从当前博物馆和该馆当前生效类别中选择候选
 - `所有博物馆` scope 时：
@@ -961,10 +981,7 @@
 ### 5.6 深链接
 
 - 小组件点击主体区域时，需通过 App 内深链接跳转到对应展品详情。
-- 奈良国立博物馆深链接需要保留原始 `objectID`：
-  - `narahaku-*` 进入馆方源详情
-  - 其他 `.nnm` objectID 进入 Japan Search / ColBase 详情
-  - 当前奈良数据源设置不得改变已生成深链接或已收藏展品的详情分发
+- 深链接需要保留原始 `museumID` 和 `objectID`；当前 source 设置不得改变已生成深链接或已收藏展品的详情分发，详情 source 由链接 / 收藏记录携带的 `sourceKey` 或后端唯一 `(museum_id, object_id)` 推断。
 - 深链接目标必须能在以下场景下正常工作：
   - App 已在前台
   - App 在后台
@@ -1073,10 +1090,10 @@
     - 当前关键 widget 日志能看到对应的共享刷新键
   - 6. 再查系统日志，确认没有 `imageTooLarge`、归档失败或 Chrono 渲染错误
   - 7. 最后以桌面截图作为最终验收证据
-- 奈良国立博物馆数据源切换验证还需要补充：
-  - 主 App 页面设置默认显示 `馆方数据源`
-  - 切换 `ColBase` 后，收藏夹中切换前已收藏的 `narahaku-*` 展品仍可见并能打开
-  - Widget 单馆 `奈良国立博物馆` 刷新时，日志中的候选来源和图片 Referer 应与当前奈良数据源一致
+- 多 source 博物馆切换验证还需要补充：
+  - 主 App 页面设置默认显示服务端 `defaultSourceKey` 对应数据源
+  - 切换 source 后，收藏夹中切换前已收藏的展品仍可见并能打开
+  - Widget 单馆刷新时，日志中的候选来源、图片 URL 优先级和图片请求头应与当前 source metadata 一致
 - 常用日志命令：
   - `zsh scripts/pull_simulator_request_logs.sh --udid <SIMULATOR_ID> --clear --trigger-refresh --instance-token <TOKEN> --wait 8 --tail 120`
   - `zsh scripts/pull_simulator_request_logs.sh --udid <SIMULATOR_ID> --instances`

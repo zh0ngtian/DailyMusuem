@@ -1,61 +1,74 @@
 import AppIntents
 import Foundation
 
-enum WidgetConfiguredMuseumScope: String, AppEnum, CaseIterable {
-    case all
-    case nmc
-    case shm
-    case met
-    case tnm
-    case nnm
-    case guimet
-
+struct WidgetConfiguredMuseumScope: AppEntity, Codable, Hashable, Identifiable, Sendable {
     static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "展示范围")
+    static var defaultQuery = WidgetConfiguredMuseumScopeQuery()
 
-    static var caseDisplayRepresentations: [WidgetConfiguredMuseumScope: DisplayRepresentation] = [
-        .all: DisplayRepresentation(title: "所有博物馆"),
-        .nmc: DisplayRepresentation(title: "中国国家博物馆"),
-        .shm: DisplayRepresentation(title: "上海博物馆"),
-        .met: DisplayRepresentation(title: "大都会艺术博物馆"),
-        .tnm: DisplayRepresentation(title: "东京国立博物馆"),
-        .nnm: DisplayRepresentation(title: "奈良国立博物馆"),
-    .guimet: DisplayRepresentation(title: "吉美国立亚洲艺术博物馆"),
-    ]
+    static let all = WidgetConfiguredMuseumScope(scope: .all)
+
+    let id: String
+    let displayName: String
+
+    var displayRepresentation: DisplayRepresentation {
+        DisplayRepresentation(title: LocalizedStringResource(stringLiteral: displayName))
+    }
 
     var scope: WidgetMuseumScope {
-        switch self {
-        case .all:
-            return .all
-        case .met:
-            return .single(.met)
-        case .tnm:
-            return .single(.tnm)
-        case .nnm:
-            return .single(.nnm)
-        case .nmc:
-            return .single(.nmc)
-        case .shm:
-            return .single(.shm)
-        case .guimet:
-            return .single(.guimet)
+        WidgetMuseumScope(rawValue: id) ?? .all
+    }
+
+    init(scope: WidgetMuseumScope) {
+        id = scope.rawValue
+        displayName = scope.displayName
+    }
+
+    init(id: String, displayName: String) {
+        self.id = id
+        self.displayName = displayName
+    }
+
+    init(museumID: MuseumID) {
+        self.init(scope: .single(museumID))
+    }
+}
+
+struct WidgetConfiguredMuseumScopeQuery: EntityQuery {
+    func entities(for identifiers: [WidgetConfiguredMuseumScope.ID]) async throws -> [WidgetConfiguredMuseumScope] {
+        let suggested = try await suggestedEntities()
+        let suggestedByID = Dictionary(uniqueKeysWithValues: suggested.map { ($0.id, $0) })
+        return identifiers.compactMap { identifier in
+            if let known = suggestedByID[identifier] {
+                return known
+            }
+            guard let scope = WidgetMuseumScope(rawValue: identifier) else {
+                return nil
+            }
+            return WidgetConfiguredMuseumScope(scope: scope)
         }
     }
 
-    init?(museumID: MuseumID) {
-        switch museumID {
-        case .met:
-            self = .met
-        case .tnm:
-            self = .tnm
-        case .nnm:
-            self = .nnm
-        case .nmc:
-            self = .nmc
-        case .shm:
-            self = .shm
-        case .guimet:
-            self = .guimet
+    func suggestedEntities() async throws -> [WidgetConfiguredMuseumScope] {
+        let metadataMuseums = MuseumMetadataStore.cachedSnapshot()?.museums
+            .filter { $0.capabilities.supportsWidgetContent }
+            .sorted { lhs, rhs in
+                if lhs.sortOrder != rhs.sortOrder {
+                    return lhs.sortOrder < rhs.sortOrder
+                }
+                return lhs.id.rawValue < rhs.id.rawValue
+            }
+
+        let metadataWidgetMuseums = metadataMuseums?.map { $0.toMuseum() } ?? []
+        return [WidgetConfiguredMuseumScope.all] + metadataWidgetMuseums.map { museum in
+            WidgetConfiguredMuseumScope(
+                id: WidgetMuseumScope.single(museum.id).rawValue,
+                displayName: museum.displayName
+            )
         }
+    }
+
+    func defaultResult() async -> WidgetConfiguredMuseumScope? {
+        .all
     }
 }
 
@@ -70,12 +83,22 @@ struct DailyMuseumWidgetConfigurationIntent: WidgetConfigurationIntent {
     var instanceToken: String?
 
     init() {
-        // Retain the legacy field so existing widget configurations continue to decode,
-        // but content sharing now keys off scope instead of per-instance tokens.
         instanceToken = ""
+        museumScope = .all
     }
 
     static var parameterSummary: some ParameterSummary {
         Summary("展示 \(\.$museumScope)")
+    }
+}
+
+private extension WidgetMuseumScope {
+    var displayName: String {
+        switch self {
+        case .all:
+            return "所有博物馆"
+        case .single(let museumID):
+            return museumID.displayName
+        }
     }
 }

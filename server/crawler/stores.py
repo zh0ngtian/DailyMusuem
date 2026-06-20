@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from pathlib import Path
 
@@ -12,7 +13,38 @@ def initialize_database(db_path: str | Path) -> None:
     schema = SCHEMA_PATH.read_text(encoding="utf-8")
     with sqlite3.connect(path) as connection:
         connection.executescript(schema)
+        ensure_client_metadata_schema(connection)
         connection.commit()
+
+
+def ensure_client_metadata_schema(connection: sqlite3.Connection) -> None:
+    ensure_column(connection, "museums", "address", "TEXT")
+    ensure_column(connection, "museums", "icon_url", "TEXT")
+    ensure_column(connection, "museums", "icon_asset_name", "TEXT")
+    ensure_column(connection, "museums", "icon_background_color", "TEXT")
+    ensure_column(connection, "museums", "text_punctuation_style", "TEXT NOT NULL DEFAULT 'western'")
+    ensure_column(connection, "museums", "supports_favorites", "INTEGER NOT NULL DEFAULT 1")
+    ensure_column(connection, "data_sources", "translation_source_language", "TEXT")
+    ensure_column(connection, "data_sources", "preferred_image_url_order_json", "TEXT")
+    ensure_column(connection, "data_sources", "image_request_headers_json", "TEXT")
+    ensure_column(connection, "data_sources", "artwork_source_key", "TEXT")
+    ensure_column(connection, "data_sources", "list_filter_json", "TEXT")
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS museum_client_policies (
+            museum_id TEXT PRIMARY KEY REFERENCES museums(museum_id) ON DELETE CASCADE,
+            waterfall_image_qps REAL,
+            raw_json TEXT
+        )
+        """
+    )
+
+
+def ensure_column(connection: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+    rows = connection.execute(f"PRAGMA table_info({table})").fetchall()
+    if any(row[1] == column for row in rows):
+        return
+    connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 def seed_reference_metadata(db_path: str | Path) -> None:
@@ -21,86 +53,216 @@ def seed_reference_metadata(db_path: str | Path) -> None:
             """
             INSERT INTO museums(
                 museum_id, display_name, country, city, subtitle,
-                supports_translation, supports_widget_content, sort_order
+                address, icon_url, icon_asset_name, icon_background_color, text_punctuation_style,
+                supports_translation, supports_widget_content, supports_favorites, sort_order
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(museum_id) DO UPDATE SET
                 display_name = excluded.display_name,
                 country = excluded.country,
                 city = excluded.city,
                 subtitle = excluded.subtitle,
+                address = excluded.address,
+                icon_url = excluded.icon_url,
+                icon_asset_name = excluded.icon_asset_name,
+                icon_background_color = excluded.icon_background_color,
+                text_punctuation_style = excluded.text_punctuation_style,
                 supports_translation = excluded.supports_translation,
                 supports_widget_content = excluded.supports_widget_content,
+                supports_favorites = excluded.supports_favorites,
                 sort_order = excluded.sort_order
             """,
             [
-                ("nmc", "中国国家博物馆", "中国", "北京", "北京", 0, 1, 10),
-                ("shm", "上海博物馆", "中国", "上海", "上海", 0, 1, 20),
-                ("met", "大都会艺术博物馆", "美国", "纽约", "纽约", 1, 1, 30),
-                ("tnm", "东京国立博物馆", "日本", "东京", "东京", 1, 1, 40),
-                ("nnm", "奈良国立博物馆", "日本", "奈良", "奈良", 1, 1, 50),
-                ("guimet", "吉美国立亚洲艺术博物馆", "法国", "巴黎", "巴黎", 1, 1, 60),
+                ("nmc", "中国国家博物馆", "中国", "北京", "北京", None, None, "NmcHomepageLogo", None, "chinese", 0, 1, 1, 10),
+                ("shm", "上海博物馆", "中国", "上海", "上海", None, None, "ShmHomepageLogo", None, "chinese", 0, 1, 1, 20),
+                ("met", "大都会艺术博物馆", "美国", "纽约", "纽约", None, None, "MetHomepageLogo", None, "western", 1, 1, 1, 30),
+                ("tnm", "东京国立博物馆", "日本", "东京", "东京", None, None, "TnmHomepageLogo", None, "western", 1, 1, 1, 40),
+                ("nnm", "奈良国立博物馆", "日本", "奈良", "奈良", None, None, "NnmHomepageLogo", None, "western", 1, 1, 1, 50),
+                ("guimet", "吉美国立亚洲艺术博物馆", "法国", "巴黎", "巴黎", None, None, "GuimetHomepageLogo", None, "western", 1, 1, 1, 60),
             ],
         )
         connection.executemany(
             """
             INSERT INTO data_sources(
-                museum_id, source_key, display_name, is_default, request_base_url, notes
+                museum_id, source_key, display_name, is_default, artwork_source_key, list_filter_json, request_base_url,
+                translation_source_language, preferred_image_url_order_json, image_request_headers_json, notes
             )
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(museum_id, source_key) DO UPDATE SET
                 display_name = excluded.display_name,
                 is_default = excluded.is_default,
+                artwork_source_key = excluded.artwork_source_key,
+                list_filter_json = excluded.list_filter_json,
                 request_base_url = excluded.request_base_url,
+                translation_source_language = excluded.translation_source_language,
+                preferred_image_url_order_json = excluded.preferred_image_url_order_json,
+                image_request_headers_json = excluded.image_request_headers_json,
                 notes = excluded.notes
             """,
-            [
-                ("met", "met_api", "The Met Collection API", 1, "https://collectionapi.metmuseum.org", None),
-                ("tnm", "japan_search", "Japan Search", 1, "https://jpsearch.go.jp", None),
-                ("nnm", "official", "馆方数据源", 1, "https://www.narahaku.go.jp/chinese/collection/", None),
-                ("nnm", "colbase", "ColBase", 0, "https://jpsearch.go.jp", None),
-                (
-                    "nmc",
-                    "nmc_api",
-                    "中国国家博物馆 App API",
-                    1,
-                    "https://appapi.chnmuseum.cn",
-                    "Strict API budget: prefer cate_id=0 large pages; avoid per-category API loops; detail via web HTML when possible.",
-                ),
-                ("shm", "shm_web", "上海博物馆官网", 1, "https://www.shanghaimuseum.net", "1 QPS crawler limiter"),
-                ("guimet", "guimet_web", "吉美官网中文藏品页", 1, "https://www.guimet.fr/zh-hans", None),
-            ],
+            source_metadata_rows(),
         )
         connection.executemany(
             """
             INSERT INTO categories(
-                museum_id, source_key, category_id, display_name, kind,
-                remote_value, sort_order, raw_json
+                museum_id, source_key, category_id, display_name,
+                sort_order, raw_json
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
+            VALUES (?, ?, ?, ?, ?, NULL)
             ON CONFLICT(museum_id, source_key, category_id) DO UPDATE SET
                 display_name = excluded.display_name,
-                kind = excluded.kind,
-                remote_value = excluded.remote_value,
                 sort_order = excluded.sort_order
             """,
             reference_categories(),
         )
+        normalize_obsolete_metadata(connection)
+        connection.executemany(
+            """
+            INSERT INTO museum_client_policies(museum_id, waterfall_image_qps, raw_json)
+            VALUES (?, ?, NULL)
+            ON CONFLICT(museum_id) DO UPDATE SET
+                waterfall_image_qps = excluded.waterfall_image_qps,
+                raw_json = excluded.raw_json
+            """,
+            [
+                ("nmc", 1.0),
+                ("shm", None),
+                ("met", None),
+                ("tnm", None),
+                ("nnm", None),
+                ("guimet", None),
+            ],
+        )
         connection.commit()
 
 
-def reference_categories() -> list[tuple[str, str, str, str, str, str, int]]:
-    rows: list[tuple[str, str, str, str, str, str, int]] = []
+def normalize_obsolete_metadata(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        INSERT OR IGNORE INTO artwork_categories(artwork_pk, category_pk, membership_source)
+        SELECT ac.artwork_pk, new_category.category_pk, ac.membership_source
+        FROM artwork_categories ac
+        JOIN categories old_category ON old_category.category_pk = ac.category_pk
+        JOIN categories new_category
+          ON new_category.museum_id = old_category.museum_id
+         AND new_category.source_key = 'met_all'
+         AND new_category.category_id = old_category.category_id
+        WHERE old_category.museum_id = 'met'
+          AND old_category.source_key = 'met_api'
+        """
+    )
+    connection.execute(
+        """
+        DELETE FROM artworks
+        WHERE artwork_pk IN (
+            SELECT old_artwork.artwork_pk
+            FROM artworks old_artwork
+            JOIN artworks new_artwork
+              ON new_artwork.museum_id = old_artwork.museum_id
+             AND new_artwork.source_key = 'met_all'
+             AND new_artwork.object_id = old_artwork.object_id
+            WHERE old_artwork.museum_id = 'met'
+              AND old_artwork.source_key = 'met_api'
+        )
+        """
+    )
+    connection.execute(
+        """
+        UPDATE artworks
+        SET source_key = 'met_all'
+        WHERE museum_id = 'met' AND source_key = 'met_api'
+        """
+    )
+    connection.execute(
+        """
+        UPDATE crawl_errors
+        SET source_key = 'met_all'
+        WHERE museum_id = 'met' AND source_key = 'met_api'
+        """
+    )
+    connection.execute(
+        """
+        DELETE FROM data_sources
+        WHERE museum_id = 'met' AND source_key = 'met_api'
+        """
+    )
+
+
+def source_metadata_rows() -> list[tuple[str, str, str, int, str | None, str | None, str, str | None, str, str, str | None]]:
+    image_order_primary = json.dumps(["primary", "thumbnail"], ensure_ascii=False)
+    image_order_thumbnail = json.dumps(["thumbnail", "primary"], ensure_ascii=False)
+    empty_filter = json.dumps({}, ensure_ascii=False)
+    met_on_view_filter = json.dumps({"only_on_view": True}, ensure_ascii=False, sort_keys=True)
+    browser_image_headers = {
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        "Accept-Language": "ja-JP,ja;q=0.9,en-US;q=0.8,zh-CN;q=0.7",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+    }
+
+    def headers_with_referer(referer: str) -> str:
+        headers = {**browser_image_headers, "Referer": referer}
+        return json.dumps(headers, ensure_ascii=False, sort_keys=True)
+
+    empty_headers = json.dumps({}, ensure_ascii=False)
+    return [
+        ("met", "met_all", "全部展品", 1, None, empty_filter, "https://collectionapi.metmuseum.org", "en", image_order_primary, empty_headers, None),
+        ("met", "met_on_view", "在展展品", 0, "met_all", met_on_view_filter, "https://collectionapi.metmuseum.org", "en", image_order_primary, empty_headers, None),
+        ("tnm", "japan_search", "Japan Search", 1, None, empty_filter, "https://jpsearch.go.jp", "ja", image_order_thumbnail, headers_with_referer("https://colbase.nich.go.jp/"), None),
+        (
+            "nnm",
+            "official",
+            "馆方数据源",
+            1,
+            None,
+            empty_filter,
+            "https://www.narahaku.go.jp/chinese/collection/",
+            "zh-Hans",
+            image_order_primary,
+            headers_with_referer("https://www.narahaku.go.jp/chinese/collection/"),
+            None,
+        ),
+        (
+            "nnm",
+            "colbase",
+            "ColBase",
+            0,
+            None,
+            empty_filter,
+            "https://jpsearch.go.jp",
+            "ja",
+            image_order_thumbnail,
+            headers_with_referer("https://colbase.nich.go.jp/"),
+            None,
+        ),
+        (
+            "nmc",
+            "nmc_api",
+            "中国国家博物馆 App API",
+            1,
+            None,
+            empty_filter,
+            "https://appapi.chnmuseum.cn",
+            None,
+            image_order_primary,
+            empty_headers,
+            "Strict API budget: prefer cate_id=0 large pages; avoid per-category API loops; detail via web HTML when possible.",
+        ),
+        ("shm", "shm_web", "上海博物馆官网", 1, None, empty_filter, "https://www.shanghaimuseum.net", None, image_order_primary, empty_headers, "1 QPS crawler limiter"),
+        ("guimet", "guimet_web", "吉美官网中文藏品页", 1, None, empty_filter, "https://www.guimet.fr/zh-hans", None, image_order_primary, empty_headers, None),
+    ]
+
+
+def reference_categories() -> list[tuple[str, str, str, str, int]]:
+    rows: list[tuple[str, str, str, str, int]] = []
 
     def add(
         museum_id: str,
         source_key: str,
         category_id: str,
         display_name: str,
-        kind: str,
-        remote_value: str,
     ) -> None:
-        rows.append((museum_id, source_key, category_id, display_name, kind, remote_value, len(rows)))
+        rows.append((museum_id, source_key, category_id, display_name, len(rows)))
 
     for category_id, display_name, department_id in [
         ("american-decorative-arts", "美国装饰艺术", "1"),
@@ -123,7 +285,7 @@ def reference_categories() -> list[tuple[str, str, str, str, str, str, int]]:
         ("photographs", "摄影", "19"),
         ("modern-art", "现代艺术", "21"),
     ]:
-        add("met", "met_api", category_id, display_name, "metDepartment", department_id)
+        add("met", "met_all", category_id, display_name)
 
     for category_id, display_name in [
         ("archeology", "考古与历史资料"),
@@ -138,7 +300,7 @@ def reference_categories() -> list[tuple[str, str, str, str, str, str, int]]:
         ("arts", "艺术与美术"),
         ("architecture", "建筑"),
     ]:
-        add("tnm", "japan_search", category_id, display_name, "japanSearchType", category_id)
+        add("tnm", "japan_search", category_id, display_name)
 
     for category_id, display_name in [
         ("official-sculpture", "雕刻"),
@@ -149,7 +311,7 @@ def reference_categories() -> list[tuple[str, str, str, str, str, str, int]]:
         ("official-ancient-chinese-bronze", "中国古代青铜器"),
         ("official-other", "其他"),
     ]:
-        add("nnm", "official", category_id, display_name, "naraMuseumOfficialDepartment", display_name)
+        add("nnm", "official", category_id, display_name)
 
     for category_id, display_name in [
         ("archeology", "考古与历史资料"),
@@ -163,18 +325,18 @@ def reference_categories() -> list[tuple[str, str, str, str, str, str, int]]:
         ("weaponry", "刀剑与兵器"),
         ("daw", "染织"),
     ]:
-        add("nnm", "colbase", category_id, display_name, "japanSearchType", category_id)
+        add("nnm", "colbase", category_id, display_name)
 
-    for category_id, display_name, remote_value in [
-        ("archaeology", "考古发掘品", "1"),
-        ("revolutionary", "革命文物", "2"),
-        ("national-history", "国史文物", "3"),
-        ("heirloom", "传世文物", "4"),
-        ("currency", "货币", "22"),
-        ("rubbings", "文献拓本", "24"),
-        ("arts", "艺术品", "26"),
+    for category_id, display_name in [
+        ("archaeology", "考古发掘品"),
+        ("revolutionary", "革命文物"),
+        ("national-history", "国史文物"),
+        ("heirloom", "传世文物"),
+        ("currency", "货币"),
+        ("rubbings", "文献拓本"),
+        ("arts", "艺术品"),
     ]:
-        add("nmc", "nmc_api", category_id, display_name, "nationalMuseumChinaBucket", remote_value)
+        add("nmc", "nmc_api", category_id, display_name)
 
     for name in [
         "礼器", "明器", "法器", "道具", "模具/模版", "丧葬用具", "陈设/观赏品", "日用品", "文具", "农具",
@@ -183,21 +345,21 @@ def reference_categories() -> list[tuple[str, str, str, str, str, str, int]]:
         "封泥", "符节（牌）", "印玺", "建筑配件", "器物配件", "织物", "绣品", "服装", "饰品", "文献",
         "书籍图谱", "拓本", "玩具", "乐器",
     ]:
-        add("shm", "shm_web", name, name, "shanghaiMuseumSubtype", name)
+        add("shm", "shm_web", name, name)
 
-    for category_id, display_name, path in [
-        ("afghanistan-pakistan", "阿富汗 - 巴基斯坦", "/zh-hans/collections/afghanistan-et-gandhara"),
-        ("southeast-asia", "东南亚", "/zh-hans/collections/asie-du-sud-est"),
-        ("indian-world", "印度世界", "/zh-hans/collections/monde-indien"),
-        ("himalayan-world", "喜马拉雅世界", "/zh-hans/collections/monde-himalayen"),
-        ("china", "中国", "/zh-hans/collections/chine"),
-        ("buddhist-china-central-asia", "中国佛教 - 中亚", "/zh-hans/collections/chine-bouddhique-asie-centrale"),
-        ("korea", "韩国收藏", "/zh-hans/collections/coree"),
-        ("japan", "日本", "/zh-hans/collections/japon"),
-        ("textiles", "织物", "/zh-hans/collections/textiles"),
-        ("historical-library", "历史图书馆珍藏", "/zh-hans/collections/tresors-de-la-bibliotheque"),
-        ("photography", "摄影作品", "/zh-hans/collections/photographies"),
+    for category_id, display_name in [
+        ("afghanistan-pakistan", "阿富汗 - 巴基斯坦"),
+        ("southeast-asia", "东南亚"),
+        ("indian-world", "印度世界"),
+        ("himalayan-world", "喜马拉雅世界"),
+        ("china", "中国"),
+        ("buddhist-china-central-asia", "中国佛教 - 中亚"),
+        ("korea", "韩国收藏"),
+        ("japan", "日本"),
+        ("textiles", "织物"),
+        ("historical-library", "历史图书馆珍藏"),
+        ("photography", "摄影作品"),
     ]:
-        add("guimet", "guimet_web", category_id, display_name, "guimetCollection", path)
+        add("guimet", "guimet_web", category_id, display_name)
 
     return rows

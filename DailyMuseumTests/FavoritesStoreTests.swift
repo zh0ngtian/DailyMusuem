@@ -6,6 +6,7 @@ final class FavoritesStoreTests: XCTestCase {
 
     override func setUpWithError() throws {
         try super.setUpWithError()
+        try seedTestMuseumMetadata()
         defaultsSuiteName = "FavoritesStoreTests.\(UUID().uuidString)"
         defaults = UserDefaults(suiteName: defaultsSuiteName)
         defaults.removePersistentDomain(forName: defaultsSuiteName)
@@ -22,7 +23,7 @@ final class FavoritesStoreTests: XCTestCase {
 
     func testToggleFavoritePersistsAcrossReload() throws {
         let store = FavoritesStore(defaults: defaults)
-        let artwork = makeArtwork(museumID: .met, objectID: "100", title: "睡莲")
+        let artwork = makeArtwork(museumID: MuseumIdentifier("met"), objectID: "100", title: "睡莲")
 
         store.toggleFavorite(
             artwork: artwork,
@@ -30,7 +31,7 @@ final class FavoritesStoreTests: XCTestCase {
             imageAspectRatio: 1.5
         )
 
-        XCTAssertTrue(store.isFavorite(museumID: .met, objectID: "100"))
+        XCTAssertTrue(store.isFavorite(museumID: MuseumIdentifier("met"), objectID: "100"))
         XCTAssertEqual(store.favorites.count, 1)
 
         let reloaded = FavoritesStore(defaults: defaults)
@@ -41,12 +42,12 @@ final class FavoritesStoreTests: XCTestCase {
 
     func testRemoveFavoriteUpdatesPersistedState() {
         let store = FavoritesStore(defaults: defaults)
-        let artwork = makeArtwork(museumID: .tnm, objectID: "200", title: "太刀")
+        let artwork = makeArtwork(museumID: MuseumIdentifier("tnm"), objectID: "200", title: "太刀")
 
         store.toggleFavorite(artwork: artwork, favoritedAt: Date(timeIntervalSince1970: 200))
-        store.removeFavorite(museumID: .tnm, objectID: "200")
+        store.removeFavorite(museumID: MuseumIdentifier("tnm"), objectID: "200")
 
-        XCTAssertFalse(store.isFavorite(museumID: .tnm, objectID: "200"))
+        XCTAssertFalse(store.isFavorite(museumID: MuseumIdentifier("tnm"), objectID: "200"))
         XCTAssertTrue(store.favorites.isEmpty)
 
         let reloaded = FavoritesStore(defaults: defaults)
@@ -55,18 +56,18 @@ final class FavoritesStoreTests: XCTestCase {
 
     func testSetFavoriteFalseMatchesUnfavoriteBehaviorUsedByDetailPage() {
         let store = FavoritesStore(defaults: defaults)
-        let artwork = makeArtwork(museumID: .met, objectID: "201", title: "牡丹图")
+        let artwork = makeArtwork(museumID: MuseumIdentifier("met"), objectID: "201", title: "牡丹图")
 
         store.setFavorite(true, artwork: artwork, favoritedAt: Date(timeIntervalSince1970: 100))
         store.setFavorite(false, artwork: artwork)
 
-        XCTAssertFalse(store.isFavorite(museumID: .met, objectID: "201"))
+        XCTAssertFalse(store.isFavorite(museumID: MuseumIdentifier("met"), objectID: "201"))
         XCTAssertTrue(store.favorites.isEmpty)
     }
 
     func testRemoveFavoriteSnapshotMatchesSwipeToDeleteBehavior() {
         let store = FavoritesStore(defaults: defaults)
-        let artwork = makeArtwork(museumID: .shm, objectID: "202", title: "青铜鼎")
+        let artwork = makeArtwork(museumID: MuseumIdentifier("shm"), objectID: "202", title: "青铜鼎")
 
         store.toggleFavorite(
             artwork: artwork,
@@ -80,23 +81,23 @@ final class FavoritesStoreTests: XCTestCase {
 
         store.removeFavorite(snapshot)
 
-        XCTAssertFalse(store.isFavorite(museumID: .shm, objectID: "202"))
+        XCTAssertFalse(store.isFavorite(museumID: MuseumIdentifier("shm"), objectID: "202"))
         XCTAssertTrue(store.favorites.isEmpty)
     }
 
     func testLoadingFavoritesDeduplicatesSameArtworkKeyKeepingNewestSnapshot() throws {
         let older = FavoriteArtworkSnapshot(
-            museumID: .met,
+            museumID: MuseumIdentifier("met"),
             objectID: "300",
             favoritedAt: Date(timeIntervalSince1970: 300),
-            artwork: makeArtwork(museumID: .met, objectID: "300", title: "旧标题"),
+            artwork: makeArtwork(museumID: MuseumIdentifier("met"), objectID: "300", title: "旧标题"),
             imageAspectRatio: 0.8
         )
         let newer = FavoriteArtworkSnapshot(
-            museumID: .met,
+            museumID: MuseumIdentifier("met"),
             objectID: "300",
             favoritedAt: Date(timeIntervalSince1970: 400),
-            artwork: makeArtwork(museumID: .met, objectID: "300", title: "新标题"),
+            artwork: makeArtwork(museumID: MuseumIdentifier("met"), objectID: "300", title: "新标题"),
             imageAspectRatio: 1.2
         )
 
@@ -114,25 +115,25 @@ final class FavoritesStoreTests: XCTestCase {
         let store = FavoritesStore(defaults: defaults)
 
         store.toggleFavorite(
-            artwork: makeArtwork(museumID: .met, objectID: "1", title: "A"),
+            artwork: makeArtwork(museumID: MuseumIdentifier("met"), objectID: "1", title: "A"),
             favoritedAt: Date(timeIntervalSince1970: 100)
         )
         store.toggleFavorite(
-            artwork: makeArtwork(museumID: .tnm, objectID: "2", title: "B"),
+            artwork: makeArtwork(museumID: MuseumIdentifier("tnm"), objectID: "2", title: "B"),
             favoritedAt: Date(timeIntervalSince1970: 200)
         )
         store.toggleFavorite(
-            artwork: makeArtwork(museumID: .met, objectID: "3", title: "C"),
+            artwork: makeArtwork(museumID: MuseumIdentifier("met"), objectID: "3", title: "C"),
             favoritedAt: Date(timeIntervalSince1970: 300)
         )
         store.toggleFavorite(
-            artwork: makeArtwork(museumID: .shm, objectID: "4", title: "D"),
+            artwork: makeArtwork(museumID: MuseumIdentifier("shm"), objectID: "4", title: "D"),
             favoritedAt: Date(timeIntervalSince1970: 400)
         )
 
-        let sections = store.groupedFavorites(orderedMuseumIDs: [.shm, .met, .tnm])
+        let sections = store.groupedFavorites(orderedMuseumIDs: [MuseumIdentifier("shm"), MuseumIdentifier("met"), MuseumIdentifier("tnm")])
 
-        XCTAssertEqual(sections.map(\.museumID), [.shm, .met, .tnm])
+        XCTAssertEqual(sections.map(\.museumID), [MuseumIdentifier("shm"), MuseumIdentifier("met"), MuseumIdentifier("tnm")])
         XCTAssertEqual(sections[0].items.map(\.objectID), ["4"])
         XCTAssertEqual(sections[1].items.map(\.objectID), ["3", "1"])
         XCTAssertEqual(sections[2].items.map(\.objectID), ["2"])
@@ -142,51 +143,50 @@ final class FavoritesStoreTests: XCTestCase {
         let store = FavoritesStore(defaults: defaults)
 
         store.toggleFavorite(
-            artwork: makeArtwork(museumID: .met, objectID: "1", title: "A"),
+            artwork: makeArtwork(museumID: MuseumIdentifier("met"), objectID: "1", title: "A"),
             favoritedAt: Date(timeIntervalSince1970: 100)
         )
         store.toggleFavorite(
-            artwork: makeArtwork(museumID: .shm, objectID: "2", title: "B"),
+            artwork: makeArtwork(museumID: MuseumIdentifier("shm"), objectID: "2", title: "B"),
             favoritedAt: Date(timeIntervalSince1970: 200)
         )
         store.toggleFavorite(
-            artwork: makeArtwork(museumID: .nmc, objectID: "3", title: "C"),
+            artwork: makeArtwork(museumID: MuseumIdentifier("nmc"), objectID: "3", title: "C"),
             favoritedAt: Date(timeIntervalSince1970: 300)
         )
         store.toggleFavorite(
-            artwork: makeArtwork(museumID: .tnm, objectID: "4", title: "D"),
+            artwork: makeArtwork(museumID: MuseumIdentifier("tnm"), objectID: "4", title: "D"),
             favoritedAt: Date(timeIntervalSince1970: 400)
         )
         store.toggleFavorite(
-            artwork: makeArtwork(museumID: .nnm, objectID: "5", title: "E"),
+            artwork: makeArtwork(museumID: MuseumIdentifier("nnm"), objectID: "5", title: "E"),
             favoritedAt: Date(timeIntervalSince1970: 500)
         )
 
         let sections = store.groupedFavorites(orderedMuseumIDs: MuseumRepository.homepageMuseumIDs)
 
-        XCTAssertEqual(sections.map(\.museumID), [.nmc, .shm, .met, .tnm, .nnm])
+        XCTAssertEqual(sections.map(\.museumID), [MuseumIdentifier("nmc"), MuseumIdentifier("shm"), MuseumIdentifier("met"), MuseumIdentifier("tnm"), MuseumIdentifier("nnm")])
     }
 
     func testNaraOfficialAndColbaseFavoritesRemainDistinctWhenDataSourceChanges() {
         let store = FavoritesStore(defaults: defaults)
 
         store.toggleFavorite(
-            artwork: makeArtwork(museumID: .nnm, objectID: "narahaku-1032-0", title: "馆方源展品"),
+            artwork: makeArtwork(museumID: MuseumIdentifier("nnm"), objectID: "narahaku-1032-0", title: "馆方源展品"),
             favoritedAt: Date(timeIntervalSince1970: 100)
         )
-        defaults.set(NaraMuseumDataSource.colbase.rawValue, forKey: SettingsKeys.naraMuseumDataSource)
         store.toggleFavorite(
-            artwork: makeArtwork(museumID: .nnm, objectID: "cobas-16086", title: "ColBase 展品"),
+            artwork: makeArtwork(museumID: MuseumIdentifier("nnm"), objectID: "cobas-16086", title: "ColBase 展品"),
             favoritedAt: Date(timeIntervalSince1970: 200)
         )
 
         let reloaded = FavoritesStore(defaults: defaults)
         let sections = reloaded.groupedFavorites(orderedMuseumIDs: MuseumRepository.homepageMuseumIDs)
-        let naraSection = sections.first { $0.museumID == .nnm }
+        let naraSection = sections.first { $0.museumID == MuseumIdentifier("nnm") }
 
         XCTAssertEqual(naraSection?.items.map(\.objectID), ["cobas-16086", "narahaku-1032-0"])
-        XCTAssertTrue(reloaded.isFavorite(museumID: .nnm, objectID: "narahaku-1032-0"))
-        XCTAssertTrue(reloaded.isFavorite(museumID: .nnm, objectID: "cobas-16086"))
+        XCTAssertTrue(reloaded.isFavorite(museumID: MuseumIdentifier("nnm"), objectID: "narahaku-1032-0"))
+        XCTAssertTrue(reloaded.isFavorite(museumID: MuseumIdentifier("nnm"), objectID: "cobas-16086"))
     }
 
     private func makeArtwork(museumID: MuseumID, objectID: String, title: String) -> Artwork {

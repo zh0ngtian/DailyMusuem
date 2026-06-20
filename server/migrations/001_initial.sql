@@ -11,8 +11,14 @@ CREATE TABLE IF NOT EXISTS museums (
     country TEXT NOT NULL,
     city TEXT NOT NULL,
     subtitle TEXT NOT NULL,
+    address TEXT,
+    icon_url TEXT,
+    icon_asset_name TEXT,
+    icon_background_color TEXT,
+    text_punctuation_style TEXT NOT NULL DEFAULT 'western',
     supports_translation INTEGER NOT NULL DEFAULT 0,
     supports_widget_content INTEGER NOT NULL DEFAULT 1,
+    supports_favorites INTEGER NOT NULL DEFAULT 1,
     sort_order INTEGER NOT NULL
 );
 
@@ -22,7 +28,12 @@ CREATE TABLE IF NOT EXISTS data_sources (
     source_key TEXT NOT NULL,
     display_name TEXT NOT NULL,
     is_default INTEGER NOT NULL DEFAULT 1,
+    artwork_source_key TEXT,
+    list_filter_json TEXT,
     request_base_url TEXT,
+    translation_source_language TEXT,
+    preferred_image_url_order_json TEXT,
+    image_request_headers_json TEXT,
     notes TEXT,
     UNIQUE (museum_id, source_key)
 );
@@ -33,12 +44,16 @@ CREATE TABLE IF NOT EXISTS categories (
     source_key TEXT NOT NULL,
     category_id TEXT NOT NULL,
     display_name TEXT NOT NULL,
-    kind TEXT NOT NULL,
-    remote_value TEXT,
     sort_order INTEGER NOT NULL DEFAULT 0,
     raw_json TEXT,
     FOREIGN KEY (museum_id, source_key) REFERENCES data_sources(museum_id, source_key) ON DELETE CASCADE,
     UNIQUE (museum_id, source_key, category_id)
+);
+
+CREATE TABLE IF NOT EXISTS museum_client_policies (
+    museum_id TEXT PRIMARY KEY REFERENCES museums(museum_id) ON DELETE CASCADE,
+    waterfall_image_qps REAL,
+    raw_json TEXT
 );
 
 CREATE TABLE IF NOT EXISTS artworks (

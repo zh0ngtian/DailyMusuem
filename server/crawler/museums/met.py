@@ -59,6 +59,7 @@ class MetArtworkRecord:
     primary_image_url: str | None
     primary_image_small_url: str | None
     object_url: str | None
+    is_on_view: bool | None
     raw_json: str
 
     @property
@@ -82,6 +83,7 @@ class MetArtworkRecord:
                 "primary_image_url": self.primary_image_url,
                 "primary_image_small_url": self.primary_image_small_url,
                 "object_url": self.object_url,
+                "is_on_view": self.is_on_view,
             },
             ensure_ascii=False,
             sort_keys=True,
@@ -105,6 +107,7 @@ class MetArtworkRecord:
             primary_image_url=self.primary_image_url,
             primary_image_small_url=self.primary_image_small_url,
             object_url=self.object_url,
+            is_on_view=self.is_on_view,
             raw_json=self.raw_json,
         )
 
@@ -129,8 +132,18 @@ def parse_object_payload(payload: bytes | str) -> MetArtworkRecord:
         primary_image_url=clean_string(data.get("primaryImage")),
         primary_image_small_url=clean_string(data.get("primaryImageSmall")),
         object_url=clean_string(data.get("objectURL")),
+        is_on_view=parse_is_on_view(data),
         raw_json=json.dumps(data, ensure_ascii=False, sort_keys=True),
     )
+
+
+def parse_is_on_view(data: dict) -> bool | None:
+    if isinstance(data.get("isOnView"), bool):
+        return bool(data["isOnView"])
+    gallery_number = clean_string(data.get("GalleryNumber"))
+    if gallery_number:
+        return True
+    return None
 
 
 def object_ids_from_search_payload(payload: bytes | str) -> list[int]:
@@ -151,10 +164,10 @@ def store_artwork(connection: sqlite3.Connection, record: MetArtworkRecord) -> i
             content_hash, source_updated_at, crawled_at, raw_json, extra_json
         )
         VALUES (
-            'met', 'met_api', ?, ?, ?,
+            'met', 'met_all', ?, ?, ?,
             NULL, ?, ?,
             ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, NULL, ?,
+            ?, ?, ?, ?, ?,
             ?, NULL, ?, ?, NULL
         )
         ON CONFLICT(museum_id, source_key, object_id) DO UPDATE SET
@@ -171,6 +184,7 @@ def store_artwork(connection: sqlite3.Connection, record: MetArtworkRecord) -> i
             repository = excluded.repository,
             object_url = excluded.object_url,
             source_detail_url = excluded.source_detail_url,
+            is_on_view = excluded.is_on_view,
             has_image = excluded.has_image,
             content_hash = excluded.content_hash,
             crawled_at = excluded.crawled_at,
@@ -191,6 +205,7 @@ def store_artwork(connection: sqlite3.Connection, record: MetArtworkRecord) -> i
             record.repository,
             record.object_url,
             object_detail_url(record.object_id),
+            1 if record.is_on_view else 0 if record.is_on_view is False else None,
             1 if record.primary_image_url or record.primary_image_small_url else 0,
             record.content_hash,
             crawled_at,
@@ -200,7 +215,7 @@ def store_artwork(connection: sqlite3.Connection, record: MetArtworkRecord) -> i
     row = connection.execute(
         """
         SELECT artwork_pk FROM artworks
-        WHERE museum_id = 'met' AND source_key = 'met_api' AND object_id = ?
+        WHERE museum_id = 'met' AND source_key = 'met_all' AND object_id = ?
         """,
         (str(record.object_id),),
     ).fetchone()
@@ -238,7 +253,7 @@ def replace_category_memberships(connection: sqlite3.Connection, artwork_pk: int
     row = connection.execute(
         """
         SELECT category_pk FROM categories
-        WHERE museum_id = 'met' AND source_key = 'met_api' AND category_id = ?
+        WHERE museum_id = 'met' AND source_key = 'met_all' AND category_id = ?
         LIMIT 1
         """,
         (category_id,),

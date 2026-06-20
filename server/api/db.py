@@ -3,10 +3,23 @@ import hashlib
 import json
 import os
 import sqlite3
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .models import ArtworkDTO, CursorPayload, MuseumCategoryDTO, MuseumDTO
+from .models import (
+    ArtworkDTO,
+    CursorPayload,
+    MuseumCapabilitiesDTO,
+    MuseumCategoryDTO,
+    MuseumDTO,
+    MuseumIconDTO,
+    MuseumMetadataCategoryDTO,
+    MuseumMetadataDTO,
+    MuseumMetadataDataDTO,
+    MuseumSourceDTO,
+    WaterfallImageFetchPolicyDTO,
+)
 
 
 DEFAULT_DB_PATH = Path("server/data/museummuse.sqlite")
@@ -14,6 +27,13 @@ DEFAULT_DB_PATH = Path("server/data/museummuse.sqlite")
 
 class MuseumDatabaseError(Exception):
     pass
+
+
+@dataclass(frozen=True)
+class SourceResolution:
+    source_key: str
+    artwork_source_key: str
+    list_filter: dict[str, Any]
 
 
 class MuseumDatabase:
@@ -92,12 +112,161 @@ class MuseumDatabase:
             for row in rows
         ]
 
+    def museum_metadata(self) -> MuseumMetadataDataDTO:
+        with self.connect() as connection:
+            museum_rows = connection.execute(
+                """
+                SELECT
+                    m.museum_id,
+                    m.display_name,
+                    m.country,
+                    m.city,
+                    m.subtitle,
+                    m.address,
+                    m.text_punctuation_style,
+                    m.icon_url,
+                    m.icon_asset_name,
+                    m.icon_background_color,
+                    m.supports_translation,
+                    m.supports_widget_content,
+                    m.supports_favorites,
+                    m.sort_order,
+                    p.waterfall_image_qps
+                FROM museums m
+                LEFT JOIN museum_client_policies p ON p.museum_id = m.museum_id
+                ORDER BY m.sort_order, m.museum_id
+                """
+            ).fetchall()
+            source_rows = connection.execute(
+                """
+                SELECT
+                    museum_id,
+                    source_key,
+                    display_name,
+                    is_default,
+                    artwork_source_key,
+                    list_filter_json,
+                    translation_source_language,
+                    preferred_image_url_order_json,
+                    image_request_headers_json
+                FROM data_sources
+                ORDER BY museum_id, is_default DESC, source_key
+                """
+            ).fetchall()
+            category_rows = connection.execute(
+                """
+                SELECT museum_id, source_key, category_id, display_name, sort_order
+                FROM categories
+                ORDER BY museum_id, source_key, sort_order, category_id
+                """
+            ).fetchall()
+        sources_by_museum: dict[str, list[MuseumSourceDTO]] = {}
+        source_rows_by_museum: dict[str, list[sqlite3.Row]] = {}
+        default_source_by_museum: dict[str, str] = {}
+        for row in source_rows:
+            museum_id = row["museum_id"]
+            source = MuseumSourceDTO(
+                sourceKey=row["source_key"],
+                displayName=row["display_name"],
+                isDefault=bool(row["is_default"]),
+                translationSourceLanguage=row["translation_source_language"],
+                preferredImageURLOrder=self.parse_string_list(row["preferred_image_url_order_json"]),
+                imageRequestHeaders=self.parse_string_dict(row["image_request_headers_json"]),
+            )
+            sources_by_museum.setdefault(museum_id, []).append(source)
+            source_rows_by_museum.setdefault(museum_id, []).append(row)
+            if museum_id not in default_source_by_museum or source.isDefault:
+                default_source_by_museum[museum_id] = source.sourceKey
+
+        categories_by_museum: dict[str, list[MuseumMetadataCategoryDTO]] = {}
+        for row in category_rows:
+            museum_id = row["museum_id"]
+            visible_sources = source_rows_by_museum.get(museum_id, [])
+            metadata_source_keys = [
+                source["source_key"]
+                for source in visible_sources
+                if (source["artwork_source_key"] or source["source_key"]) == row["source_key"]
+            ] or [row["source_key"]]
+            for source_key in metadata_source_keys:
+                categories_by_museum.setdefault(museum_id, []).append(
+                    MuseumMetadataCategoryDTO(
+                        sourceKey=source_key,
+                        categoryID=row["category_id"],
+                        displayName=row["display_name"],
+                        sortOrder=int(row["sort_order"]),
+                    )
+                )
+
+        museums = [
+            MuseumMetadataDTO(
+                museumID=row["museum_id"],
+                displayName=row["display_name"],
+                subtitle=row["subtitle"],
+                country=row["country"],
+                city=row["city"],
+                address=row["address"],
+                textPunctuationStyle=row["text_punctuation_style"],
+                icon=MuseumIconDTO(
+                    url=row["icon_url"],
+                    assetName=row["icon_asset_name"],
+                    backgroundColor=row["icon_background_color"],
+                ),
+                sortOrder=int(row["sort_order"]),
+                capabilities=MuseumCapabilitiesDTO(
+                    supportsWidgetContent=bool(row["supports_widget_content"]),
+                    supportsTranslation=bool(row["supports_translation"]),
+                    supportsFavorites=bool(row["supports_favorites"]),
+                ),
+                defaultSourceKey=default_source_by_museum.get(row["museum_id"], ""),
+                sources=sources_by_museum.get(row["museum_id"], []),
+                categories=categories_by_museum.get(row["museum_id"], []),
+                waterfallImageFetchPolicy=WaterfallImageFetchPolicyDTO(qps=row["waterfall_image_qps"]),
+            )
+            for row in museum_rows
+        ]
+        return MuseumMetadataDataDTO(museums=museums)
+
+    @staticmethod
+    def parse_json_value(raw_value: str | None) -> Any:
+        if raw_value is None:
+            return None
+        try:
+            return json.loads(raw_value)
+        except json.JSONDecodeError:
+            return raw_value
+
+    @staticmethod
+    def parse_string_list(raw_value: str | None) -> list[str]:
+        parsed = MuseumDatabase.parse_json_value(raw_value)
+        if not isinstance(parsed, list):
+            return []
+        return [str(value) for value in parsed if str(value)]
+
+    @staticmethod
+    def parse_string_dict(raw_value: str | None) -> dict[str, str]:
+        parsed = MuseumDatabase.parse_json_value(raw_value)
+        if not isinstance(parsed, dict):
+            return {}
+        return {
+            str(key): str(value)
+            for key, value in parsed.items()
+            if str(key) and str(value)
+        }
+
+    @staticmethod
+    def parse_string_key_dict(raw_value: str | None) -> dict[str, Any]:
+        parsed = MuseumDatabase.parse_json_value(raw_value)
+        if not isinstance(parsed, dict):
+            return {}
+        return {str(key): value for key, value in parsed.items() if str(key)}
+
     def categories(self, museum_id: str, source: str | None) -> list[MuseumCategoryDTO]:
-        source_key = self.resolve_source_key(museum_id, source)
+        source_resolution = self.resolve_source(museum_id, source)
+        source_key = source_resolution.artwork_source_key
         with self.connect() as connection:
             rows = connection.execute(
                 """
-                SELECT museum_id, category_id, display_name, kind, remote_value
+                SELECT museum_id, category_id, display_name
                 FROM categories
                 WHERE museum_id = ? AND source_key = ?
                 ORDER BY sort_order, category_id
@@ -109,8 +278,6 @@ class MuseumDatabase:
                 museumID=row["museum_id"],
                 id=row["category_id"],
                 displayName=row["display_name"],
-                kind=row["kind"],
-                remoteValue=row["remote_value"],
             )
             for row in rows
         ]
@@ -141,18 +308,20 @@ class MuseumDatabase:
         cursor: str | None,
         order: str,
         seed: int | None,
-        only_on_view: bool,
         has_image: bool,
     ) -> tuple[list[ArtworkDTO], str | None, bool]:
-        source_key = self.resolve_source_key(museum_id, source)
+        source_resolution = self.resolve_source(museum_id, source)
+        source_key = source_resolution.artwork_source_key
+        effective_only_on_view = bool(source_resolution.list_filter.get("only_on_view"))
         limit = min(max(limit, 1), 50)
         filter_hash = self.filter_hash(
             museum_id=museum_id,
-            source_key=source_key,
+            source_key=source_resolution.source_key,
+            artwork_source_key=source_key,
             category_ids=category_ids,
             order=order,
             seed=seed,
-            only_on_view=only_on_view,
+            only_on_view=effective_only_on_view,
             has_image=has_image,
         )
         offset = self.decode_cursor(cursor, filter_hash).offset if cursor else 0
@@ -162,7 +331,7 @@ class MuseumDatabase:
 
         if has_image:
             where.append("a.has_image = 1")
-        if museum_id == "met" and only_on_view:
+        if effective_only_on_view:
             where.append("a.is_on_view = 1")
         if category_ids:
             joins.append(
@@ -209,15 +378,14 @@ class MuseumDatabase:
             )
         return [self.artwork_dto(row, images.get(row["artwork_pk"], {})) for row in page_rows], next_cursor, has_more
 
-    def resolve_source_key(self, museum_id: str, source: str | None) -> str:
-        if museum_id == "nnm" and source in {"official", "colbase"}:
-            return source
+    def resolve_source(self, museum_id: str, source: str | None) -> SourceResolution:
         with self.connect() as connection:
             row = connection.execute(
                 """
-                SELECT source_key
+                SELECT source_key, artwork_source_key, list_filter_json
                 FROM data_sources
-                WHERE museum_id = ? AND (? IS NULL OR source_key = ?)
+                WHERE museum_id = ?
+                  AND (? IS NULL OR source_key = ?)
                 ORDER BY is_default DESC, source_key
                 LIMIT 1
                 """,
@@ -225,11 +393,32 @@ class MuseumDatabase:
             ).fetchone()
         if not row:
             raise MuseumDatabaseError(f"Unknown source for museum={museum_id}: {source or 'default'}")
-        return str(row["source_key"])
+        source_key = str(row["source_key"])
+        artwork_source_key = row["artwork_source_key"] or source_key
+        return SourceResolution(
+            source_key=source_key,
+            artwork_source_key=str(artwork_source_key),
+            list_filter=self.parse_string_key_dict(row["list_filter_json"]),
+        )
+
+    def resolve_source_key(self, museum_id: str, source: str | None) -> str:
+        return self.resolve_source(museum_id, source).artwork_source_key
 
     def resolve_detail_source_key(self, museum_id: str, object_id: str, source: str | None) -> str:
-        if museum_id == "nnm" and source is None:
-            return "official" if object_id.startswith("narahaku-") else "colbase"
+        if source is None:
+            with self.connect() as connection:
+                rows = connection.execute(
+                    """
+                    SELECT source_key
+                    FROM artworks
+                    WHERE museum_id = ? AND object_id = ?
+                    ORDER BY source_key
+                    LIMIT 2
+                    """,
+                    (museum_id, object_id),
+                ).fetchall()
+            if len(rows) == 1:
+                return str(rows[0]["source_key"])
         return self.resolve_source_key(museum_id, source)
 
     def images_for_artworks(self, connection: sqlite3.Connection, artwork_pks: list[int]) -> dict[int, dict[str, str]]:

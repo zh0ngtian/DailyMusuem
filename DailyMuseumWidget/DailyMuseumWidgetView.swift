@@ -114,22 +114,7 @@ struct DailyMuseumWidgetView: View {
         guard let scope = WidgetMuseumScope(rawValue: entry.scopeRawValue) else {
             return .all
         }
-        switch scope {
-        case .all:
-            return .all
-        case .single(.met):
-            return .met
-        case .single(.tnm):
-            return .tnm
-        case .single(.nnm):
-            return .nnm
-        case .single(.nmc):
-            return .nmc
-        case .single(.shm):
-            return .shm
-        case .single(.guimet):
-            return .guimet
-        }
+        return WidgetConfiguredMuseumScope(scope: scope)
     }
 
     private var displaySubtitle: String? {

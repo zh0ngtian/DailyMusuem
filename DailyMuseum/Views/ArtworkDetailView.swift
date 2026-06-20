@@ -498,21 +498,12 @@ struct ArtworkDetailView: View {
     }
 
     private func translationSourceLanguage(for artwork: Artwork) -> Locale.Language? {
-        switch artwork.museumID {
-        case .met:
-            return Locale.Language(identifier: "en")
-        case .tnm:
-            return Locale.Language(identifier: "ja")
-        case .nnm:
-            if NaraMuseumAPI.isOfficialObjectID(artwork.objectID) {
-                return Locale.Language(identifier: "zh-Hans")
-            }
-            return Locale.Language(identifier: "ja")
-        case .nmc, .shm:
-            return nil
-        case .guimet:
+        guard let sourceLanguage = MuseumMetadataStore
+            .cachedSourceMetadata(museumID: artwork.museumID, sourceKey: artwork.sourceKey)?
+            .translationSourceLanguage else {
             return nil
         }
+        return Locale.Language(identifier: sourceLanguage)
     }
 
     private func resetTranslationState() {

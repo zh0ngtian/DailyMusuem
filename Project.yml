@@ -99,17 +99,11 @@ targets:
       - path: Shared/ArtworkFeed/ArtworkFeedViewModel.swift
       - path: Shared/Backend/MuseumBackendClient.swift
       - path: Shared/Museum.swift
+      - path: Shared/MuseumMetadata.swift
+      - path: Shared/MuseumMetadataStore.swift
       - path: Shared/MuseumRequestCachePolicy.swift
       - path: Shared/Logging/LogTimestampFormatter.swift
       - path: Shared/Logging/RequestLogger.swift
-      - path: Shared/JapanSearch/JapanSearchAPI.swift
-      - path: Shared/JapanSearch/JapanSearchModels.swift
-      - path: Shared/JapanSearch/JapanSearchPersistentCache.swift
-      - path: Shared/MetMuseum/MetMuseumAPI.swift
-      - path: Shared/MetMuseum/MetMuseumModels.swift
-      - path: Shared/MetMuseum/MetMuseumPersistentCache.swift
-      - path: Shared/NationalMuseumChina/NationalMuseumChinaAPI.swift
-      - path: Shared/ShanghaiMuseum/ShanghaiMuseumAPI.swift
       - path: Shared/Settings/FavoritesStore.swift
       - path: Shared/Settings/SettingsKeys.swift
       - path: Shared/Settings/SettingsStore.swift

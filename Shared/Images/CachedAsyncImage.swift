@@ -13,6 +13,8 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
 
     init(
         url: URL?,
+        waterfallPolicy: WaterfallImageFetchPolicy? = nil,
+        waterfallRateLimitScope: String? = nil,
         @ViewBuilder content: @escaping (Image) -> Content,
         @ViewBuilder placeholder: @escaping () -> Placeholder,
         onImageSize: ((CGSize) -> Void)? = nil,
@@ -23,7 +25,13 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
         self.placeholder = placeholder
         self.onImageSize = onImageSize
         self.onUIImageLoaded = onUIImageLoaded
-        _loader = StateObject(wrappedValue: ImageLoader(url: url))
+        _loader = StateObject(
+            wrappedValue: ImageLoader(
+                url: url,
+                waterfallPolicy: waterfallPolicy,
+                waterfallRateLimitScope: waterfallRateLimitScope
+            )
+        )
     }
 
     var body: some View {
