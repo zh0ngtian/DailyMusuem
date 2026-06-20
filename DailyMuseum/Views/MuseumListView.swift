@@ -1,45 +1,15 @@
 import SwiftUI
 
 struct MuseumListView: View {
-    @StateObject private var settings = SettingsStore.shared
     @State private var selectedMuseum: Museum?
-    @State private var latencyMeasurements: [MuseumID: MuseumLatencyMeasurement] = [:]
-    @State private var isLatencyTesting = false
-    @State private var latencyRunToken = UUID()
-    @State private var latencyTask: Task<Void, Never>?
-
-    private let latencyService = MuseumLatencyService()
 
     private var countrySections: [MuseumCountrySection] {
         MuseumRepository.homepageCountrySections
     }
 
     var body: some View {
-        Group {
-            if settings.isMuseumLatencyTestEnabled {
-                museumList
-                    .refreshable {
-                        await refreshLatencyMeasurements(cancelInFlight: true)
-                    }
-            } else {
-                museumList
-            }
-        }
+        museumList
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            if settings.isMuseumLatencyTestEnabled {
-                startLatencyMeasurements()
-            } else {
-                resetLatencyMeasurements()
-            }
-        }
-        .onChange(of: settings.isMuseumLatencyTestEnabled) { _, isEnabled in
-            if isEnabled {
-                startLatencyMeasurements()
-            } else {
-                resetLatencyMeasurements()
-            }
-        }
         .navigationDestination(item: $selectedMuseum) { museum in
             ArtworkFeedView(museum: museum)
         }
@@ -92,11 +62,7 @@ struct MuseumListView: View {
         HStack(alignment: .center, spacing: 16) {
             museumLogoBadge(for: museum)
 
-            VStack(alignment: .leading, spacing: settings.isMuseumLatencyTestEnabled ? 4 : 6) {
-                if settings.isMuseumLatencyTestEnabled {
-                    latencyBadge(for: museum)
-                }
-
+            VStack(alignment: .leading, spacing: 6) {
                 Text(museum.displayName)
                     .font(.headline)
                     .foregroundStyle(.primary)
@@ -142,73 +108,5 @@ struct MuseumListView: View {
                     .padding(.vertical, 9)
             }
             .frame(width: 112, height: 68)
-    }
-
-    @ViewBuilder
-    private func latencyBadge(for museum: Museum) -> some View {
-        if let measurement = latencyMeasurements[museum.id] {
-            Text(measurement.displayText)
-                .font(.caption.weight(.semibold))
-                .monospacedDigit()
-                .foregroundStyle(latencyColor(for: measurement.quality))
-                .frame(minHeight: 16, alignment: .leading)
-                .accessibilityLabel("\(museum.displayName)延迟\(measurement.displayText)")
-        } else if isLatencyTesting {
-            ProgressView()
-                .controlSize(.mini)
-                .frame(height: 16, alignment: .leading)
-                .accessibilityLabel("\(museum.displayName)延迟测试中")
-        }
-    }
-
-    private func latencyColor(for quality: MuseumLatencyQuality) -> Color {
-        switch quality {
-        case .good:
-            return .green
-        case .warning:
-            return .yellow
-        case .poor:
-            return .red
-        }
-    }
-
-    private func startLatencyMeasurements() {
-        guard settings.isMuseumLatencyTestEnabled else {
-            resetLatencyMeasurements()
-            return
-        }
-        latencyTask?.cancel()
-        latencyTask = Task {
-            await refreshLatencyMeasurements(cancelInFlight: false)
-        }
-    }
-
-    private func resetLatencyMeasurements() {
-        latencyTask?.cancel()
-        latencyTask = nil
-        latencyMeasurements = [:]
-        isLatencyTesting = false
-    }
-
-    @MainActor
-    private func refreshLatencyMeasurements(cancelInFlight: Bool) async {
-        guard settings.isMuseumLatencyTestEnabled else {
-            resetLatencyMeasurements()
-            return
-        }
-        if cancelInFlight {
-            latencyTask?.cancel()
-            latencyTask = nil
-        }
-        let runToken = UUID()
-        latencyRunToken = runToken
-        isLatencyTesting = true
-
-        let measurements = await latencyService.measureLatencies(for: MuseumRepository.homepageMuseumIDs)
-
-        guard !Task.isCancelled, runToken == latencyRunToken else { return }
-        latencyMeasurements = measurements
-        isLatencyTesting = false
-        latencyTask = nil
     }
 }

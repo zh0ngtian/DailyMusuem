@@ -157,22 +157,6 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertEqual(MuseumRepository.museum(for: .guimet).subtitle, "巴黎")
     }
 
-    func testMuseumLatencyMeasurementFormatsDisplayTextAndQuality() {
-        XCTAssertEqual(
-            MuseumLatencyMeasurement.measured(museumID: .met, milliseconds: 320).displayText,
-            "320 ms"
-        )
-        XCTAssertEqual(
-            MuseumLatencyMeasurement.timeout(museumID: .tnm).displayText,
-            "超时"
-        )
-        XCTAssertEqual(MuseumLatencyMeasurement.quality(forMilliseconds: 500), .good)
-        XCTAssertEqual(MuseumLatencyMeasurement.quality(forMilliseconds: 501), .warning)
-        XCTAssertEqual(MuseumLatencyMeasurement.quality(forMilliseconds: 1_500), .warning)
-        XCTAssertEqual(MuseumLatencyMeasurement.quality(forMilliseconds: 1_501), .poor)
-        XCTAssertEqual(MuseumLatencyMeasurement.timeout(museumID: .nmc).quality, .poor)
-    }
-
     func testAppDeepLinkRoundTripPreservesReference() throws {
         let reference = ArtworkReference(
             museumID: .met,

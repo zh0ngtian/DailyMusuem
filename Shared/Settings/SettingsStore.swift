@@ -107,7 +107,6 @@ final class SettingsStore: ObservableObject {
     @Published private(set) var widgetRefreshInterval: WidgetRefreshInterval
     @Published private(set) var widgetAutoRefreshStartMinutes: Int
     @Published private(set) var widgetAutoRefreshEndMinutes: Int
-    @Published private(set) var isMuseumLatencyTestEnabled: Bool
     @Published private(set) var metShowsOnlyOnViewArtworks: Bool
     @Published private(set) var artworkDetailFontScaleStep: Int
     @Published private(set) var naraMuseumDataSource: NaraMuseumDataSource
@@ -122,7 +121,6 @@ final class SettingsStore: ObservableObject {
         let autoRefreshWindow = WidgetAutoRefreshWindow.storedValue(in: resolvedDefaults)
         widgetAutoRefreshStartMinutes = autoRefreshWindow.startMinutes
         widgetAutoRefreshEndMinutes = autoRefreshWindow.endMinutes
-        isMuseumLatencyTestEnabled = resolvedDefaults.bool(forKey: SettingsKeys.museumLatencyTestEnabled)
         metShowsOnlyOnViewArtworks = resolvedDefaults.bool(forKey: SettingsKeys.metShowsOnlyOnViewArtworks)
         artworkDetailFontScaleStep = ArtworkDetailFontScale.storedStep(in: resolvedDefaults)
         naraMuseumDataSource = NaraMuseumDataSource.storedValue(in: resolvedDefaults)
@@ -152,12 +150,6 @@ final class SettingsStore: ObservableObject {
             startMinutes: widgetAutoRefreshStartMinutes,
             endMinutes: minutes
         )
-    }
-
-    func saveMuseumLatencyTestEnabled(_ isEnabled: Bool) {
-        isMuseumLatencyTestEnabled = isEnabled
-        defaults.set(isEnabled, forKey: SettingsKeys.museumLatencyTestEnabled)
-        defaults.synchronize()
     }
 
     func saveMetShowsOnlyOnViewArtworks(_ isEnabled: Bool) {
@@ -289,7 +281,6 @@ final class SettingsStore: ObservableObject {
         let autoRefreshWindow = WidgetAutoRefreshWindow.storedValue(in: defaults)
         widgetAutoRefreshStartMinutes = autoRefreshWindow.startMinutes
         widgetAutoRefreshEndMinutes = autoRefreshWindow.endMinutes
-        isMuseumLatencyTestEnabled = defaults.bool(forKey: SettingsKeys.museumLatencyTestEnabled)
         metShowsOnlyOnViewArtworks = defaults.bool(forKey: SettingsKeys.metShowsOnlyOnViewArtworks)
         artworkDetailFontScaleStep = ArtworkDetailFontScale.storedStep(in: defaults)
         naraMuseumDataSource = NaraMuseumDataSource.storedValue(in: defaults)
@@ -333,7 +324,6 @@ final class SettingsStore: ObservableObject {
             SettingsKeys.widgetRefreshIntervalHours,
             SettingsKeys.widgetAutoRefreshStartMinutes,
             SettingsKeys.widgetAutoRefreshEndMinutes,
-            SettingsKeys.museumLatencyTestEnabled,
             SettingsKeys.metShowsOnlyOnViewArtworks,
             SettingsKeys.artworkDetailFontScaleStep,
             SettingsKeys.museumDisplayOrder,

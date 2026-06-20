@@ -867,37 +867,6 @@ final class ParsingAndAPITests: XCTestCase {
         XCTAssertEqual(callCounter.value, 4)
     }
 
-    func testMuseumLatencyServiceUsesBackendProbePerMuseum() async throws {
-        let recorder = RequestRecorder()
-        let session = makeStubSession(testID: UUID().uuidString) { request in
-            guard let url = request.url else {
-                throw URLError(.badURL)
-            }
-            recorder.record(request)
-            return StubbedResponse(
-                response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
-                data: Data("{}".utf8)
-            )
-        }
-        let backendClient = MuseumBackendClient(
-            baseURL: URL(string: "https://backend.example")!,
-            session: session
-        )
-        let service = MuseumLatencyService(session: session, backendClient: backendClient)
-
-        let measurements = await service.measureLatencies(for: MuseumRepository.homepageMuseumIDs)
-
-        XCTAssertEqual(Set(measurements.keys), Set(MuseumRepository.homepageMuseumIDs))
-        XCTAssertEqual(recorder.requests.count, MuseumRepository.homepageMuseumIDs.count)
-
-        let requestedPaths = Set(recorder.requests.compactMap { $0.url?.path })
-        let expectedPaths = Set(MuseumRepository.homepageMuseumIDs.map { "/v1/museums/\($0.rawValue)/probe" })
-        XCTAssertEqual(requestedPaths, expectedPaths)
-        XCTAssertTrue(recorder.requests.allSatisfy { request in
-            request.httpMethod == "GET" && request.url?.host == "backend.example"
-        })
-    }
-
     func testMuseumBackendDebugAuthProviderIssuesSignedBusinessHeaders() async throws {
         let recorder = RequestRecorder()
         let session = makeStubSession(testID: UUID().uuidString) { request in
@@ -981,17 +950,6 @@ final class ParsingAndAPITests: XCTestCase {
             headers["X-MuseumMuse-App-Attest-Assertion"],
             MuseumBackendDebugAuthProvider.debugAssertion(for: expectedHash, secret: "debug-secret")
         )
-    }
-
-    func testMuseumLatencyServiceTreatsRequestFailureAsTimeout() async throws {
-        let session = makeStubSession(testID: UUID().uuidString) { _ in
-            throw URLError(.notConnectedToInternet)
-        }
-        let service = MuseumLatencyService(session: session)
-
-        let measurement = await service.measureLatency(for: .met)
-
-        XCTAssertEqual(measurement, .timeout(museumID: .met))
     }
 
     private func loadFixture(named fileName: String) throws -> String {

@@ -115,14 +115,6 @@ class MuseumDatabase:
             for row in rows
         ]
 
-    def probe_count(self, museum_id: str) -> int:
-        with self.connect() as connection:
-            row = connection.execute(
-                "SELECT COUNT(*) AS count FROM artworks WHERE museum_id = ? AND has_image = 1",
-                (museum_id,),
-            ).fetchone()
-        return int(row["count"] if row else 0)
-
     def artwork(self, museum_id: str, object_id: str, source: str | None) -> ArtworkDTO | None:
         source_key = self.resolve_detail_source_key(museum_id, object_id, source)
         with self.connect() as connection:

@@ -12,7 +12,7 @@ from .auth import (
     require_business_auth,
 )
 from .db import MuseumDatabase, MuseumDatabaseError
-from .models import ArtworkPageDTO, HealthDTO, ProbeDTO, WidgetCandidateDTO
+from .models import ArtworkPageDTO, HealthDTO, WidgetCandidateDTO
 
 
 router = APIRouter()
@@ -53,15 +53,6 @@ async def auth_session(request: Request, payload: DebugAuthSessionRequest) -> Au
 @router.get("/v1/museums", dependencies=[Depends(require_business_auth)])
 async def museums() -> dict[str, object]:
     return envelope(database.museums())
-
-
-@router.get("/v1/museums/{museum_id}/probe", dependencies=[Depends(require_business_auth)])
-async def museum_probe(museum_id: str) -> dict[str, object]:
-    try:
-        count = database.probe_count(museum_id)
-    except MuseumDatabaseError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
-    return envelope(ProbeDTO(museumID=museum_id, availableArtworkCount=count))
 
 
 @router.get("/v1/museums/{museum_id}/categories", dependencies=[Depends(require_business_auth)])

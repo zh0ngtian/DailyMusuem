@@ -109,28 +109,6 @@ final class WidgetStateAndSettingsTests: XCTestCase {
     }
 
     @MainActor
-    func testSettingsStoreDefaultsMuseumLatencyTestToOff() {
-        let store = SettingsStore(defaults: defaults)
-
-        XCTAssertFalse(store.isMuseumLatencyTestEnabled)
-    }
-
-    @MainActor
-    func testSettingsStorePersistsMuseumLatencyTestToggle() {
-        let store = SettingsStore(defaults: defaults)
-
-        store.saveMuseumLatencyTestEnabled(true)
-
-        XCTAssertTrue(defaults.bool(forKey: SettingsKeys.museumLatencyTestEnabled))
-        XCTAssertTrue(SettingsStore(defaults: defaults).isMuseumLatencyTestEnabled)
-
-        store.saveMuseumLatencyTestEnabled(false)
-
-        XCTAssertFalse(defaults.bool(forKey: SettingsKeys.museumLatencyTestEnabled))
-        XCTAssertFalse(SettingsStore(defaults: defaults).isMuseumLatencyTestEnabled)
-    }
-
-    @MainActor
     func testSettingsStorePersistsMetOnViewToggle() {
         let store = SettingsStore(defaults: defaults)
 
@@ -198,7 +176,6 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         await sourceWidgetStore.replaceDisplayedArtworkHistory([
             MuseumID.met.rawValue: [WidgetDisplayedArtworkKey.make(museumID: .met, objectID: "seen")]
         ])
-        defaults.set(true, forKey: SettingsKeys.museumLatencyTestEnabled)
         defaults.set(6, forKey: SettingsKeys.widgetRefreshIntervalHours)
         defaults.set(8 * 60, forKey: SettingsKeys.widgetAutoRefreshStartMinutes)
         defaults.set(20 * 60, forKey: SettingsKeys.widgetAutoRefreshEndMinutes)
@@ -220,7 +197,6 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         defer {
             targetDefaults.removePersistentDomain(forName: targetSuiteName)
         }
-        targetDefaults.set(false, forKey: SettingsKeys.museumLatencyTestEnabled)
         targetDefaults.set(1, forKey: SettingsKeys.widgetRefreshIntervalHours)
         targetDefaults.set(-1, forKey: SettingsKeys.artworkDetailFontScaleStep)
         targetDefaults.set("photographs", forKey: SettingsKeys.feedCategoryKey(for: .met))
@@ -232,7 +208,6 @@ final class WidgetStateAndSettingsTests: XCTestCase {
 
         await targetStore.importConfiguration(exportedConfiguration)
 
-        XCTAssertTrue(targetStore.isMuseumLatencyTestEnabled)
         XCTAssertEqual(targetStore.widgetRefreshInterval, .sixHours)
         XCTAssertEqual(targetStore.widgetAutoRefreshStartMinutes, 8 * 60)
         XCTAssertEqual(targetStore.widgetAutoRefreshEndMinutes, 20 * 60)

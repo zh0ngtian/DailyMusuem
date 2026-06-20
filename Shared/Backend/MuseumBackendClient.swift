@@ -442,21 +442,6 @@ final class MuseumBackendClient: @unchecked Sendable {
         try validate(response: response, data: data)
     }
 
-    func probe(museumID: MuseumID, cachePolicy: MuseumRequestCachePolicy = .networkOnly) async throws {
-        let request = try await makeRequest(
-            method: "GET",
-            path: "/v1/museums/\(museumID.rawValue)/probe",
-            queryItems: [],
-            body: nil,
-            cachePolicy: cachePolicy
-        )
-        let (data, response) = try await session.data(for: request)
-        try validate(response: response, data: data)
-        if let envelope = try? decoder.decode(BackendEnvelope<BackendProbePayload>.self, from: data) {
-            MuseumBackendDataVersionCache.update(envelope.dataVersion)
-        }
-    }
-
     func museums(cachePolicy: MuseumRequestCachePolicy = .useCaches) async throws -> [BackendMuseumDTO] {
         let envelope: BackendEnvelope<[BackendMuseumDTO]> = try await get(
             path: "/v1/museums",
@@ -674,11 +659,6 @@ private extension WidgetCandidateQuery {
 private struct BackendEnvelope<T: Decodable>: Decodable {
     let dataVersion: String
     let data: T
-}
-
-private struct BackendProbePayload: Decodable {
-    let museumID: String
-    let availableArtworkCount: Int
 }
 
 private struct BackendArtworkPageData: Decodable {

@@ -58,11 +58,6 @@ class ArtworkPageDTO(BaseModel):
     hasMore: bool = False
 
 
-class ProbeDTO(BaseModel):
-    museumID: str
-    availableArtworkCount: int
-
-
 class HealthDTO(BaseModel):
     ok: bool
     databaseReadable: bool

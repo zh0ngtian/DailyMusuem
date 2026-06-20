@@ -13,12 +13,6 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section {
-                Toggle("首页延迟测试", isOn: museumLatencyTestEnabledBinding)
-            } header: {
-                Text("首页")
-            }
-
-            Section {
                 Picker("自动刷新", selection: widgetRefreshIntervalBinding) {
                     ForEach(WidgetRefreshInterval.allCases) { interval in
                         Text(interval.displayName).tag(interval)
@@ -125,14 +119,6 @@ struct SettingsView: View {
                 message: Text(state.message),
                 dismissButton: .default(Text("知道了"))
             )
-        }
-    }
-
-    private var museumLatencyTestEnabledBinding: Binding<Bool> {
-        Binding {
-            settings.isMuseumLatencyTestEnabled
-        } set: { isEnabled in
-            settings.saveMuseumLatencyTestEnabled(isEnabled)
         }
     }
 

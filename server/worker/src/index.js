@@ -33,13 +33,6 @@ export default {
         return envelopeResponse(env, await museums(env.DB));
       }
 
-      const probeMatch = path.match(/^\/v1\/museums\/([^/]+)\/probe$/);
-      if (request.method === "GET" && probeMatch) {
-        const museumID = decodeURIComponent(probeMatch[1]);
-        const count = await probeCount(env.DB, museumID);
-        return envelopeResponse(env, { museumID, availableArtworkCount: count });
-      }
-
       const categoriesMatch = path.match(/^\/v1\/museums\/([^/]+)\/categories$/);
       if (request.method === "GET" && categoriesMatch) {
         const museumID = decodeURIComponent(categoriesMatch[1]);
@@ -196,13 +189,6 @@ async function categories(db, museumID, source) {
     kind: row.kind,
     remoteValue: row.remote_value ?? null
   }));
-}
-
-async function probeCount(db, museumID) {
-  const row = await db.prepare(
-    "SELECT COUNT(*) AS count FROM artworks WHERE museum_id = ? AND has_image = 1"
-  ).bind(museumID).first();
-  return Number(row?.count || 0);
 }
 
 async function artworkDetail(db, museumID, objectID, source) {
