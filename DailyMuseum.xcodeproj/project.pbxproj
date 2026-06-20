@@ -151,6 +151,7 @@
 		0D1200010000000000000001 /* MuseumMetadataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuseumMetadataStore.swift; sourceTree = "<group>"; };
 		0B5F10A5A1B44D74885A5E02 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		0B5F10A5A1B44D74885A5E03 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+		0C0F1A000000000000000001 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		15CC322130D2C36A4D586EC3 /* met-overview.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "met-overview.html"; sourceTree = "<group>"; };
 		1B7AF25AA60373F1FEF52146 /* DailyMuseumWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DailyMuseumWidget.entitlements; sourceTree = "<group>"; };
 		1CA69050D6181865B9708213 /* DailyMuseumTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DailyMuseumTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -274,6 +275,14 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		0C0F1A000000000000000002 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				0C0F1A000000000000000001 /* Secrets.xcconfig */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
 		5225386D7CA9D444567A323F /* ArtworkFeed */ = {
 			isa = PBXGroup;
 			children = (
@@ -345,6 +354,7 @@
 		90469F071F86745660CF1F94 = {
 			isa = PBXGroup;
 			children = (
+				0C0F1A000000000000000002 /* Config */,
 				540C4352AA99A790037E6727 /* DailyMuseum */,
 				72AA4F9933BC8BED3C4E0266 /* DailyMuseumTests */,
 				B853AF91266F3159C7D5DDB2 /* DailyMuseumWidget */,
@@ -702,6 +712,7 @@
 /* Begin XCBuildConfiguration section */
 		09CB9CBFBA3832D85CDB2E5F /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 0C0F1A000000000000000001 /* Secrets.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = DailyMuseum/DailyMuseum.entitlements;
@@ -723,6 +734,7 @@
 		};
 		3FBA8D142E69064E9423D137 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 0C0F1A000000000000000001 /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -779,6 +791,7 @@
 		};
 		46CAC78C6699710C80EFAB03 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 0C0F1A000000000000000001 /* Secrets.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = DailyMuseumWidget/DailyMuseumWidgetAppGroup.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
@@ -824,6 +837,7 @@
 		};
 		997A301675B63BD00D4C7C94 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 0C0F1A000000000000000001 /* Secrets.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = DailyMuseum/DailyMuseum.entitlements;
@@ -867,6 +881,7 @@
 		};
 		B6E273FD34F7A60D65AD148E /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 0C0F1A000000000000000001 /* Secrets.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = DailyMuseumWidget/DailyMuseumWidgetAppGroup.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
@@ -890,6 +905,7 @@
 		};
 		DAF3B3E61844BD76A0028C3B /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 0C0F1A000000000000000001 /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;

@@ -143,9 +143,8 @@ server/
 
 ```bash
 python -m server.crawler.seed_sample_data --db server/data/museummuse.sqlite
-MUSEUMMUSE_DB_PATH=server/data/museummuse-live-all.sqlite MUSEUMMUSE_AUTH_MODE=disabled python -m uvicorn server.api.app:app --host 127.0.0.1 --port 8000
-# 或启用当前轻量 HMAC 鉴权：
 MUSEUMMUSE_DB_PATH=server/data/museummuse-live-all.sqlite MUSEUMMUSE_AUTH_MODE=simple MUSEUMMUSE_SIMPLE_AUTH_SECRET=dev-secret python -m uvicorn server.api.app:app --host 127.0.0.1 --port 8000
+MUSEUMMUSE_SIMPLE_AUTH_SECRET=dev-secret python3 scripts/probe_backend_simple_auth.py --base-url http://127.0.0.1:8000
 ```
 
 真实数据抓取方式示例：
@@ -513,7 +512,7 @@ PRAGMA temp_store = MEMORY;
 - 代码已实现轻量 `AUTH_MODE=simple`，用于在 App Attest 生产链路完成前替代裸露业务 API。
 - simple 模式中，客户端和服务端共享同一个 secret，对 canonical request hash 做 `HMAC-SHA256`，签名放在 `Authorization: Bearer <signature>`。
 - canonical request hash 继续包含 method、path、query、body hash、timestamp 和 nonce；服务端只接受 timestamp 与服务端时间偏移 `10` 秒内的请求，并对 nonce 做短期去重。
-- secret 不写入源码；Worker 通过 `SIMPLE_AUTH_SECRET` 或 `MUSEUMMUSE_SIMPLE_AUTH_SECRET` secret 注入，iOS App / Widget 通过 `MuseumBackendSimpleAuthSecret` Info.plist 构建配置或 `MUSEUMMUSE_SIMPLE_AUTH_SECRET` 环境变量注入。
+- secret 不写入源码；Worker 统一通过 `MUSEUMMUSE_SIMPLE_AUTH_SECRET` secret 注入，iOS App / Widget 通过 `MuseumBackendSimpleAuthSecret` Info.plist 构建配置注入。Xcode 使用已提交的 `Config/Secrets.xcconfig` 可选 include 未提交的 `Config/Secrets.local.xcconfig`，本地和 CI 只生成 local 文件或通过 build setting 注入真实 secret。
 - simple 模式只能提高普通抓包复用和脚本爬取成本，不提供设备真实性证明；当前 Worker 使用 D1 运行态表 `auth_nonces` 做短期 nonce 去重，该表不属于博物馆离线数据迁移表。
 
 推荐方案：
@@ -575,7 +574,7 @@ SHA256(
 
 - 本地服务默认仍开启鉴权。
 - 只有 `MUSEUMMUSE_AUTH_MODE=disabled` 且服务绑定 `127.0.0.1` 时，才允许跳过鉴权，避免误把无鉴权服务部署出去。
-- serverless 过渡目标路径是 `AUTH_MODE=simple`；未配置 `SIMPLE_AUTH_SECRET` / `MUSEUMMUSE_SIMPLE_AUTH_SECRET` 时，服务端必须返回 `503 simple_auth_secret_missing`，不能自动降级为无鉴权。当前 Cloudflare 实例尚未配置 simple auth secret，因此线上临时保持 `AUTH_MODE=disabled`，切换前必须先补 secret 和客户端签名验证。
+- serverless 过渡目标路径是 `AUTH_MODE=simple`；未配置 `MUSEUMMUSE_SIMPLE_AUTH_SECRET` 时，服务端必须返回 `503 simple_auth_secret_missing`，不能自动降级为无鉴权。Cloudflare Worker 配置默认使用 `AUTH_MODE=simple`，并在 `wrangler.jsonc` 声明必需 secret `MUSEUMMUSE_SIMPLE_AUTH_SECRET`；发布或验证前必须先配置同名 Worker secret，并让客户端、Widget 和 `scripts/probe_backend_simple_auth.py` 使用同一个 secret。
 - iOS Simulator 不稳定支持 App Attest 时，可以使用 debug-only mock attestation；该能力必须被编译条件和服务端环境双重限制。
 - 当前本地 debug auth 通过 `MUSEUMMUSE_AUTH_MODE=debug` 和 `MUSEUMMUSE_DEBUG_AUTH_SECRET` 启用，且服务端只接受 loopback 客户端。
 - debug auth 仍需要 `POST /v1/auth/challenge`、`POST /v1/auth/register`、`POST /v1/auth/session` 三步，业务请求继续携带短期 `Bearer` token、timestamp、nonce、canonical request hash 和 debug assertion。
@@ -848,20 +847,25 @@ Widget 必须继续满足：
    - `crawl_errors` 数量低于阈值。
 3. 启动本地 Python API，显式使用发布候选库：
    - `MUSEUMMUSE_DB_PATH=server/data/museummuse-live-all.sqlite`
-   - `MUSEUMMUSE_AUTH_MODE=disabled` 或本地 debug auth。
+   - `MUSEUMMUSE_AUTH_MODE=simple`
+   - `MUSEUMMUSE_SIMPLE_AUTH_SECRET={secret}`
 4. 客户端先指向本地服务调试：
    - `MUSEUMMUSE_BACKEND_BASE_URL=http://127.0.0.1:8000`
+   - `MUSEUMMUSE_SIMPLE_AUTH_SECRET={secret}`
+   - Xcode 编译前确保 `Config/Secrets.local.xcconfig` 存在并包含同一个 `MUSEUMMUSE_SIMPLE_AUTH_SECRET`；该文件必须保持未提交状态。
    - 验证 metadata、列表、详情、Widget 候选、动态数据源切换和图片瀑布流限流。
 5. 本地测试全部通过后，才同步到 Cloudflare：
    - 必须使用 `[@cloudflare](plugin://cloudflare@openai-curated-remote)` 插件能力完成远端检查、D1 SQL 执行和 Worker 发布；如果本地 Wrangler 没有可用 token，不要绕过该约束，改用插件提供的 Cloudflare API 能力。
    - 发布 `server/worker` Worker。
    - 将同一个 `server/data/museummuse-live-all.sqlite` 及其 manifest 迁移到 D1。
-   - 确认 Worker 环境变量、secret、D1 binding 和本地验证使用的 schema / 数据一致。
+   - 确认 Worker 环境变量、simple auth secret、D1 binding 和本地验证使用的 schema / 数据一致。
 6. Cloudflare 同步完成后，把客户端后端地址切回线上 Worker：
    - 默认使用 Info.plist 中的 `MuseumBackendBaseURL`。
    - 或显式设置 `MUSEUMMUSE_BACKEND_BASE_URL=https://museummuse-api.305301890.workers.dev`。
+   - 继续注入与 Worker secret 一致的 `MUSEUMMUSE_SIMPLE_AUTH_SECRET`。
 7. 在线上 Worker + D1 上再跑一遍回归：
-   - 后端 metadata / 列表 / 详情 / Widget 候选接口。
+   - 使用 `MUSEUMMUSE_SIMPLE_AUTH_SECRET={secret} python3 scripts/probe_backend_simple_auth.py --base-url https://museummuse-api.305301890.workers.dev` 验证后端 metadata / 列表 / Widget 候选接口，并确认无签名 `/v1` 请求被拒绝。
+   - 后端详情接口。
    - 后端客户端 DTO 映射和 source 选择相关单元测试。
    - 必要的模拟器 smoke 验证。
 8. 客户端通过 `dataVersion` 识别数据更新，清理旧 feed 缓存。
@@ -987,5 +991,5 @@ ORDER BY c.museum_id, c.sort_order;
 - 数据接入从“客户端直连官方源”调整为“离线爬虫 + 服务端 SQLite”。
 - 国博 QPS=1 从客户端运行时约束变为爬虫约束；上博离线爬虫可在用户批准后通过共享 limiter 尝试 QPS=10。
 - Widget network-only 的含义从“直连官方源”变为“直连服务端，不复用主 App 缓存”。
-- 服务端接口目标上需要 simple HMAC，后续生产需要 App Attest、短期 token、nonce 防重放和限流，不允许裸露业务 API。当前 Cloudflare 实例因尚未配置 simple auth secret 暂时保持 `AUTH_MODE=disabled`，不能把这个临时状态当作生产鉴权完成。
+- 服务端接口目标上需要 simple HMAC，后续生产需要 App Attest、短期 token、nonce 防重放和限流，不允许裸露业务 API。Cloudflare Worker 配置默认 `AUTH_MODE=simple`，后续本地和 Cloudflare 验证都必须带 `MUSEUMMUSE_SIMPLE_AUTH_SECRET`，并用签名 probe 或客户端请求验证 `/v1` 业务接口。
 - 新增博物馆完成标准需要增加“爬虫、SQLite schema、服务端接口、客户端 DTO 映射”。

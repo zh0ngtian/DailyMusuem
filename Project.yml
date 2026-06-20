@@ -5,10 +5,17 @@ options:
   deploymentTarget:
     iOS: "18.0"
 
+configFiles:
+  Debug: Config/Secrets.xcconfig
+  Release: Config/Secrets.xcconfig
+
 targets:
   DailyMuseum:
     type: application
     platform: iOS
+    configFiles:
+      Debug: Config/Secrets.xcconfig
+      Release: Config/Secrets.xcconfig
     attributes:
       SystemCapabilities:
         com.apple.ApplicationGroups.iOS:
@@ -63,6 +70,9 @@ targets:
   DailyMuseumWidgetExtension:
     type: app-extension
     platform: iOS
+    configFiles:
+      Debug: Config/Secrets.xcconfig
+      Release: Config/Secrets.xcconfig
     attributes:
       SystemCapabilities:
         com.apple.ApplicationGroups.iOS:

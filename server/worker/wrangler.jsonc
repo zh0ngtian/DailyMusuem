@@ -11,8 +11,11 @@
     "head_sampling_rate": 1
   },
   "vars": {
-    "AUTH_MODE": "disabled",
+    "AUTH_MODE": "simple",
     "DATA_VERSION": "2026-06-20T12:07:22Z"
+  },
+  "secrets": {
+    "required": ["MUSEUMMUSE_SIMPLE_AUTH_SECRET"]
   },
   "d1_databases": [
     {

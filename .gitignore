@@ -2,6 +2,11 @@
 .codex/
 .trae/
 .tmp-device/
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+Config/Secrets.local.xcconfig
 .swiftpm
 DerivedData/
 .deriveddata-generic/
@@ -10,6 +15,8 @@ DerivedData/
 .deriveddata-tests/
 .deriveddata*/
 build/
+__pycache__/
+*.pyc
 *.xcuserstate
 *.xccheckout
 *.xcscmblueprint
