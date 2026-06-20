@@ -144,6 +144,23 @@ final class WidgetStateAndSettingsTests: XCTestCase {
     }
 
     @MainActor
+    func testSettingsStorePersistsRequestLogAccessUnlocked() {
+        let store = SettingsStore(defaults: defaults)
+
+        XCTAssertFalse(store.isRequestLogAccessUnlocked)
+
+        store.saveRequestLogAccessUnlocked(true)
+
+        XCTAssertTrue(defaults.bool(forKey: SettingsKeys.requestLogAccessUnlocked))
+        XCTAssertTrue(SettingsStore(defaults: defaults).isRequestLogAccessUnlocked)
+
+        store.saveRequestLogAccessUnlocked(false)
+
+        XCTAssertFalse(defaults.bool(forKey: SettingsKeys.requestLogAccessUnlocked))
+        XCTAssertFalse(SettingsStore(defaults: defaults).isRequestLogAccessUnlocked)
+    }
+
+    @MainActor
     func testSettingsStorePersistsNaraDataSourceAndSeparateCategories() {
         let store = SettingsStore(defaults: defaults)
 
@@ -181,6 +198,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         defaults.set(20 * 60, forKey: SettingsKeys.widgetAutoRefreshEndMinutes)
         defaults.set(true, forKey: SettingsKeys.metShowsOnlyOnViewArtworks)
         defaults.set(2, forKey: SettingsKeys.artworkDetailFontScaleStep)
+        defaults.set(true, forKey: SettingsKeys.requestLogAccessUnlocked)
         defaults.set(NaraMuseumDataSource.colbase.rawValue, forKey: SettingsKeys.naraMuseumDataSource)
         defaults.set(
             "american-decorative-arts,modern-art",
@@ -214,6 +232,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertTrue(targetStore.metShowsOnlyOnViewArtworks)
         XCTAssertEqual(targetStore.artworkDetailFontScaleStep, 2)
         XCTAssertEqual(targetDefaults.integer(forKey: SettingsKeys.artworkDetailFontScaleStep), 2)
+        XCTAssertTrue(targetStore.isRequestLogAccessUnlocked)
         XCTAssertEqual(targetStore.naraMuseumDataSource, .colbase)
         XCTAssertEqual(targetStore.feedCategories(for: .met).map(\.id), ["american-decorative-arts", "modern-art"])
         XCTAssertEqual(targetStore.feedDisplayModeRawValue(for: .met), "list")

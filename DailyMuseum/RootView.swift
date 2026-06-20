@@ -4,6 +4,7 @@ import UIKit
 struct RootView: View {
     @ObservedObject var router: AppRouter
     @ObservedObject private var installPromptController = InstallPromptController.shared
+    @StateObject private var settings = SettingsStore.shared
     @State private var isShowingRequestLogs = false
 
     var body: some View {
@@ -15,7 +16,7 @@ struct RootView: View {
                     }
             }
 
-            if !isShowingRequestLogs {
+            if settings.isRequestLogAccessUnlocked && !isShowingRequestLogs {
                 logButton
             }
         }
@@ -36,6 +37,11 @@ struct RootView: View {
                 },
                 secondaryButton: .cancel(Text("取消"))
             )
+        }
+        .onChange(of: settings.isRequestLogAccessUnlocked) { _, isUnlocked in
+            if !isUnlocked {
+                isShowingRequestLogs = false
+            }
         }
     }
 

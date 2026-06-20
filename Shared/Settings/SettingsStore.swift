@@ -109,6 +109,7 @@ final class SettingsStore: ObservableObject {
     @Published private(set) var widgetAutoRefreshEndMinutes: Int
     @Published private(set) var metShowsOnlyOnViewArtworks: Bool
     @Published private(set) var artworkDetailFontScaleStep: Int
+    @Published private(set) var isRequestLogAccessUnlocked: Bool
     @Published private(set) var naraMuseumDataSource: NaraMuseumDataSource
 
     init(
@@ -123,6 +124,7 @@ final class SettingsStore: ObservableObject {
         widgetAutoRefreshEndMinutes = autoRefreshWindow.endMinutes
         metShowsOnlyOnViewArtworks = resolvedDefaults.bool(forKey: SettingsKeys.metShowsOnlyOnViewArtworks)
         artworkDetailFontScaleStep = ArtworkDetailFontScale.storedStep(in: resolvedDefaults)
+        isRequestLogAccessUnlocked = resolvedDefaults.bool(forKey: SettingsKeys.requestLogAccessUnlocked)
         naraMuseumDataSource = NaraMuseumDataSource.storedValue(in: resolvedDefaults)
     }
 
@@ -163,6 +165,12 @@ final class SettingsStore: ObservableObject {
         let clampedStep = ArtworkDetailFontScale.clampedStep(step)
         artworkDetailFontScaleStep = clampedStep
         defaults.set(clampedStep, forKey: SettingsKeys.artworkDetailFontScaleStep)
+        defaults.synchronize()
+    }
+
+    func saveRequestLogAccessUnlocked(_ isUnlocked: Bool) {
+        isRequestLogAccessUnlocked = isUnlocked
+        defaults.set(isUnlocked, forKey: SettingsKeys.requestLogAccessUnlocked)
         defaults.synchronize()
     }
 
@@ -283,6 +291,7 @@ final class SettingsStore: ObservableObject {
         widgetAutoRefreshEndMinutes = autoRefreshWindow.endMinutes
         metShowsOnlyOnViewArtworks = defaults.bool(forKey: SettingsKeys.metShowsOnlyOnViewArtworks)
         artworkDetailFontScaleStep = ArtworkDetailFontScale.storedStep(in: defaults)
+        isRequestLogAccessUnlocked = defaults.bool(forKey: SettingsKeys.requestLogAccessUnlocked)
         naraMuseumDataSource = NaraMuseumDataSource.storedValue(in: defaults)
     }
 
@@ -326,6 +335,7 @@ final class SettingsStore: ObservableObject {
             SettingsKeys.widgetAutoRefreshEndMinutes,
             SettingsKeys.metShowsOnlyOnViewArtworks,
             SettingsKeys.artworkDetailFontScaleStep,
+            SettingsKeys.requestLogAccessUnlocked,
             SettingsKeys.museumDisplayOrder,
             SettingsKeys.favoritesArtworks
         ]

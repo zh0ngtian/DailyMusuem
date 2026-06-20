@@ -11,6 +11,7 @@ enum SettingsKeys {
     static let widgetAutoRefreshEndMinutes = "widget.autoRefreshEndMinutes"
     static let metShowsOnlyOnViewArtworks = "met.showsOnlyOnViewArtworks"
     static let artworkDetailFontScaleStep = "artworkDetail.fontScaleStep"
+    static let requestLogAccessUnlocked = "requestLog.accessUnlocked"
     static let museumDisplayOrder = "museum.displayOrder"
     static let favoritesArtworks = "favorites.artworks"
 

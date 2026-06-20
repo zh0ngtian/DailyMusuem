@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var isShowingConfigurationImporter = false
     @State private var isHandlingConfigurationFile = false
     @State private var configurationAlertState: SettingsConfigurationAlertState?
+    @State private var appVersionTapCount = 0
 
     var body: some View {
         Form {
@@ -83,9 +84,25 @@ struct SettingsView: View {
 
             Section {
                 LabeledContent("App 版本", value: appVersionInfo.version)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        registerAppVersionTap()
+                    }
                 LabeledContent("Build 号", value: appVersionInfo.build)
             } header: {
                 Text("关于")
+            }
+
+            if settings.isRequestLogAccessUnlocked {
+                Section {
+                    Button {
+                        hideRequestLogAccess()
+                    } label: {
+                        Label("隐藏日志显示", systemImage: "eye.slash")
+                    }
+                } header: {
+                    Text("日志")
+                }
             }
         }
         .navigationTitle("设置")
@@ -213,6 +230,23 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+
+    private func registerAppVersionTap() {
+        guard !settings.isRequestLogAccessUnlocked else {
+            return
+        }
+
+        appVersionTapCount += 1
+        if appVersionTapCount >= 5 {
+            settings.saveRequestLogAccessUnlocked(true)
+            appVersionTapCount = 0
+        }
+    }
+
+    private func hideRequestLogAccess() {
+        appVersionTapCount = 0
+        settings.saveRequestLogAccessUnlocked(false)
     }
 
     private func importConfiguration(from result: Result<URL, Error>) {
