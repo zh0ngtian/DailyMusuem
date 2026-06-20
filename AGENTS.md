@@ -153,13 +153,14 @@
 - `--page-size {N}` 可用于支持分页大小的候选搜索 crawler，例如 Japan Search 和上海博物馆；它只减少候选页请求次数，不改变详情页抓取上限。用户已允许后续批量尝试 `50`，但若源站失败率升高，应回退到默认 `10`。
 - `--request-interval {seconds}` 可用于支持该参数的非国博 crawler 调整请求间隔；`--concurrency {N}` 可用于支持该参数的非国博长详情 crawler 并发抓取详情。用户已允许后续非国博来源尝试 `--request-interval 0.1 --concurrency 10`（约 `10 QPS` 上限）。这两个参数禁止用于国博，国博仍必须遵守单独 API 调用预算和反爬限制。
 - 本地客户端连接后端验证全量数据时，后端必须显式设置 `MUSEUMMUSE_DB_PATH=server/data/museummuse-live-all.sqlite`；`server/data/museummuse-live-full.sqlite` 是早期每源 `10` 条的小样本库，继续指向它会导致客户端看起来只能加载 `10` 条。
-- Cloudflare serverless 部署使用 `server/worker` 中的 Worker 实现，Worker 名称为 `museummuse-api`，D1 绑定名为 `DB`，当前 D1 数据库为 `musuem_muse`（UUID：`9ab953e7-0af0-4c08-863a-85717e4fc941`）。iOS 主 App 和 Widget 的默认 `MuseumBackendBaseURL` 指向 `https://museummuse-api.305301890.workers.dev`。
+- Cloudflare serverless 部署使用 `server/worker` 中的 Worker 实现，Worker 名称为 `museummuse-api`，D1 绑定名为 `DB`，当前 D1 数据库为 `musuem_muse`（UUID：`9ab953e7-0af0-4c08-863a-85717e4fc941`）。iOS 主 App 和 Widget 的默认 `MuseumBackendBaseURL` 指向 `https://museummuse-api.305301890.workers.dev`，当前 Worker 配置为 `AUTH_MODE=simple`。
 - 将 `server/data` 中的 SQLite 迁移到 D1 时，以 `server/data/museummuse-live-all.sqlite` 和同名 manifest 为准；导入 SQL 需要使用 `sqlite3 {db} ".dump --newlines"` 生成，并移除 `BEGIN TRANSACTION` / `COMMIT` 等 D1 不接受的事务包装，不能使用会输出 `unistr(...)` 的默认 `.dump`。
 - 上海博物馆和 Met 这类长详情任务会在 live crawl 中逐条提交，并每 `100` 个候选输出一次进度；如果任务中断，后续应使用 `--skip-existing` 续跑，不能直接认为已完成。
 - 全量交付前必须运行 `python -m server.crawler.main status --db {SQLite}`；只有所有正式 crawler target 都显示 `completion=complete`，才能视为“全量爬取完成”。样本数据、`--max-details` smoke run 或只有部分来源成功不能当作全量完成证据。
-- 服务端 `/v1` 业务接口默认需要鉴权；`MUSEUMMUSE_AUTH_MODE=disabled` 原则上只允许 loopback 本地开发跳过鉴权。当前 Cloudflare Worker 为了让现有客户端无需 App Attest 即可访问，临时以 `AUTH_MODE=disabled` 部署；该模式只适合作为当前 serverless 联调路径，不能视为生产鉴权完成。
+- 服务端 `/v1` 业务接口默认需要鉴权；`MUSEUMMUSE_AUTH_MODE=disabled` 原则上只允许 loopback 本地开发跳过鉴权。当前 App Attest 生产链路未完成前，Cloudflare Worker 和本地 Python API 支持临时轻量 `AUTH_MODE=simple`：客户端用同一 secret 对 canonical request hash 做 HMAC-SHA256，业务请求必须携带 `Authorization: Bearer <signature>`、`X-MuseumMuse-Timestamp`、`X-MuseumMuse-Nonce`、`X-MuseumMuse-Request-Hash` 和 `X-MuseumMuse-App-Version`，服务端只接受时间偏移 `10` 秒内的请求并做短期 nonce 去重。
+- `simple` 模式只是防止裸接口和简单抓包复用的过渡方案，不等同于生产 App Attest；secret 不能写死在源码，Worker 侧必须通过 `SIMPLE_AUTH_SECRET` 或 `MUSEUMMUSE_SIMPLE_AUTH_SECRET` secret 配置，客户端通过 `MuseumBackendSimpleAuthSecret` Info.plist 构建配置或 `MUSEUMMUSE_SIMPLE_AUTH_SECRET` 环境变量注入。当前 Worker 会在 D1 中按需创建运行态表 `auth_nonces` 做短期 nonce 去重，该表不属于博物馆离线数据迁移表。
 - Simulator 本地调试可使用 `MUSEUMMUSE_AUTH_MODE=debug` 和 `MUSEUMMUSE_DEBUG_AUTH_SECRET` 启用 debug auth；客户端仍需通过 challenge / register / session 获取短期 token，并在业务请求中携带 timestamp、nonce、request hash 和 debug assertion。
-- 未配置正式 App Attest 校验时，非本地 debug / disabled 模式不能当作生产可用鉴权；服务端应返回 `501 app_attest_not_configured`。
+- 未配置正式 App Attest 校验时，非 `simple` / 本地 debug / disabled 模式不能当作生产可用鉴权；服务端应返回 `501 app_attest_not_configured`。
 
 #### 3.1.1 大都会艺术博物馆
 
@@ -1001,6 +1002,7 @@
 ### 6.1 默认验证策略
 
 - 后续每次修复问题或新增功能后，都需要优先使用模拟器 `iPhone 17 Pro` 作为默认构建和运行目标再交付。
+- 当前 Codex 沙箱内执行 `xcrun simctl` 或 `xcodebuild` 访问模拟器时，可能出现 `CoreSimulatorService connection became invalid`、`simdiskimaged crashed or is not responding`、`Operation not permitted`、`No available simulator runtimes` 或 `iOS 26.5 Platform Not Installed` 等假性失败；这不一定表示本机缺少 runtime 或项目构建失败。遇到这类错误时，应先用脱离沙箱的 Xcode CLI 路径复核，例如 `xcrun simctl list runtimes` 和对应 `xcodebuild ... build-for-testing`，再判断是否真的是代码或环境问题。
 - 运行 iOS 单元测试时，当前默认关闭 parallel testing：
   - `DailyMuseumTests` scheme 不应使用克隆模拟器并行执行
   - 当前环境下 clone simulator 容易在 `Failed to install or launch the test runner` 阶段失败

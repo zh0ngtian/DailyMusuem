@@ -143,6 +143,8 @@ server/
 ```bash
 python -m server.crawler.seed_sample_data --db server/data/museummuse.sqlite
 MUSEUMMUSE_DB_PATH=server/data/museummuse-live-all.sqlite MUSEUMMUSE_AUTH_MODE=disabled python -m uvicorn server.api.app:app --host 127.0.0.1 --port 8000
+# 或启用当前轻量 HMAC 鉴权：
+MUSEUMMUSE_DB_PATH=server/data/museummuse-live-all.sqlite MUSEUMMUSE_AUTH_MODE=simple MUSEUMMUSE_SIMPLE_AUTH_SECRET=dev-secret python -m uvicorn server.api.app:app --host 127.0.0.1 --port 8000
 ```
 
 真实数据抓取方式示例：
@@ -505,6 +507,14 @@ PRAGMA temp_store = MEMORY;
 - 每个请求都要具备短期有效性、设备绑定、防重放和服务端限流。
 - 认证失败返回 `401` 或 `403`；超过频率返回 `429`。
 
+当前过渡实现：
+
+- 代码已实现轻量 `AUTH_MODE=simple`，用于在 App Attest 生产链路完成前替代裸露业务 API。
+- simple 模式中，客户端和服务端共享同一个 secret，对 canonical request hash 做 `HMAC-SHA256`，签名放在 `Authorization: Bearer <signature>`。
+- canonical request hash 继续包含 method、path、query、body hash、timestamp 和 nonce；服务端只接受 timestamp 与服务端时间偏移 `10` 秒内的请求，并对 nonce 做短期去重。
+- secret 不写入源码；Worker 通过 `SIMPLE_AUTH_SECRET` 或 `MUSEUMMUSE_SIMPLE_AUTH_SECRET` secret 注入，iOS App / Widget 通过 `MuseumBackendSimpleAuthSecret` Info.plist 构建配置或 `MUSEUMMUSE_SIMPLE_AUTH_SECRET` 环境变量注入。
+- simple 模式只能提高普通抓包复用和脚本爬取成本，不提供设备真实性证明；当前 Worker 使用 D1 运行态表 `auth_nonces` 做短期 nonce 去重，该表不属于博物馆离线数据迁移表。
+
 推荐方案：
 
 | 环节 | 参与方 | 机制 | 目的 |
@@ -564,11 +574,12 @@ SHA256(
 
 - 本地服务默认仍开启鉴权。
 - 只有 `MUSEUMMUSE_AUTH_MODE=disabled` 且服务绑定 `127.0.0.1` 时，才允许跳过鉴权，避免误把无鉴权服务部署出去。
+- 当前 serverless 过渡路径使用 `AUTH_MODE=simple`；未配置 `SIMPLE_AUTH_SECRET` / `MUSEUMMUSE_SIMPLE_AUTH_SECRET` 时，服务端必须返回 `503 simple_auth_secret_missing`，不能自动降级为无鉴权。
 - iOS Simulator 不稳定支持 App Attest 时，可以使用 debug-only mock attestation；该能力必须被编译条件和服务端环境双重限制。
 - 当前本地 debug auth 通过 `MUSEUMMUSE_AUTH_MODE=debug` 和 `MUSEUMMUSE_DEBUG_AUTH_SECRET` 启用，且服务端只接受 loopback 客户端。
 - debug auth 仍需要 `POST /v1/auth/challenge`、`POST /v1/auth/register`、`POST /v1/auth/session` 三步，业务请求继续携带短期 `Bearer` token、timestamp、nonce、canonical request hash 和 debug assertion。
 - debug assertion 当前使用 `MUSEUMMUSE_DEBUG_AUTH_SECRET` 对 challenge 或 request hash 做 HMAC-SHA256；该 secret 只允许本地调试注入，不允许写死进 Release 包。
-- 未配置正式 App Attest 校验时，非本地 debug / disabled 模式的业务 API 在必要 Header 存在后返回 `501 app_attest_not_configured`，避免误以为生产鉴权已经完成。
+- 未配置正式 App Attest 校验时，非 simple / 本地 debug / disabled 模式的业务 API 在必要 Header 存在后返回 `501 app_attest_not_configured`，避免误以为生产鉴权已经完成。
 
 限制与后续增强：
 
@@ -690,7 +701,7 @@ GET /v1/widget/candidate?scope=single:nmc&source=default&category_ids=...&exclud
 - `scope=all` 时服务端可在支持 Widget 的六馆中选择。
 - `scope=single:{museum_id}` 时只能返回该馆数据，并遵守该馆当前设置。
 - `exclude_keys` 传入客户端已展示历史，避免短时间重复。
-- 鉴权：需要。Widget 请求同样必须使用 App Attest 绑定的短期 token。
+- 鉴权：需要。当前过渡实现使用 simple HMAC；生产目标仍是 Widget 请求同样使用 App Attest 绑定的短期 token。
 
 如果首版想减少后端复杂度，也可以先不做该接口，让 Widget 继续调用列表接口并在客户端推进候选。但最终建议提供专用候选接口，便于 serverless 统一控制随机和去重策略。
 
@@ -724,7 +735,7 @@ GET /v1/widget/candidate?scope=single:nmc&source=default&category_ids=...&exclud
 - SQLite 文件随函数包、镜像或只读层发布；冷启动时打开只读连接。
 - 如果数据文件超过平台包体限制，需要改为对象存储下载到临时目录，或迁移到平台托管 SQLite。
 - 不依赖本地持久化写入，不启用 WAL。
-- 鉴权需要短期状态存储：nonce、限流计数、设备注册信息不能放 SQLite 发布包里；serverless 部署时需要使用平台 KV、Redis、DynamoDB、D1 或等价托管存储。
+- 鉴权需要短期状态存储：nonce、限流计数、设备注册信息不能放 SQLite 发布包里；serverless 部署时需要使用平台 KV、Redis、DynamoDB、D1 或等价托管存储。当前 simple HMAC Worker 使用 D1 运行态表 `auth_nonces` 做 nonce 去重，该表由 Worker 按需创建，不随博物馆 SQLite dump 迁移。
 - 数据更新流程是“离线生成新 SQLite -> 验证 -> 发布新服务版本或替换只读数据文件”。
 
 ## 8. 客户端改造设计
@@ -764,7 +775,7 @@ DTO 到现有模型的转换必须保持当前 `Artwork` 字段语义：
 鉴权接入要求：
 
 - `MuseumBackendClient` 只负责业务请求，鉴权细节放在 `MuseumBackendAuthProvider`，避免列表、详情、Widget 各自拼 Header。
-- `MuseumBackendAuthProvider` 负责 App Attest 注册、短期 token 刷新、nonce 生成、request hash 计算和 assertion 生成。
+- `MuseumBackendAuthProvider` 负责当前 simple HMAC 签名，后续生产实现再负责 App Attest 注册、短期 token 刷新、nonce 生成、request hash 计算和 assertion 生成。
 - token 过期时只重试一次刷新会话；连续鉴权失败要进入明确错误态，不要无限重试。
 - Widget extension 不能直接依赖主 App 内存中的 token；需要通过 App Group 保存最小必要的设备注册状态，或在 Widget 进程内独立刷新短期 token。
 - 本地开发 mock auth 必须用编译条件隔离，不能随 Release 包发布。
@@ -948,7 +959,7 @@ ORDER BY c.museum_id, c.sort_order;
 | SQLite 文件过大 | serverless 包体超限或冷启动慢 | 不存图片二进制；必要时压缩发布或迁移到托管 SQLite |
 | 数据变旧 | 用户看到过期展品 | manifest 暴露 `dataVersion`；建立定期离线抓取 |
 | 图片 URL 防盗链 | 客户端图片加载失败 | 保留原始 `object_url`；后续可加图片代理，但不进首版 |
-| 鉴权被逆向或 hook 绕过 | 接口仍可能被真实 App 自动化访问 | App Attest 提高伪造成本，服务端继续做 per-device / IP 限流和异常封禁 |
+| 鉴权被逆向或 hook 绕过 | 接口仍可能被真实 App 自动化访问 | 当前 simple HMAC 只能挡住低成本复用；App Attest 提高伪造成本，服务端继续做 per-device / IP 限流和异常封禁 |
 | 后端随机分页不稳定 | 上滑加载重复或漏项 | 使用 seed + cursor，客户端分类变更时重置 cursor |
 | Widget 误用主 App 缓存 | 刷新结果不真实 | Widget 请求强制 `reloadIgnoringLocalCacheData`，保留刷新日志 |
 
@@ -959,5 +970,5 @@ ORDER BY c.museum_id, c.sort_order;
 - 数据接入从“客户端直连官方源”调整为“离线爬虫 + 服务端 SQLite”。
 - 国博 QPS=1 从客户端运行时约束变为爬虫约束；上博离线爬虫可在用户批准后通过共享 limiter 尝试 QPS=10。
 - Widget network-only 的含义从“直连官方源”变为“直连服务端，不复用主 App 缓存”。
-- 服务端接口需要 App Attest、短期 token、nonce 防重放和限流，不允许裸露业务 API。
+- 服务端接口当前需要 simple HMAC，后续生产需要 App Attest、短期 token、nonce 防重放和限流，不允许裸露业务 API。
 - 新增博物馆完成标准需要增加“爬虫、SQLite schema、服务端接口、客户端 DTO 映射”。

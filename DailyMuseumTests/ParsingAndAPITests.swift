@@ -952,6 +952,44 @@ final class ParsingAndAPITests: XCTestCase {
         )
     }
 
+    func testMuseumBackendSimpleAuthProviderIssuesSignedBusinessHeaders() async throws {
+        let provider = MuseumBackendSimpleAuthProvider(secret: "simple-secret", appVersion: "1.0 1")
+
+        let headers = try await provider.authenticatedHeaders(
+            method: "GET",
+            path: "/v1/widget/candidate",
+            queryItems: [
+                URLQueryItem(name: "scope", value: "all"),
+                URLQueryItem(name: "category_ids", value: "space value")
+            ],
+            body: nil
+        )
+
+        XCTAssertEqual(headers["X-MuseumMuse-Auth-Mode"], "simple")
+        XCTAssertEqual(headers["X-MuseumMuse-App-Version"], "1.0 1")
+        XCTAssertNil(headers["X-MuseumMuse-App-Attest-KeyID"])
+        XCTAssertNil(headers["X-MuseumMuse-App-Attest-Assertion"])
+
+        let timestamp = try XCTUnwrap(headers["X-MuseumMuse-Timestamp"])
+        let nonce = try XCTUnwrap(headers["X-MuseumMuse-Nonce"])
+        let expectedHash = MuseumBackendRequestSigner.canonicalRequestHash(
+            method: "GET",
+            path: "/v1/widget/candidate",
+            queryItems: [
+                URLQueryItem(name: "scope", value: "all"),
+                URLQueryItem(name: "category_ids", value: "space value")
+            ],
+            body: Data(),
+            timestamp: timestamp,
+            nonce: nonce
+        )
+        XCTAssertEqual(headers["X-MuseumMuse-Request-Hash"], expectedHash)
+        XCTAssertEqual(
+            headers["Authorization"],
+            "Bearer \(MuseumBackendRequestSigner.hmacHex(for: expectedHash, secret: "simple-secret"))"
+        )
+    }
+
     private func loadFixture(named fileName: String) throws -> String {
         let fileName = fileName as NSString
         let resourceURL = try XCTUnwrap(

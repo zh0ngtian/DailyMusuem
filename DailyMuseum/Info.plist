@@ -37,6 +37,8 @@
 	</array>
 	<key>MuseumBackendBaseURL</key>
 	<string>https://museummuse-api.305301890.workers.dev</string>
+	<key>MuseumBackendSimpleAuthSecret</key>
+	<string>$(MUSEUMMUSE_SIMPLE_AUTH_SECRET)</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>允许保存展品图片到系统相册</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

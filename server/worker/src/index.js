@@ -4,6 +4,7 @@ const JSON_HEADERS = {
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
+const SIMPLE_AUTH_WINDOW_SECONDS = 10;
 
 export default {
   async fetch(request, env) {
@@ -24,7 +25,7 @@ export default {
         return authUnavailable();
       }
 
-      const authError = requireBusinessAuth(request, env);
+      const authError = await requireBusinessAuth(request, env);
       if (authError) {
         return authError;
       }
@@ -98,10 +99,13 @@ class HttpError extends Error {
   }
 }
 
-function requireBusinessAuth(request, env) {
+async function requireBusinessAuth(request, env) {
   const mode = String(env.AUTH_MODE || "").trim().toLowerCase();
   if (mode === "disabled") {
     return null;
+  }
+  if (mode === "simple") {
+    return requireSimpleAuth(request, env);
   }
 
   const authorization = request.headers.get("authorization") || "";
@@ -120,6 +124,151 @@ function requireBusinessAuth(request, env) {
   }
 
   return errorResponse(501, "app_attest_not_configured", "App Attest verification is not configured for this server.");
+}
+
+async function requireSimpleAuth(request, env) {
+  const authorization = request.headers.get("authorization") || "";
+  const timestamp = request.headers.get("x-museummuse-timestamp") || "";
+  const nonce = request.headers.get("x-museummuse-nonce") || "";
+  const requestHash = request.headers.get("x-museummuse-request-hash") || "";
+  const appVersion = request.headers.get("x-museummuse-app-version") || "";
+  const requiredHeadersPresent = [
+    authorization.startsWith("Bearer "),
+    timestamp.length > 0,
+    nonce.length > 0,
+    requestHash.length > 0,
+    appVersion.length > 0
+  ].every(Boolean);
+
+  if (!requiredHeadersPresent) {
+    return errorResponse(401, "authentication_required", "Authentication is required.");
+  }
+
+  const secret = simpleAuthSecret(env);
+  if (!secret) {
+    return errorResponse(503, "simple_auth_secret_missing", "SIMPLE_AUTH_SECRET or MUSEUMMUSE_SIMPLE_AUTH_SECRET is required in simple auth mode.");
+  }
+
+  const requestTime = Number(timestamp);
+  if (!Number.isInteger(requestTime)) {
+    return errorResponse(401, "invalid_timestamp", "Invalid request timestamp.");
+  }
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - requestTime) > SIMPLE_AUTH_WINDOW_SECONDS) {
+    return errorResponse(401, "expired_request", "Request timestamp is outside the allowed window.");
+  }
+
+  const expectedHash = await canonicalRequestHash(request, timestamp, nonce);
+  if (!constantTimeEqual(requestHash, expectedHash)) {
+    return errorResponse(401, "invalid_request_hash", "Request hash does not match request.");
+  }
+
+  const expectedSignature = await hmacHex(secret, requestHash);
+  const actualSignature = authorization.replace(/^Bearer\s+/i, "").trim();
+  if (!constantTimeEqual(actualSignature, expectedSignature)) {
+    return errorResponse(401, "invalid_signature", "Invalid auth signature.");
+  }
+
+  const replayError = await consumeSimpleNonce(env, nonce, now);
+  if (replayError) {
+    return replayError;
+  }
+  return null;
+}
+
+function simpleAuthSecret(env) {
+  const secret = String(env.MUSEUMMUSE_SIMPLE_AUTH_SECRET || env.SIMPLE_AUTH_SECRET || "").trim();
+  return secret.length > 0 ? secret : null;
+}
+
+async function canonicalRequestHash(request, timestamp, nonce) {
+  const url = new URL(request.url);
+  const queryPairs = Array.from(url.searchParams.entries()).sort((lhs, rhs) => {
+    if (lhs[0] === rhs[0]) {
+      return lhs[1] < rhs[1] ? -1 : lhs[1] > rhs[1] ? 1 : 0;
+    }
+    return lhs[0] < rhs[0] ? -1 : 1;
+  });
+  const canonicalQuery = queryPairs
+    .map(([name, value]) => `${formURLEncoded(name)}=${formURLEncoded(value)}`)
+    .join("&");
+  const bodyHash = await sha256Hex(new Uint8Array(await request.clone().arrayBuffer()));
+  const canonical = [
+    request.method.toUpperCase(),
+    canonicalPathname(url),
+    canonicalQuery,
+    bodyHash,
+    timestamp,
+    nonce
+  ].join("\n");
+  return sha256Hex(textEncoder.encode(canonical));
+}
+
+function canonicalPathname(url) {
+  try {
+    return decodeURI(url.pathname);
+  } catch {
+    return url.pathname;
+  }
+}
+
+async function hmacHex(secret, value) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    textEncoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  return hex(new Uint8Array(await crypto.subtle.sign("HMAC", key, textEncoder.encode(value))));
+}
+
+async function sha256Hex(data) {
+  return hex(new Uint8Array(await crypto.subtle.digest("SHA-256", data)));
+}
+
+function formURLEncoded(value) {
+  return encodeURIComponent(value)
+    .replace(/[!'()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`)
+    .replace(/%20/g, "+");
+}
+
+function hex(bytes) {
+  return Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function consumeSimpleNonce(env, nonce, now) {
+  if (!env.DB) {
+    return errorResponse(503, "nonce_store_unavailable", "Nonce store is unavailable.");
+  }
+  const key = `simple:${nonce}`;
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS auth_nonces (
+      nonce TEXT PRIMARY KEY,
+      expires_at INTEGER NOT NULL
+    )`
+  ).run();
+  await env.DB.prepare("DELETE FROM auth_nonces WHERE expires_at <= ?").bind(now).run();
+  const result = await env.DB.prepare("INSERT OR IGNORE INTO auth_nonces (nonce, expires_at) VALUES (?, ?)")
+    .bind(key, now + SIMPLE_AUTH_WINDOW_SECONDS)
+    .run();
+  if (Number(result.meta?.changes ?? 1) === 0) {
+    return errorResponse(401, "replayed_request", "Request nonce has already been used.");
+  }
+  return null;
+}
+
+function constantTimeEqual(lhs, rhs) {
+  if (lhs.length !== rhs.length) {
+    return false;
+  }
+  let difference = 0;
+  for (let index = 0; index < lhs.length; index += 1) {
+    difference |= lhs.charCodeAt(index) ^ rhs.charCodeAt(index);
+  }
+  return difference === 0;
 }
 
 function authUnavailable() {

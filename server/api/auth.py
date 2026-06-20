@@ -18,6 +18,7 @@ CHALLENGE_TTL_SECONDS = 300
 SESSION_TTL_SECONDS = 30 * 60
 NONCE_TTL_SECONDS = 10 * 60
 MAX_TIMESTAMP_SKEW_SECONDS = 5 * 60
+SIMPLE_AUTH_WINDOW_SECONDS = 10
 
 _lock = threading.Lock()
 _challenges: dict[str, float] = {}
@@ -77,6 +78,9 @@ async def require_business_auth(request: Request) -> None:
     if auth_mode == "debug" and is_local:
         await _require_debug_auth(request)
         return
+    if auth_mode == "simple":
+        await _require_simple_auth(request)
+        return
 
     _require_headers_present(request)
     raise HTTPException(
@@ -127,6 +131,10 @@ def issue_debug_session(request: Request, payload: DebugAuthSessionRequest) -> A
 
 def debug_assertion_for(value: str) -> str:
     return hmac.new(_debug_secret(), value.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def simple_auth_signature_for(value: str) -> str:
+    return hmac.new(_simple_secret(), value.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
 def canonical_request_hash(
@@ -194,6 +202,40 @@ async def _require_debug_auth(request: Request) -> None:
     _consume_nonce(device_id=str(token_payload["device_id"]), nonce=nonce, now=now)
 
 
+async def _require_simple_auth(request: Request) -> None:
+    _require_simple_headers_present(request)
+    authorization = request.headers["authorization"]
+    timestamp = request.headers["x-museummuse-timestamp"]
+    nonce = request.headers["x-museummuse-nonce"]
+    request_hash = request.headers["x-museummuse-request-hash"]
+
+    now = int(time.time())
+    try:
+        request_time = int(timestamp)
+    except ValueError:
+        _raise_auth("invalid_timestamp", "Invalid request timestamp.")
+    if abs(now - request_time) > SIMPLE_AUTH_WINDOW_SECONDS:
+        _raise_auth("expired_request", "Request timestamp is outside the allowed window.")
+
+    body = await request.body()
+    expected_hash = canonical_request_hash(
+        method=request.method,
+        path=request.url.path,
+        query_items=[(key, value) for key, value in request.query_params.multi_items()],
+        body=body,
+        timestamp=timestamp,
+        nonce=nonce,
+    )
+    if not hmac.compare_digest(request_hash, expected_hash):
+        _raise_auth("invalid_request_hash", "Request hash does not match request.")
+
+    expected_signature = simple_auth_signature_for(request_hash)
+    actual_signature = authorization.removeprefix("Bearer ").strip()
+    if not hmac.compare_digest(actual_signature, expected_signature):
+        _raise_auth("invalid_signature", "Invalid auth signature.")
+    _consume_nonce(device_id="simple", nonce=nonce, now=now, ttl_seconds=SIMPLE_AUTH_WINDOW_SECONDS)
+
+
 def _auth_mode() -> str:
     return os.getenv("MUSEUMMUSE_AUTH_MODE", "").strip().lower()
 
@@ -221,12 +263,38 @@ def _require_headers_present(request: Request) -> None:
         _raise_auth("authentication_required", "Authentication is required.")
 
 
+def _require_simple_headers_present(request: Request) -> None:
+    authorization = request.headers.get("authorization", "")
+    required_values = [
+        authorization.startswith("Bearer "),
+        bool(request.headers.get("x-museummuse-timestamp")),
+        bool(request.headers.get("x-museummuse-nonce")),
+        bool(request.headers.get("x-museummuse-request-hash")),
+        bool(request.headers.get("x-museummuse-app-version")),
+    ]
+    if not all(required_values):
+        _raise_auth("authentication_required", "Authentication is required.")
+
+
 def _debug_secret() -> bytes:
     secret = os.getenv("MUSEUMMUSE_DEBUG_AUTH_SECRET", "").strip()
     if not secret:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={"code": "debug_auth_secret_missing", "message": "MUSEUMMUSE_DEBUG_AUTH_SECRET is required in debug auth mode."},
+        )
+    return secret.encode("utf-8")
+
+
+def _simple_secret() -> bytes:
+    secret = os.getenv("MUSEUMMUSE_SIMPLE_AUTH_SECRET", "").strip() or os.getenv("SIMPLE_AUTH_SECRET", "").strip()
+    if not secret:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "simple_auth_secret_missing",
+                "message": "MUSEUMMUSE_SIMPLE_AUTH_SECRET or SIMPLE_AUTH_SECRET is required in simple auth mode.",
+            },
         )
     return secret.encode("utf-8")
 
@@ -268,13 +336,13 @@ def _consume_challenge(challenge: str) -> None:
         _raise_auth("invalid_challenge", "Challenge is invalid or expired.")
 
 
-def _consume_nonce(*, device_id: str, nonce: str, now: int) -> None:
+def _consume_nonce(*, device_id: str, nonce: str, now: int, ttl_seconds: int = NONCE_TTL_SECONDS) -> None:
     nonce_key = f"{device_id}:{nonce}"
     with _lock:
         _prune_locked(now)
         if nonce_key in _nonces:
             _raise_auth("replayed_request", "Request nonce has already been used.")
-        _nonces[nonce_key] = now + NONCE_TTL_SECONDS
+        _nonces[nonce_key] = now + ttl_seconds
 
 
 def _prune_locked(now: int) -> None:

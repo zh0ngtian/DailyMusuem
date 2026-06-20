@@ -74,10 +74,63 @@ struct MuseumBackendLocalAuthProvider: MuseumBackendAuthProviding {
 
 enum MuseumBackendAuthProviderFactory {
     static func defaultProvider(baseURL: URL, session: URLSession) -> MuseumBackendAuthProviding {
+        if let secret = MuseumBackendSimpleAuthProvider.configuredSecret {
+            return MuseumBackendSimpleAuthProvider(secret: secret)
+        }
         if let secret = MuseumBackendDebugAuthProvider.configuredSecret {
             return MuseumBackendDebugAuthProvider(baseURL: baseURL, session: session, secret: secret)
         }
         return MuseumBackendLocalAuthProvider()
+    }
+}
+
+struct MuseumBackendSimpleAuthProvider: MuseumBackendAuthProviding {
+    private let secret: String
+    private let appVersion: String
+
+    init(
+        secret: String,
+        appVersion: String = MuseumBackendLocalAuthProvider.appVersion
+    ) {
+        self.secret = secret
+        self.appVersion = appVersion.isEmpty ? "unknown" : appVersion
+    }
+
+    func authenticatedHeaders(
+        method: String,
+        path: String,
+        queryItems: [URLQueryItem],
+        body: Data?
+    ) async throws -> [String: String] {
+        let timestamp = String(Int(Date().timeIntervalSince1970))
+        let nonce = UUID().uuidString
+        let requestHash = MuseumBackendRequestSigner.canonicalRequestHash(
+            method: method,
+            path: path,
+            queryItems: queryItems,
+            body: body ?? Data(),
+            timestamp: timestamp,
+            nonce: nonce
+        )
+        return [
+            "Authorization": "Bearer \(MuseumBackendRequestSigner.hmacHex(for: requestHash, secret: secret))",
+            "X-MuseumMuse-Timestamp": timestamp,
+            "X-MuseumMuse-Nonce": nonce,
+            "X-MuseumMuse-Request-Hash": requestHash,
+            "X-MuseumMuse-App-Version": appVersion,
+            "X-MuseumMuse-Auth-Mode": "simple"
+        ]
+    }
+
+    static var configuredSecret: String? {
+        if let rawValue = Bundle.main.object(forInfoDictionaryKey: "MuseumBackendSimpleAuthSecret") as? String,
+           let secret = MuseumBackendRequestSigner.nonEmptyExpandedValue(rawValue) {
+            return secret
+        }
+        guard let rawValue = ProcessInfo.processInfo.environment["MUSEUMMUSE_SIMPLE_AUTH_SECRET"] else {
+            return nil
+        }
+        return MuseumBackendRequestSigner.nonEmptyExpandedValue(rawValue)
     }
 }
 
@@ -124,7 +177,7 @@ actor MuseumBackendDebugAuthProvider: MuseumBackendAuthProviding {
         let authSession = try await validSession()
         let timestamp = String(Int(Date().timeIntervalSince1970))
         let nonce = UUID().uuidString
-        let requestHash = Self.canonicalRequestHash(
+        let requestHash = MuseumBackendRequestSigner.canonicalRequestHash(
             method: method,
             path: path,
             queryItems: queryItems,
@@ -220,6 +273,51 @@ actor MuseumBackendDebugAuthProvider: MuseumBackendAuthProviding {
         timestamp: String,
         nonce: String
     ) -> String {
+        MuseumBackendRequestSigner.canonicalRequestHash(
+            method: method,
+            path: path,
+            queryItems: queryItems,
+            body: body,
+            timestamp: timestamp,
+            nonce: nonce
+        )
+    }
+
+    static func debugAssertion(for value: String, secret: String) -> String {
+        MuseumBackendRequestSigner.hmacHex(for: value, secret: secret)
+    }
+
+    static var configuredSecret: String? {
+        if let rawValue = Bundle.main.object(forInfoDictionaryKey: "MuseumBackendDebugAuthSecret") as? String,
+           let secret = MuseumBackendRequestSigner.nonEmptyExpandedValue(rawValue) {
+            return secret
+        }
+        guard let rawValue = ProcessInfo.processInfo.environment["MUSEUMMUSE_DEBUG_AUTH_SECRET"] else {
+            return nil
+        }
+        return MuseumBackendRequestSigner.nonEmptyExpandedValue(rawValue)
+    }
+
+    private static var defaultDeviceID: String {
+        let key = "MuseumBackendDebugDeviceID"
+        if let stored = UserDefaults.standard.string(forKey: key), !stored.isEmpty {
+            return stored
+        }
+        let value = UUID().uuidString
+        UserDefaults.standard.set(value, forKey: key)
+        return value
+    }
+}
+
+enum MuseumBackendRequestSigner {
+    static func canonicalRequestHash(
+        method: String,
+        path: String,
+        queryItems: [URLQueryItem],
+        body: Data,
+        timestamp: String,
+        nonce: String
+    ) -> String {
         var queryPairs: [(name: String, value: String)] = []
         for item in queryItems {
             queryPairs.append((name: item.name, value: item.value ?? ""))
@@ -246,40 +344,22 @@ actor MuseumBackendDebugAuthProvider: MuseumBackendAuthProviding {
         return sha256Hex(Data(canonical.utf8))
     }
 
-    static func debugAssertion(for value: String, secret: String) -> String {
+    static func hmacHex(for value: String, secret: String) -> String {
         let key = SymmetricKey(data: Data(secret.utf8))
         let signature = HMAC<SHA256>.authenticationCode(for: Data(value.utf8), using: key)
         return signature.map { String(format: "%02x", $0) }.joined()
     }
 
-    static var configuredSecret: String? {
-        if let rawValue = Bundle.main.object(forInfoDictionaryKey: "MuseumBackendDebugAuthSecret") as? String,
-           let secret = nonEmptyTrimmed(rawValue) {
-            return secret
-        }
-        guard let rawValue = ProcessInfo.processInfo.environment["MUSEUMMUSE_DEBUG_AUTH_SECRET"] else {
+    static func nonEmptyExpandedValue(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty || (trimmed.hasPrefix("$(") && trimmed.hasSuffix(")")) {
             return nil
         }
-        return nonEmptyTrimmed(rawValue)
-    }
-
-    private static var defaultDeviceID: String {
-        let key = "MuseumBackendDebugDeviceID"
-        if let stored = UserDefaults.standard.string(forKey: key), !stored.isEmpty {
-            return stored
-        }
-        let value = UUID().uuidString
-        UserDefaults.standard.set(value, forKey: key)
-        return value
+        return trimmed
     }
 
     private static func sha256Hex(_ data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-    }
-
-    private static func nonEmptyTrimmed(_ value: String) -> String? {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
     }
 
     private static func formURLEncoded(_ value: String) -> String {

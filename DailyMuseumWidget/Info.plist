@@ -22,6 +22,8 @@
 	<string>1</string>
 	<key>MuseumBackendBaseURL</key>
 	<string>https://museummuse-api.305301890.workers.dev</string>
+	<key>MuseumBackendSimpleAuthSecret</key>
+	<string>$(MUSEUMMUSE_SIMPLE_AUTH_SECRET)</string>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionPointIdentifier</key>
