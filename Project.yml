@@ -26,6 +26,7 @@ targets:
         CFBundleName: MuseumMuse
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "1"
+        MuseumBackendBaseURL: "https://museummuse-api.305301890.workers.dev"
         CFBundleURLTypes:
           - CFBundleURLName: DailyMuseumDeepLink
             CFBundleURLSchemes:
@@ -72,6 +73,7 @@ targets:
       path: DailyMuseumWidget/Info.plist
       properties:
         CFBundleDisplayName: DailyMuseumWidget
+        MuseumBackendBaseURL: "https://museummuse-api.305301890.workers.dev"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     entitlements:

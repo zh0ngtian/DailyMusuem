@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "museummuse-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-06-19",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "vars": {
+    "AUTH_MODE": "disabled",
+    "DATA_VERSION": "2026-06-19T15:57:49.419906+00:00"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "musuem_muse",
+      "database_id": "9ab953e7-0af0-4c08-863a-85717e4fc941"
+    }
+  ]
+}

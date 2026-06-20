@@ -30,3 +30,8 @@ server/data/*.db
 server/data/*.db-*
 server/data/*.manifest.json
 server/data/manifest.json
+
+# Cloudflare Worker local artifacts
+.pnpm-store/
+server/worker/node_modules/
+server/worker/.wrangler/
