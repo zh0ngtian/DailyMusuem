@@ -80,6 +80,13 @@ struct SettingsView: View {
             } header: {
                 Text("配置")
             }
+
+            Section {
+                LabeledContent("App 版本", value: appVersionInfo.version)
+                LabeledContent("Build 号", value: appVersionInfo.build)
+            } header: {
+                Text("关于")
+            }
         }
         .navigationTitle("设置")
         .sheet(item: $presentedTimeField) { field in
@@ -173,6 +180,10 @@ struct SettingsView: View {
 
     private var scheduleTimeFont: Font {
         .system(size: 15, weight: .regular, design: .monospaced)
+    }
+
+    private var appVersionInfo: AppVersionInfo {
+        AppVersionInfo.current
     }
 
     private func exportConfiguration() {
@@ -272,6 +283,27 @@ private struct SettingsConfigurationAlertState: Identifiable {
     let id = UUID()
     let title: String
     let message: String
+}
+
+private struct AppVersionInfo {
+    let version: String
+    let build: String
+
+    static var current: AppVersionInfo {
+        AppVersionInfo(
+            version: bundleValue(for: "CFBundleShortVersionString"),
+            build: bundleValue(for: "CFBundleVersion")
+        )
+    }
+
+    private static func bundleValue(for key: String) -> String {
+        guard let value = Bundle.main.object(forInfoDictionaryKey: key) as? String else {
+            return "未知"
+        }
+
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedValue.isEmpty ? "未知" : trimmedValue
+    }
 }
 
 private enum SettingsTimeField: String, Identifiable {
