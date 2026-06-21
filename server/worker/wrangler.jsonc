@@ -12,11 +12,30 @@
   },
   "vars": {
     "AUTH_MODE": "simple",
-    "DATA_VERSION": "2026-06-20T12:07:22Z"
+    "DATA_VERSION": "2026-06-20T12:07:22Z",
+    "ACCOUNT_ID": "36f197f2dcd122670857a6f4c59d39e4",
+    "DATABASE_ID": "9ab953e7-0af0-4c08-863a-85717e4fc941",
+    "DATABASE_NAME": "musuem_muse",
+    "BACKUP_BUCKET_NAME": "museummuse-d1-backups",
+    "D1_BACKUP_OBJECT_PREFIX": "d1/musuem_muse"
   },
   "secrets": {
-    "required": ["MUSEUMMUSE_SIMPLE_AUTH_SECRET"]
+    "required": ["MUSEUMMUSE_SIMPLE_AUTH_SECRET", "D1_REST_API_TOKEN"]
   },
+  "workflows": [
+    {
+      "name": "museummuse-d1-weekly-backup",
+      "binding": "D1_BACKUP_WORKFLOW",
+      "class_name": "D1BackupWorkflow",
+      "schedules": ["0 20 * * SUN"]
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BACKUP_BUCKET",
+      "bucket_name": "museummuse-d1-backups"
+    }
+  ],
   "d1_databases": [
     {
       "binding": "DB",

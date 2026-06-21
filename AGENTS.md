@@ -175,6 +175,7 @@
 - 同步 Cloudflare 后，必须把客户端后端地址切回 Info.plist 默认 Worker URL，或显式设置为 `https://museummuse-api.305301890.workers.dev`，并继续注入与 Worker secret 一致的 `MUSEUMMUSE_SIMPLE_AUTH_SECRET`；再跑一遍覆盖 metadata、列表、详情、Widget 候选和后端客户端 DTO 映射的单元测试，以及必要的模拟器 smoke 验证，确认线上 Worker + D1 与本地行为一致。命令行 smoke probe 统一使用 `python3 scripts/probe_backend_simple_auth.py --base-url {url}`，不得再用裸 `curl` 判断 `/v1` 业务接口可用。
 - 如果本地通过但 Cloudflare 验证失败，优先排查 Worker 版本、D1 schema、D1 数据、metadata 响应和鉴权配置是否与本地一致；不允许在客户端加旧 source key、旧字段或按馆 fallback 来掩盖线上数据未同步。
 - Cloudflare serverless 部署使用 `server/worker` 中的 Worker 实现，Worker 名称为 `museummuse-api`，D1 绑定名为 `DB`，当前 D1 数据库为 `musuem_muse`（UUID：`9ab953e7-0af0-4c08-863a-85717e4fc941`）。iOS 主 App 和 Widget 的默认 `MuseumBackendBaseURL` 指向 `https://museummuse-api.305301890.workers.dev`，Worker 配置默认 `AUTH_MODE=simple` 且 `wrangler.jsonc` 声明必需 secret `MUSEUMMUSE_SIMPLE_AUTH_SECRET`；发布或验证 Cloudflare 前必须先配置该 Worker secret，并完成客户端 / probe 签名验证。
+- `server/worker` 同时配置 `D1BackupWorkflow`，每周通过 Workflows 将 `musuem_muse` D1 export 成 SQL 并写入 R2 bucket `museummuse-d1-backups`；北京时间每周一凌晨 `04:00` 对应 Wrangler schedule `0 20 * * SUN`（Cloudflare cron 使用 UTC）。发布前必须先在 Cloudflare 账号启用 R2、创建对应 bucket，并配置具备 D1 export 权限的 Worker secret `D1_REST_API_TOKEN`，不能把 API token 写入源码或 `wrangler.jsonc`。
 - 将 `server/data` 中的 SQLite 迁移到 D1 时，以 `server/data/museummuse-live-all.sqlite` 和同名 manifest 为准；导入 SQL 需要使用 `sqlite3 {db} ".dump --newlines"` 生成，并移除 `BEGIN TRANSACTION` / `COMMIT` 等 D1 不接受的事务包装，不能使用会输出 `unistr(...)` 的默认 `.dump`。
 - 上海博物馆和 Met 这类长详情任务会在 live crawl 中逐条提交，并每 `100` 个候选输出一次进度；如果任务中断，后续应使用 `--skip-existing` 续跑，不能直接认为已完成。
 - 全量交付前必须运行 `python -m server.crawler.main status --db {SQLite}`；只有所有正式 crawler target 都显示 `completion=complete`，才能视为“全量爬取完成”。样本数据、`--max-details` smoke run 或只有部分来源成功不能当作全量完成证据。
@@ -583,6 +584,7 @@
   - logo 放在统一的浅色圆角容器中
   - 名称和副标题继续保持当前中文文案，不因 logo 接入而改变
   - 首页已按国家分组时，卡片副标题只显示城市，不重复显示国家
+- 首页支持下拉刷新；手动刷新时需要以 `network-only` 重新请求 `/v1/museums/metadata`，并继续把成功结果写入 App Group metadata 快照。
 - 首页不提供延迟测试开关、延迟结果行或下拉测速入口，也不在进入首页时发起测速请求。
 - App 冷启动时需要立即发起一次独立的轻量联网请求，用于触发系统联网权限提示；该请求不写入展品搜索、详情或 Widget 缓存。
 - 右上角需要同时提供：

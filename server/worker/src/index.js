@@ -1,3 +1,5 @@
+import { WorkflowEntrypoint } from "cloudflare:workers";
+
 const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8"
 };
@@ -5,6 +7,78 @@ const JSON_HEADERS = {
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 const SIMPLE_AUTH_WINDOW_SECONDS = 10;
+const D1_EXPORT_START_STEP_CONFIG = {
+  retries: { limit: 5, delay: "10 seconds", backoff: "exponential" },
+  timeout: "10 minutes"
+};
+const D1_EXPORT_POLL_STEP_CONFIG = {
+  retries: { limit: 60, delay: "30 seconds", backoff: "constant" },
+  timeout: "10 minutes"
+};
+const D1_EXPORT_STORE_STEP_CONFIG = {
+  retries: { limit: 5, delay: "10 seconds", backoff: "exponential" },
+  timeout: "10 minutes"
+};
+
+export class D1BackupWorkflow extends WorkflowEntrypoint {
+  async run(_event, step) {
+    const metadata = await step.do("Prepare D1 backup metadata", async () => d1BackupMetadata(this.env));
+
+    const bookmark = await step.do(
+      `Start D1 export for ${metadata.databaseName}`,
+      D1_EXPORT_START_STEP_CONFIG,
+      async () => {
+        const result = await d1ExportRequest(this.env, metadata, { output_format: "polling" });
+        if (!result?.at_bookmark) {
+          throw new Error("D1 export did not return at_bookmark");
+        }
+        return result.at_bookmark;
+      }
+    );
+
+    const exportResult = await step.do(
+      `Wait for D1 export for ${metadata.databaseName}`,
+      D1_EXPORT_POLL_STEP_CONFIG,
+      async () => {
+        const result = await d1ExportRequest(this.env, metadata, { current_bookmark: bookmark });
+        if (!result?.signed_url) {
+          throw new Error("D1 export is not ready yet");
+        }
+        return {
+          signedURL: result.signed_url,
+          sourceFilename: result.filename || null
+        };
+      }
+    );
+
+    return step.do(
+      `Store D1 backup ${metadata.objectKey}`,
+      D1_EXPORT_STORE_STEP_CONFIG,
+      async () => {
+        const response = await fetch(exportResult.signedURL);
+        if (!response.ok || !response.body) {
+          throw new Error(`Failed to download D1 export: HTTP ${response.status}`);
+        }
+
+        await this.env.BACKUP_BUCKET.put(metadata.objectKey, response.body, {
+          httpMetadata: { contentType: "application/sql; charset=utf-8" },
+          customMetadata: {
+            databaseName: metadata.databaseName,
+            databaseId: metadata.databaseId,
+            sourceFilename: exportResult.sourceFilename || "",
+            createdAt: metadata.createdAt
+          }
+        });
+
+        return {
+          bucket: metadata.bucketName,
+          objectKey: metadata.objectKey,
+          createdAt: metadata.createdAt
+        };
+      }
+    );
+  }
+}
 
 export default {
   async fetch(request, env) {
@@ -824,6 +898,72 @@ function parseBool(rawValue, defaultValue) {
     return defaultValue;
   }
   return ["1", "true", "yes"].includes(rawValue.trim().toLowerCase());
+}
+
+function d1BackupMetadata(env) {
+  const accountId = requiredEnvValue(env, "ACCOUNT_ID");
+  const databaseId = requiredEnvValue(env, "DATABASE_ID");
+  const databaseName = String(env.DATABASE_NAME || "d1").trim() || "d1";
+  const bucketName = String(env.BACKUP_BUCKET_NAME || "museummuse-d1-backups").trim();
+  const prefix = normalizeR2Prefix(env.D1_BACKUP_OBJECT_PREFIX || `d1/${databaseName}`);
+  const createdAt = new Date().toISOString();
+  const objectKey = `${prefix}/${safeTimestamp(createdAt)}.sql`;
+
+  if (!env.BACKUP_BUCKET) {
+    throw new Error("BACKUP_BUCKET R2 binding is required");
+  }
+  requiredEnvValue(env, "D1_REST_API_TOKEN");
+
+  return {
+    accountId,
+    databaseId,
+    databaseName,
+    bucketName,
+    createdAt,
+    objectKey
+  };
+}
+
+async function d1ExportRequest(env, metadata, payload) {
+  const response = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${metadata.accountId}/d1/database/${metadata.databaseId}/export`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "authorization": `Bearer ${env.D1_REST_API_TOKEN}`
+      },
+      body: JSON.stringify(payload)
+    }
+  );
+  const body = await response.json().catch(() => null);
+  if (!response.ok || body?.success === false) {
+    const errorMessage = Array.isArray(body?.errors) && body.errors.length > 0
+      ? body.errors.map((error) => error.message || String(error.code || "unknown_error")).join("; ")
+      : `HTTP ${response.status}`;
+    throw new Error(`D1 export API failed: ${errorMessage}`);
+  }
+  return body?.result || {};
+}
+
+function requiredEnvValue(env, name) {
+  const value = String(env[name] || "").trim();
+  if (!value) {
+    throw new Error(`${name} is required`);
+  }
+  return value;
+}
+
+function normalizeR2Prefix(value) {
+  return String(value || "")
+    .split("/")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join("/") || "d1";
+}
+
+function safeTimestamp(value) {
+  return value.replace(/[:.]/g, "-");
 }
 
 function jsonResponse(payload, status = 200) {

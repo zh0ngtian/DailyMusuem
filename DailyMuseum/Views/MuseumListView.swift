@@ -13,7 +13,10 @@ struct MuseumListView: View {
             ArtworkFeedView(museum: museum)
         }
         .task {
-            await loadMuseumMetadata()
+            await loadMuseumMetadata(cachePolicy: .useCaches, useCachedSnapshot: true)
+        }
+        .refreshable {
+            await loadMuseumMetadata(cachePolicy: .networkOnly, useCachedSnapshot: false)
         }
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
@@ -126,14 +129,23 @@ struct MuseumListView: View {
             .frame(width: 112, height: 68)
     }
 
-    private func loadMuseumMetadata() async {
-        if let cachedSections = Self.countrySections(from: MuseumMetadataStore.cachedSnapshot()?.museums), !cachedSections.isEmpty {
+    private func loadMuseumMetadata(
+        cachePolicy: MuseumRequestCachePolicy,
+        useCachedSnapshot: Bool
+    ) async {
+        if useCachedSnapshot,
+           let cachedSections = Self.countrySections(from: MuseumMetadataStore.cachedSnapshot()?.museums),
+           !cachedSections.isEmpty {
             countrySections = cachedSections
             metadataErrorMessage = nil
         }
 
+        if countrySections.isEmpty {
+            isLoadingMetadata = true
+        }
+
         do {
-            let metadata = try await MuseumMetadataStore.shared.refresh(cachePolicy: .useCaches)
+            let metadata = try await MuseumMetadataStore.shared.refresh(cachePolicy: cachePolicy)
             if let refreshedSections = Self.countrySections(from: metadata), !refreshedSections.isEmpty {
                 countrySections = refreshedSections
                 metadataErrorMessage = nil
