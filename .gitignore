@@ -42,3 +42,6 @@ server/data/manifest.json
 .pnpm-store/
 server/worker/node_modules/
 server/worker/.wrangler/
+
+# Tencent SCF deployment artifacts
+server/tencent_scf/*.zip

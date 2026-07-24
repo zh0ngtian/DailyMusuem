@@ -33,7 +33,7 @@ targets:
         CFBundleName: MuseumMuse
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "1"
-        MuseumBackendBaseURL: "https://museummuse-api.305301890.workers.dev"
+        MuseumBackendBaseURL: "https://museum-api.zh0ngtian.tech"
         MuseumBackendSimpleAuthSecret: "$(MUSEUMMUSE_SIMPLE_AUTH_SECRET)"
         CFBundleURLTypes:
           - CFBundleURLName: DailyMuseumDeepLink
@@ -84,7 +84,7 @@ targets:
       path: DailyMuseumWidget/Info.plist
       properties:
         CFBundleDisplayName: DailyMuseumWidget
-        MuseumBackendBaseURL: "https://museummuse-api.305301890.workers.dev"
+        MuseumBackendBaseURL: "https://museum-api.zh0ngtian.tech"
         MuseumBackendSimpleAuthSecret: "$(MUSEUMMUSE_SIMPLE_AUTH_SECRET)"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension

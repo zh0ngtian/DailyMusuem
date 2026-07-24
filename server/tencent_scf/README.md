@@ -1,0 +1,58 @@
+# Tencent SCF deployment
+
+MuseumMuse 的正式后端运行在腾讯云广州地域的 HTTP 类型 SCF：
+
+- 函数：`museummuse-api`（FunctionId `lam-fo3kkl6o`）
+- 正式 URL：`https://museum-api.zh0ngtian.tech`
+- 腾讯云默认函数 URL：`https://1259375612-6mtzjn85y7.ap-guangzhou.tencentscf.com`（仅用于故障排查）
+- 运行时：Python 3.10，512 MB，15 秒超时
+- COS：`museummuse-scf-artifacts-1259375612`
+- 执行角色：`MuseumMuseSCFRole`
+
+## Build
+
+先对待发布 SQLite 执行完整性、crawler status 和本地 API 测试，再构建代码包：
+
+```bash
+server/tencent_scf/build_package.sh \
+  server/data/museummuse-live-all.sqlite \
+  server/data/museummuse-live-all.manifest.json \
+  server/tencent_scf/museummuse-api.zip
+```
+
+构建脚本会安装 Linux x86_64 / Python 3.10 依赖，并把 API、SQLite、manifest 和 `scf_bootstrap` 打入同一个 zip。生成的 zip 已被 `.gitignore` 忽略。
+
+## Runtime contract
+
+SCF 必须保留以下配置：
+
+- `MUSEUMMUSE_AUTH_MODE=simple`
+- `MUSEUMMUSE_SIMPLE_AUTH_SECRET` 通过云端环境配置和本地未提交配置注入，禁止写入源码或本文件
+- `MUSEUMMUSE_NONCE_STORE=cos`
+- `MUSEUMMUSE_NONCE_COS_BUCKET=museummuse-scf-artifacts-1259375612`
+- `MUSEUMMUSE_NONCE_COS_REGION=ap-guangzhou`
+
+函数通过运行角色临时凭证向 `auth-nonces/` 原子写入 nonce marker。角色仅允许该 prefix 的 `cos:PutObject`，不要扩大为整个 COS bucket 的读写权限。
+
+SQLite 随代码包部署且运行时只读。更新数据时必须构建新 zip、上传到 COS 的新版本化 `deployments/` key，再通过 SCF `UpdateFunctionCode` 发布。不要覆盖既有部署对象。
+
+## Verification
+
+发布后至少验证：
+
+```bash
+MUSEUMMUSE_SIMPLE_AUTH_SECRET={secret} \
+python3 scripts/probe_backend_simple_auth.py \
+  --base-url https://museum-api.zh0ngtian.tech
+```
+
+还需验证相同签名请求第二次返回 `401 replayed_request`。
+
+自定义域名由 DNSPod `museum-api` CNAME 指向 `1259375612.ap-guangzhou.tencentscf.com`，SCF 将 `/*` 路由到 `default/museummuse-api:$LATEST`。HTTPS 证书 ID 为 `ZSoYf0pa`，有效期截至 `2026-10-22 22:59:59`；到期前必须申请新证书并更新 SCF 域名绑定。
+
+## Backup and retired Cloudflare resources
+
+- COS 迁移基线：`backups/cloudflare-d1/2026-07-24/`
+- nonce lifecycle：`auth-nonces/` 对象 1 天后过期
+
+Cloudflare Worker `museummuse-api` 和 D1 `musuem_muse` 已于 `2026-07-25` 永久删除。Cloudflare 账号从未启用 R2，旧 `D1BackupWorkflow` 不能当作有效备份；如需恢复历史数据，应使用腾讯 COS 中的迁移基线。

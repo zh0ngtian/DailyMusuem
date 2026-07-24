@@ -1,0 +1,5 @@
+#!/bin/bash
+set -euo pipefail
+
+export MUSEUMMUSE_DB_PATH="${USER_CODE_ROOT:-/var/user}/data/museummuse.sqlite"
+exec python3 -m uvicorn server.api.app:app --host 0.0.0.0 --port 9000 --workers 1

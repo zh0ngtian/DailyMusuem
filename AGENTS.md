@@ -113,7 +113,7 @@
   - `server/crawler/stores.py`
     - metadata seed、`museums` 扩展字段、`data_sources`、`museum_client_policies`
   - `server/api/db.py` / `server/worker/src/index.js`
-    - Python API 和 Cloudflare Worker 的 metadata 字段必须一致
+    - Python API（含腾讯云 SCF 部署包）是正式实现；`server/worker` 是已退役的 Cloudflare 实现，如重新启用必须保持 metadata 字段一致
   - `Shared/Museum.swift`
     - 只能保留字符串标识和通用格式化；馆名、副标题、Widget 支持、类别等正式数据必须来自 metadata，不能恢复本地六馆全集 fallback
   - `Shared/MuseumMetadataStore.swift`
@@ -149,13 +149,13 @@
 
 ### 3.1 数据接入
 
-- 当前改造后的展品数据路径为 `离线爬虫 + 服务端 SQLite + iOS/Widget 后端客户端`。
+- 当前正式展品数据路径为 `离线爬虫 + 腾讯云 SCF 代码包内只读 SQLite + iOS/Widget 后端客户端`。原 Cloudflare Worker + D1 已于 `2026-07-25` 删除，不再提供回滚链路。
 - 主 App 二级页、详情页和 Widget 默认不再直接请求各馆官方展品接口；各馆官方 API / 官网解析代码保留为爬虫规则参考和短期排查依据。
 - SQLite 只保存展品文字字段、分类、官网链接、图片 URL 和抓取元信息，不保存图片二进制。
 - 图片仍由客户端按服务端返回的 `primaryImageURL` / `primaryImageSmallURL` 异步拉取。
 - 客户端博物馆元数据由服务端 `/v1/museums/metadata` 下发，主 App 首页、分类、能力开关、Widget scope 建议项、详情页翻译语言、文本标点风格和图片策略都以该 metadata 为正式来源；客户端不再维护 `MuseumID.allCases` 作为正式博物馆列表或无 metadata fallback。
 - `/v1/museums/metadata` 需要返回 `museumID`、馆名、副标题、国家、城市、地址、`textPunctuationStyle`、`icon.url` / `icon.assetName` / `icon.backgroundColor`、`capabilities`、`defaultSourceKey`、`sources`、`categories` 和 `waterfallImageFetchPolicy`。当前六馆的 `icon.assetName` 使用现有首页 logo asset 名，例如 `NmcHomepageLogo`、`MetHomepageLogo`。
-- 服务端 SQLite / D1 的 `museums` 表需要包含 `address`、`icon_url`、`icon_asset_name`、`icon_background_color`、`text_punctuation_style` 和 `supports_favorites`；`data_sources` 需要包含 `translation_source_language`、`preferred_image_url_order_json`、`image_request_headers_json`、`artwork_source_key` 和 `list_filter_json`。客户端策略放在 `museum_client_policies`，其中 `waterfall_image_qps` 只控制二级页瀑布流缩略图请求启动速率。
+- 服务端 SQLite 的 `museums` 表需要包含 `address`、`icon_url`、`icon_asset_name`、`icon_background_color`、`text_punctuation_style` 和 `supports_favorites`；`data_sources` 需要包含 `translation_source_language`、`preferred_image_url_order_json`、`image_request_headers_json`、`artwork_source_key` 和 `list_filter_json`。客户端策略放在 `museum_client_policies`，其中 `waterfall_image_qps` 只控制二级页瀑布流缩略图请求启动速率。
 - 瀑布流图片限流不是全局 QPS，也不限制详情页主图、全屏预览图、首页图标或 Widget 图片。默认 `waterfall_image_qps=NULL` 表示不限流；当前只有中国国家博物馆配置 `waterfall_image_qps=1`。
 - 页面设置统一存入 App Group `feed.preferences.v2` JSON；不要恢复 `feed.source.*`、`feed.category.*`、`naraMuseumDataSource`、`metShowsOnlyOnViewArtworks` 或其它按馆专用设置。
 - 二级页“页面设置”只在 `sources.count > 1` 时显示数据源选择器；当前大都会显示 `全部展品` / `在展展品`，奈良显示 `馆方数据源` / `ColBase`，其它单源博物馆不显示数据源选择。
@@ -169,18 +169,22 @@
 - `--page-size {N}` 可用于支持分页大小的候选搜索 crawler，例如 Japan Search 和上海博物馆；它只减少候选页请求次数，不改变详情页抓取上限。用户已允许后续批量尝试 `50`，但若源站失败率升高，应回退到默认 `10`。
 - `--request-interval {seconds}` 可用于支持该参数的非国博 crawler 调整请求间隔；`--concurrency {N}` 可用于支持该参数的非国博长详情 crawler 并发抓取详情。用户已允许后续非国博来源尝试 `--request-interval 0.1 --concurrency 10`（约 `10 QPS` 上限）。这两个参数禁止用于国博，国博仍必须遵守单独 API 调用预算和反爬限制。
 - 本地客户端连接后端验证全量数据时，后端必须显式设置 `MUSEUMMUSE_DB_PATH=server/data/museummuse-live-all.sqlite`；`server/data/museummuse-live-full.sqlite` 是早期每源 `10` 条的小样本库，继续指向它会导致客户端看起来只能加载 `10` 条。
-- 模拟器或本地服务验证客户端时，客户端可通过进程环境变量 `MUSEUMMUSE_BACKEND_BASE_URL` 覆盖 Info.plist 中的 `MuseumBackendBaseURL`；没有该环境变量时才使用 Info.plist 默认值。后续本地和 Cloudflare 后端验证必须同时注入 `MUSEUMMUSE_SIMPLE_AUTH_SECRET`，确保客户端、脚本和服务端使用同一个 simple auth secret。Xcode 编译注入通过已提交的 `Config/Secrets.xcconfig` 和未提交的 `Config/Secrets.local.xcconfig` 完成，真实 secret 不得写入 git。
-- 后续涉及服务端 schema、metadata、数据源、crawler 入库规则或 Worker 的调试，必须先使用本地 SQLite 和本地 Python API 完成验证，客户端通过 `MUSEUMMUSE_BACKEND_BASE_URL=http://127.0.0.1:8000` 指向本地服务，后端通过 `MUSEUMMUSE_AUTH_MODE=simple MUSEUMMUSE_SIMPLE_AUTH_SECRET={secret}` 启动；本地服务端测试、Worker 语法检查、iOS 单元测试 / 构建和必要的模拟器交互验证全部通过后，才能同步 Worker 和 SQLite / D1 到 Cloudflare。
-- 后续部署或修改 Cloudflare Worker / D1 时，必须使用 `[@cloudflare](plugin://cloudflare@openai-curated-remote)` 插件能力完成远端检查、D1 SQL 执行和 Worker 发布；不要只依赖本地猜测或未认证的手工命令。
-- 同步 Cloudflare 后，必须把客户端后端地址切回 Info.plist 默认 Worker URL，或显式设置为 `https://museummuse-api.305301890.workers.dev`，并继续注入与 Worker secret 一致的 `MUSEUMMUSE_SIMPLE_AUTH_SECRET`；再跑一遍覆盖 metadata、列表、详情、Widget 候选和后端客户端 DTO 映射的单元测试，以及必要的模拟器 smoke 验证，确认线上 Worker + D1 与本地行为一致。命令行 smoke probe 统一使用 `python3 scripts/probe_backend_simple_auth.py --base-url {url}`，不得再用裸 `curl` 判断 `/v1` 业务接口可用。
-- 如果本地通过但 Cloudflare 验证失败，优先排查 Worker 版本、D1 schema、D1 数据、metadata 响应和鉴权配置是否与本地一致；不允许在客户端加旧 source key、旧字段或按馆 fallback 来掩盖线上数据未同步。
-- Cloudflare serverless 部署使用 `server/worker` 中的 Worker 实现，Worker 名称为 `museummuse-api`，D1 绑定名为 `DB`，当前 D1 数据库为 `musuem_muse`（UUID：`9ab953e7-0af0-4c08-863a-85717e4fc941`）。iOS 主 App 和 Widget 的默认 `MuseumBackendBaseURL` 指向 `https://museummuse-api.305301890.workers.dev`，Worker 配置默认 `AUTH_MODE=simple` 且 `wrangler.jsonc` 声明必需 secret `MUSEUMMUSE_SIMPLE_AUTH_SECRET`；发布或验证 Cloudflare 前必须先配置该 Worker secret，并完成客户端 / probe 签名验证。
-- `server/worker` 同时配置 `D1BackupWorkflow`，每周通过 Workflows 将 `musuem_muse` D1 export 成 SQL 并写入 R2 bucket `museummuse-d1-backups`；北京时间每周一凌晨 `04:00` 对应 Wrangler schedule `0 20 * * SUN`（Cloudflare cron 使用 UTC）。发布前必须先在 Cloudflare 账号启用 R2、创建对应 bucket，并配置具备 D1 export 权限的 Worker secret `D1_REST_API_TOKEN`，不能把 API token 写入源码或 `wrangler.jsonc`。
-- 将 `server/data` 中的 SQLite 迁移到 D1 时，以 `server/data/museummuse-live-all.sqlite` 和同名 manifest 为准；导入 SQL 需要使用 `sqlite3 {db} ".dump --newlines"` 生成，并移除 `BEGIN TRANSACTION` / `COMMIT` 等 D1 不接受的事务包装，不能使用会输出 `unistr(...)` 的默认 `.dump`。
+- 模拟器或本地服务验证客户端时，客户端可通过进程环境变量 `MUSEUMMUSE_BACKEND_BASE_URL` 覆盖 Info.plist 中的 `MuseumBackendBaseURL`；没有该环境变量时才使用 Info.plist 默认值。后续本地和腾讯云验证必须同时注入 `MUSEUMMUSE_SIMPLE_AUTH_SECRET`，确保客户端、脚本和服务端使用同一个 simple auth secret。Xcode 编译注入通过已提交的 `Config/Secrets.xcconfig` 和未提交的 `Config/Secrets.local.xcconfig` 完成，真实 secret 不得写入 git。
+- 后续涉及服务端 schema、metadata、数据源、crawler 入库规则或部署包的调试，必须先使用本地 SQLite 和本地 Python API 完成验证，客户端通过 `MUSEUMMUSE_BACKEND_BASE_URL=http://127.0.0.1:8000` 指向本地服务，后端通过 `MUSEUMMUSE_AUTH_MODE=simple MUSEUMMUSE_SIMPLE_AUTH_SECRET={secret}` 启动；本地服务端测试、iOS 单元测试 / 构建和必要的模拟器交互验证通过后，才能更新腾讯云 SCF。
+- 当前腾讯云正式资源位于广州地域：SCF HTTP 函数 `museummuse-api`（FunctionId `lam-fo3kkl6o`）、私有 COS bucket `museummuse-scf-artifacts-1259375612`、执行角色 `MuseumMuseSCFRole`。函数使用 Python 3.10、512 MB 内存、15 秒超时、单 worker，不配置预置并发。
+- 腾讯云 SCF 部署包使用 `server/tencent_scf/build_package.sh {sqlite} {manifest} {output.zip}` 构建；脚本把 Python API、依赖、SQLite 和 manifest 一起打包，并通过 `scf_bootstrap` 在 `9000` 端口启动 Web 函数。SQLite 位于代码目录，只读查询；数据更新必须重新构建并发布完整代码包，不能在函数运行时写库。
+- SCF 的 `MUSEUMMUSE_NONCE_STORE` 必须设为 `cos`。运行时使用 `MuseumMuseSCFRole` 的临时凭证，以 `x-cos-forbid-overwrite` 原子写入 `auth-nonces/{hash}`；该角色只能向此 prefix 执行 `cos:PutObject`。COS lifecycle 必须让 `auth-nonces/` 在 `1` 天后过期，并清理 `1` 天以上的未完成分片上传。
+- 正式部署包存放在 COS `deployments/`；迁移基线备份存放在 `backups/cloudflare-d1/2026-07-24/`，包括 gzip SQLite、gzip SQL 和 manifest。不要删除这组基线备份；未来每次发布应使用新的版本化对象 key。
+- iOS 主 App 和 Widget 的默认 `MuseumBackendBaseURL` 指向自定义 HTTPS 域名 `https://museum-api.zh0ngtian.tech`；该域名通过 DNSPod CNAME `1259375612.ap-guangzhou.tencentscf.com` 和 SCF `/*` 路由指向 `museummuse-api`。腾讯云默认函数 URL `https://1259375612-6mtzjn85y7.ap-guangzhou.tencentscf.com` 只作为域名故障排查入口，不作为客户端默认值。
+- 自定义域名证书 ID 为 `ZSoYf0pa`，有效期截至 `2026-10-22 22:59:59`。到期前必须申请新证书并更新 SCF 自定义域名绑定；客户端无需改 URL。线上回归统一使用 `python3 scripts/probe_backend_simple_auth.py --base-url {url}`，覆盖 health、无签名拒绝、metadata、列表、详情、Widget 候选和 nonce 重放；不得用裸 `curl` 判断 `/v1` 业务接口可用。
+- Cloudflare Worker `museummuse-api` 和 D1 `musuem_muse`（原 UUID：`9ab953e7-0af0-4c08-863a-85717e4fc941`）已于 `2026-07-25` 永久删除；旧地址 `https://museummuse-api.305301890.workers.dev` 不再可用。仓库中的 `server/worker` 仅保留为历史实现，`wrangler.jsonc` 中的原 D1 UUID 已失效，禁止直接执行部署。
+- 如未来明确决定重新启用 Cloudflare，必须使用 `[@cloudflare](plugin://cloudflare@openai-curated-remote)` 插件重新创建 D1、更新 binding、从腾讯 COS 迁移基线恢复数据、配置 secrets、部署 Worker 并完成签名 probe；不能把这一过程称为直接回滚。Cloudflare R2 从未启用，现阶段备份以腾讯 COS 为准。
+- 如果本地通过但腾讯云验证失败，优先排查 SCF 代码包、SQLite / manifest、环境变量、COS nonce 权限和函数 URL。不允许在客户端加旧 source key、旧字段或按馆 fallback 来掩盖线上数据未同步。
+- 如果未来重新创建 D1，导入 SQL 需要使用 `sqlite3 {db} ".dump --newlines"` 生成，并移除 `BEGIN TRANSACTION` / `COMMIT` 等 D1 不接受的事务包装，不能使用会输出 `unistr(...)` 的默认 `.dump`。
 - 上海博物馆和 Met 这类长详情任务会在 live crawl 中逐条提交，并每 `100` 个候选输出一次进度；如果任务中断，后续应使用 `--skip-existing` 续跑，不能直接认为已完成。
 - 全量交付前必须运行 `python -m server.crawler.main status --db {SQLite}`；只有所有正式 crawler target 都显示 `completion=complete`，才能视为“全量爬取完成”。样本数据、`--max-details` smoke run 或只有部分来源成功不能当作全量完成证据。
-- 服务端 `/v1` 业务接口默认需要鉴权；`MUSEUMMUSE_AUTH_MODE=disabled` 原则上只允许 loopback 本地开发跳过鉴权。当前 App Attest 生产链路未完成前，Cloudflare Worker 和本地 Python API 支持临时轻量 `AUTH_MODE=simple`：客户端用同一 secret 对 canonical request hash 做 HMAC-SHA256，业务请求必须携带 `Authorization: Bearer <signature>`、`X-MuseumMuse-Timestamp`、`X-MuseumMuse-Nonce`、`X-MuseumMuse-Request-Hash` 和 `X-MuseumMuse-App-Version`，服务端只接受时间偏移 `10` 秒内的请求并做短期 nonce 去重。
-- `simple` 模式只是防止裸接口和简单抓包复用的过渡方案，不等同于生产 App Attest；secret 不能写死在源码，Worker 侧必须通过 `SIMPLE_AUTH_SECRET` 或 `MUSEUMMUSE_SIMPLE_AUTH_SECRET` secret 配置，客户端通过 `MuseumBackendSimpleAuthSecret` Info.plist 构建配置或 `MUSEUMMUSE_SIMPLE_AUTH_SECRET` 环境变量注入。当前 Worker 会在 D1 中按需创建运行态表 `auth_nonces` 做短期 nonce 去重，该表不属于博物馆离线数据迁移表。
+- 服务端 `/v1` 业务接口默认需要鉴权；`MUSEUMMUSE_AUTH_MODE=disabled` 原则上只允许 loopback 本地开发跳过鉴权。当前 App Attest 生产链路未完成前，腾讯云 SCF 和本地 Python API 支持临时轻量 `AUTH_MODE=simple`：客户端用同一 secret 对 canonical request hash 做 HMAC-SHA256，业务请求必须携带 `Authorization: Bearer <signature>`、`X-MuseumMuse-Timestamp`、`X-MuseumMuse-Nonce`、`X-MuseumMuse-Request-Hash` 和 `X-MuseumMuse-App-Version`，服务端只接受时间偏移 `10` 秒内的请求并做短期 nonce 去重。
+- `simple` 模式只是防止裸接口和简单抓包复用的过渡方案，不等同于生产 App Attest；secret 不能写死在源码，SCF 侧必须通过环境变量配置，客户端通过 `MuseumBackendSimpleAuthSecret` Info.plist 构建配置或 `MUSEUMMUSE_SIMPLE_AUTH_SECRET` 环境变量注入。腾讯云 SCF 使用 COS 原子对象写入实现跨实例 nonce 去重，该运行态 nonce 不属于博物馆离线数据迁移表。
 - Simulator 本地调试可使用 `MUSEUMMUSE_AUTH_MODE=debug` 和 `MUSEUMMUSE_DEBUG_AUTH_SECRET` 启用 debug auth；客户端仍需通过 challenge / register / session 获取短期 token，并在业务请求中携带 timestamp、nonce、request hash 和 debug assertion。
 - 未配置正式 App Attest 校验时，非 `simple` / 本地 debug / disabled 模式不能当作生产可用鉴权；服务端应返回 `501 app_attest_not_configured`。
 

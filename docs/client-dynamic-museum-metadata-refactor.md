@@ -433,7 +433,7 @@ Widget 不参与瀑布流图片策略。Widget 图片加载维持现有成功态
 1. 定义服务端 metadata schema。
    - 验证：服务端测试覆盖所有正式馆 metadata 字段非空约束、排序、分类、source、瀑布流图片 QPS 策略。
 2. 服务端补齐 metadata 查询。
-   - 验证：带 simple auth 的 `GET /v1/museums/metadata` 返回完整 JSON，Cloudflare Worker 和 Python API 字段一致。
+   - 验证：带 simple auth 的 `GET /v1/museums/metadata` 返回完整 JSON，正式腾讯云 SCF 和本地 Python API 字段一致；如维护已退役的 `server/worker` 实现，也不得让其 metadata schema 漂移。
 3. Swift 新增 `MuseumIdentifier`、`MuseumMetadata`、`MuseumMetadataStore`。
    - 验证：metadata JSON decode 单测、App Group 快照读写单测。
 4. 主 App 首页改为 metadata 驱动。

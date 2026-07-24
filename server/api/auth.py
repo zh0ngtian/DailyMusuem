@@ -2,6 +2,7 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import os
 import secrets
 import threading
@@ -11,6 +12,8 @@ from urllib.parse import urlencode
 
 from fastapi import HTTPException, Request, status
 from pydantic import BaseModel, Field
+
+from .nonce_store import NonceReplayError, NonceStoreUnavailableError, consume_nonce
 
 
 LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost"}
@@ -22,7 +25,7 @@ SIMPLE_AUTH_WINDOW_SECONDS = 10
 
 _lock = threading.Lock()
 _challenges: dict[str, float] = {}
-_nonces: dict[str, float] = {}
+logger = logging.getLogger(__name__)
 
 
 class AuthChallengeDTO(BaseModel):
@@ -199,7 +202,12 @@ async def _require_debug_auth(request: Request) -> None:
     if not hmac.compare_digest(request_hash, expected_hash):
         _raise_auth("invalid_request_hash", "Request hash does not match request.")
     _verify_debug_assertion(request_hash, assertion)
-    _consume_nonce(device_id=str(token_payload["device_id"]), nonce=nonce, now=now)
+    await _consume_nonce(
+        device_id=str(token_payload["device_id"]),
+        nonce=nonce,
+        now=now,
+        request=request,
+    )
 
 
 async def _require_simple_auth(request: Request) -> None:
@@ -233,7 +241,13 @@ async def _require_simple_auth(request: Request) -> None:
     actual_signature = authorization.removeprefix("Bearer ").strip()
     if not hmac.compare_digest(actual_signature, expected_signature):
         _raise_auth("invalid_signature", "Invalid auth signature.")
-    _consume_nonce(device_id="simple", nonce=nonce, now=now, ttl_seconds=SIMPLE_AUTH_WINDOW_SECONDS)
+    await _consume_nonce(
+        device_id="simple",
+        nonce=nonce,
+        now=now,
+        ttl_seconds=SIMPLE_AUTH_WINDOW_SECONDS,
+        request=request,
+    )
 
 
 def _auth_mode() -> str:
@@ -336,22 +350,39 @@ def _consume_challenge(challenge: str) -> None:
         _raise_auth("invalid_challenge", "Challenge is invalid or expired.")
 
 
-def _consume_nonce(*, device_id: str, nonce: str, now: int, ttl_seconds: int = NONCE_TTL_SECONDS) -> None:
-    nonce_key = f"{device_id}:{nonce}"
-    with _lock:
-        _prune_locked(now)
-        if nonce_key in _nonces:
-            _raise_auth("replayed_request", "Request nonce has already been used.")
-        _nonces[nonce_key] = now + ttl_seconds
+async def _consume_nonce(
+    *,
+    device_id: str,
+    nonce: str,
+    now: int,
+    request: Request,
+    ttl_seconds: int = NONCE_TTL_SECONDS,
+) -> None:
+    try:
+        await consume_nonce(
+            device_id=device_id,
+            nonce=nonce,
+            now=now,
+            ttl_seconds=ttl_seconds,
+            request_headers=request.headers,
+        )
+    except NonceReplayError:
+        _raise_auth("replayed_request", "Request nonce has already been used.")
+    except NonceStoreUnavailableError:
+        logger.exception("Nonce store is unavailable")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "nonce_store_unavailable",
+                "message": "Request replay protection is temporarily unavailable.",
+            },
+        )
 
 
 def _prune_locked(now: int) -> None:
     for challenge, expires_at in list(_challenges.items()):
         if expires_at <= now:
             _challenges.pop(challenge, None)
-    for nonce, expires_at in list(_nonces.items()):
-        if expires_at <= now:
-            _nonces.pop(nonce, None)
 
 
 def _base64url(data: bytes) -> str:

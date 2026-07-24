@@ -574,7 +574,8 @@ SHA256(
 
 - 本地服务默认仍开启鉴权。
 - 只有 `MUSEUMMUSE_AUTH_MODE=disabled` 且服务绑定 `127.0.0.1` 时，才允许跳过鉴权，避免误把无鉴权服务部署出去。
-- serverless 过渡目标路径是 `AUTH_MODE=simple`；未配置 `MUSEUMMUSE_SIMPLE_AUTH_SECRET` 时，服务端必须返回 `503 simple_auth_secret_missing`，不能自动降级为无鉴权。Cloudflare Worker 配置默认使用 `AUTH_MODE=simple`，并在 `wrangler.jsonc` 声明必需 secret `MUSEUMMUSE_SIMPLE_AUTH_SECRET`；发布或验证前必须先配置同名 Worker secret，并让客户端、Widget 和 `scripts/probe_backend_simple_auth.py` 使用同一个 secret。
+- serverless 过渡目标路径是 `AUTH_MODE=simple`；未配置 `MUSEUMMUSE_SIMPLE_AUTH_SECRET` 时，服务端必须返回 `503 simple_auth_secret_missing`，不能自动降级为无鉴权。正式腾讯云 SCF 使用 `AUTH_MODE=simple`；发布或验证前必须先配置同一个 secret，并让客户端、Widget 和 `scripts/probe_backend_simple_auth.py` 使用一致的值。
+- 腾讯云 SCF 多实例之间通过 COS `x-cos-forbid-overwrite` 原子创建 nonce marker；`MuseumMuseSCFRole` 只允许写 `auth-nonces/` prefix，COS lifecycle 在 1 天后清理 marker。
 - iOS Simulator 不稳定支持 App Attest 时，可以使用 debug-only mock attestation；该能力必须被编译条件和服务端环境双重限制。
 - 当前本地 debug auth 通过 `MUSEUMMUSE_AUTH_MODE=debug` 和 `MUSEUMMUSE_DEBUG_AUTH_SECRET` 启用，且服务端只接受 loopback 客户端。
 - debug auth 仍需要 `POST /v1/auth/challenge`、`POST /v1/auth/register`、`POST /v1/auth/session` 三步，业务请求继续携带短期 `Bearer` token、timestamp、nonce、canonical request hash 和 debug assertion。
@@ -854,23 +855,24 @@ Widget 必须继续满足：
    - `MUSEUMMUSE_SIMPLE_AUTH_SECRET={secret}`
    - Xcode 编译前确保 `Config/Secrets.local.xcconfig` 存在并包含同一个 `MUSEUMMUSE_SIMPLE_AUTH_SECRET`；该文件必须保持未提交状态。
    - 验证 metadata、列表、详情、Widget 候选、动态数据源切换和图片瀑布流限流。
-5. 本地测试全部通过后，才同步到 Cloudflare：
-   - 必须使用 `[@cloudflare](plugin://cloudflare@openai-curated-remote)` 插件能力完成远端检查、D1 SQL 执行和 Worker 发布；如果本地 Wrangler 没有可用 token，不要绕过该约束，改用插件提供的 Cloudflare API 能力。
-   - 发布 `server/worker` Worker。
-   - 将同一个 `server/data/museummuse-live-all.sqlite` 及其 manifest 迁移到 D1。
-   - 确认 Worker 环境变量、simple auth secret、D1 binding 和本地验证使用的 schema / 数据一致。
-6. Cloudflare 同步完成后，把客户端后端地址切回线上 Worker：
+5. 本地测试全部通过后，构建并发布腾讯云 SCF：
+   - 使用 `server/tencent_scf/build_package.sh {sqlite} {manifest} {output.zip}` 构建 Python 3.10 / Linux x86_64 包。
+   - 将 zip 上传到私有 COS `museummuse-scf-artifacts-1259375612` 的新版本化 `deployments/` key，再更新广州地域的 `museummuse-api` 函数代码。
+   - SQLite 随包部署且运行时只读；确认 SCF 环境变量、simple auth secret、COS nonce 配置和发布候选库一致。
+6. SCF 同步完成后，把客户端后端地址切回正式函数 URL：
    - 默认使用 Info.plist 中的 `MuseumBackendBaseURL`。
-   - 或显式设置 `MUSEUMMUSE_BACKEND_BASE_URL=https://museummuse-api.305301890.workers.dev`。
-   - 继续注入与 Worker secret 一致的 `MUSEUMMUSE_SIMPLE_AUTH_SECRET`。
-7. 在线上 Worker + D1 上再跑一遍回归：
-   - 使用 `MUSEUMMUSE_SIMPLE_AUTH_SECRET={secret} python3 scripts/probe_backend_simple_auth.py --base-url https://museummuse-api.305301890.workers.dev` 验证后端 metadata / 列表 / Widget 候选接口，并确认无签名 `/v1` 请求被拒绝。
+   - 或显式设置 `MUSEUMMUSE_BACKEND_BASE_URL=https://museum-api.zh0ngtian.tech`。
+   - 继续注入与 SCF secret 一致的 `MUSEUMMUSE_SIMPLE_AUTH_SECRET`。
+7. 在线上 SCF + SQLite 上再跑一遍回归：
+   - 使用 `MUSEUMMUSE_SIMPLE_AUTH_SECRET={secret} python3 scripts/probe_backend_simple_auth.py --base-url https://museum-api.zh0ngtian.tech` 验证 health、无签名拒绝、metadata、列表、详情和 Widget 候选，并确认 nonce 重放返回 `401 replayed_request`。
    - 后端详情接口。
    - 后端客户端 DTO 映射和 source 选择相关单元测试。
    - 必要的模拟器 smoke 验证。
 8. 客户端通过 `dataVersion` 识别数据更新，清理旧 feed 缓存。
 
-如果本地通过但线上失败，先排查 Worker 版本、D1 schema、D1 数据、metadata 响应和鉴权配置；不要在客户端补旧字段、旧 source key 或按馆 fallback 来绕过线上未同步问题。
+如果本地通过但线上失败，先排查 SCF 代码包、SQLite / manifest、环境变量、COS nonce 权限、metadata 响应和鉴权配置；不要在客户端补旧字段、旧 source key 或按馆 fallback 来绕过线上未同步问题。
+
+Cloudflare Worker `museummuse-api` 和 D1 `musuem_muse` 已于 `2026-07-25` 永久删除。仓库中的 `server/worker` 仅作为历史实现保留；如未来重新启用，必须使用 `[@cloudflare](plugin://cloudflare@openai-curated-remote)` 插件新建 D1、更新 binding、恢复数据和 secrets 后重新部署，不能按原资源直接回滚。Cloudflare R2 从未启用，迁移备份以腾讯 COS 为准。
 
 完整性检查 SQL 示例：
 
@@ -991,5 +993,5 @@ ORDER BY c.museum_id, c.sort_order;
 - 数据接入从“客户端直连官方源”调整为“离线爬虫 + 服务端 SQLite”。
 - 国博 QPS=1 从客户端运行时约束变为爬虫约束；上博离线爬虫可在用户批准后通过共享 limiter 尝试 QPS=10。
 - Widget network-only 的含义从“直连官方源”变为“直连服务端，不复用主 App 缓存”。
-- 服务端接口目标上需要 simple HMAC，后续生产需要 App Attest、短期 token、nonce 防重放和限流，不允许裸露业务 API。Cloudflare Worker 配置默认 `AUTH_MODE=simple`，后续本地和 Cloudflare 验证都必须带 `MUSEUMMUSE_SIMPLE_AUTH_SECRET`，并用签名 probe 或客户端请求验证 `/v1` 业务接口。
+- 服务端接口目标上需要 simple HMAC，后续生产需要 App Attest、短期 token、nonce 防重放和限流，不允许裸露业务 API。正式腾讯云 SCF 使用 `AUTH_MODE=simple`；后续本地和线上验证必须带 `MUSEUMMUSE_SIMPLE_AUTH_SECRET`，并用签名 probe 或客户端请求验证 `/v1` 业务接口。
 - 新增博物馆完成标准需要增加“爬虫、SQLite schema、服务端接口、客户端 DTO 映射”。

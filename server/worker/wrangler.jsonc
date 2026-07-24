@@ -1,4 +1,6 @@
 {
+  // RETIRED 2026-07-25: the Worker and D1 below were deleted from Cloudflare.
+  // This file is archival and must not be deployed without reprovisioning every remote binding.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "museummuse-api",
   "main": "src/index.js",

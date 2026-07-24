@@ -36,7 +36,7 @@
 		<string>weixin</string>
 	</array>
 	<key>MuseumBackendBaseURL</key>
-	<string>https://museummuse-api.305301890.workers.dev</string>
+	<string>https://museum-api.zh0ngtian.tech</string>
 	<key>MuseumBackendSimpleAuthSecret</key>
 	<string>$(MUSEUMMUSE_SIMPLE_AUTH_SECRET)</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
