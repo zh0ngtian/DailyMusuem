@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 
 final class CoreLogicTests: XCTestCase {
@@ -405,6 +406,95 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertEqual(content.officialURL, officialURL)
     }
 
+    @MainActor
+    func testArtworkShareSnapshotRendererProducesImageForCurrentShareSheet() throws {
+        let artwork = makeArtwork(
+            museumID: MuseumIdentifier("met"),
+            title: "Water Lilies",
+            description: "A large oil painting.",
+            artistDisplayName: "Claude Monet",
+            objectDate: "1919",
+            medium: "Oil on canvas",
+            dimensions: "100 x 200 cm",
+            department: "Paintings",
+            culture: "French",
+            country: "France"
+        )
+        let previewImage = makeSolidImage(size: CGSize(width: 160, height: 80))
+        let metrics = ArtworkShareSnapshotMetrics(width: 220, scale: 1)
+
+        let rendered = try XCTUnwrap(
+            ArtworkShareSnapshotRenderer.render(
+                artwork: artwork,
+                image: previewImage,
+                imageAspectRatio: 2,
+                metrics: metrics
+            )
+        )
+
+        XCTAssertEqual(rendered.size.width, metrics.width, accuracy: 0.5)
+        XCTAssertGreaterThan(rendered.size.height, 0)
+        XCTAssertEqual(rendered.scale, metrics.scale)
+    }
+
+    @MainActor
+    func testArtworkShareSnapshotRendererFallsBackToPlaceholderBeforeImageLoads() throws {
+        let artwork = makeArtwork(
+            museumID: MuseumIdentifier("nmc"),
+            title: "后母戊鼎",
+            description: nil
+        )
+        let metrics = ArtworkShareSnapshotMetrics(width: 180, scale: 1)
+
+        let rendered = try XCTUnwrap(
+            ArtworkShareSnapshotRenderer.render(
+                artwork: artwork,
+                image: nil,
+                imageAspectRatio: -1,
+                metrics: metrics
+            )
+        )
+
+        XCTAssertEqual(rendered.size.width, metrics.width, accuracy: 0.5)
+        XCTAssertGreaterThan(rendered.size.height, metrics.width)
+    }
+
+    func testArtworkSharePresentationStateQueuesSystemSheetAfterPreviewConfirmation() throws {
+        let previewImage = makeSolidImage()
+        var state = ArtworkSharePresentationState()
+
+        state.presentPreview(with: previewImage)
+        let previewItem = try XCTUnwrap(state.previewItem)
+        XCTAssertNil(state.shareSheetItem)
+        XCTAssertNil(state.pendingShareSheetItem)
+
+        state.confirmPreviewShare(previewItem)
+        XCTAssertNil(state.previewItem)
+        XCTAssertNil(state.shareSheetItem)
+        XCTAssertEqual(state.pendingShareSheetItem?.id, previewItem.id)
+
+        state.presentPendingShareSheetIfNeeded()
+        let shareSheetItem = try XCTUnwrap(state.shareSheetItem)
+        XCTAssertNil(state.pendingShareSheetItem)
+        XCTAssertEqual(shareSheetItem.id, previewItem.id)
+        XCTAssertTrue(shareSheetItem.image === previewImage)
+    }
+
+    func testArtworkSharePresentationStateDefersSharePreparationUntilSecondaryActionsDismiss() {
+        var state = ArtworkSharePresentationState()
+
+        XCTAssertFalse(state.consumeQueuedSharePreparationAfterSecondaryActionsDismissal())
+
+        state.queueSharePreparationAfterSecondaryActionsDismissal()
+
+        XCTAssertTrue(state.isSharePreparationQueuedAfterSecondaryActionsDismissal)
+        XCTAssertTrue(state.consumeQueuedSharePreparationAfterSecondaryActionsDismissal())
+        XCTAssertFalse(state.isSharePreparationQueuedAfterSecondaryActionsDismissal)
+        XCTAssertFalse(state.consumeQueuedSharePreparationAfterSecondaryActionsDismissal())
+        XCTAssertNil(state.previewItem)
+        XCTAssertNil(state.shareSheetItem)
+    }
+
     func testRequestLogTimestampIncludesThreeDigitMilliseconds() throws {
         let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
         let date = try makeDate(
@@ -587,6 +677,15 @@ final class CoreLogicTests: XCTestCase {
             nanosecond: nanosecond
         )
         return try XCTUnwrap(calendar.date(from: components))
+    }
+
+    private func makeSolidImage(size: CGSize = CGSize(width: 40, height: 40)) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: size, format: format).image { context in
+            UIColor.systemRed.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+        }
     }
 }
 

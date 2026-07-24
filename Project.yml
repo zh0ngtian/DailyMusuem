@@ -104,6 +104,7 @@ targets:
       - path: DailyMuseumTests
       - path: Shared/AppDeepLink.swift
       - path: Shared/Artwork.swift
+      - path: Shared/ArtworkShareSnapshot.swift
       - path: Shared/ArtworkFeed/ArtworkFeedCache.swift
       - path: Shared/ArtworkFeed/ArtworkFeedItem.swift
       - path: Shared/ArtworkFeed/ArtworkFeedViewModel.swift

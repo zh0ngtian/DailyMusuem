@@ -79,9 +79,7 @@ struct ArtworkDetailView: View {
     @State private var loadedPreviewImage: UIImage?
     @State private var loadedImageAspectRatio: CGFloat?
     @State private var alertState: DetailAlertState?
-    @State private var sharePreviewItem: SharedImageSheetItem?
-    @State private var shareSheetItem: SharedImageSheetItem?
-    @State private var pendingShareSheetItem: SharedImageSheetItem?
+    @State private var sharePresentation = ArtworkSharePresentationState()
     @State private var isPreparingShareImage = false
     @State private var isShowingSecondaryActionsPopover = false
 
@@ -205,18 +203,17 @@ struct ArtworkDetailView: View {
         .translationTask(translationConfiguration) { session in
             await performTranslation(using: session)
         }
-        .sheet(item: $sharePreviewItem, onDismiss: presentPendingShareSheetIfNeeded) { item in
+        .sheet(item: $sharePresentation.previewItem, onDismiss: presentPendingShareSheetIfNeeded) { item in
             ArtworkSharePreviewSheet(
                 item: item,
                 onShare: {
-                    pendingShareSheetItem = item
-                    sharePreviewItem = nil
+                    sharePresentation.confirmPreviewShare(item)
                 }
             )
             .presentationDetents([.fraction(0.5)])
             .presentationDragIndicator(.hidden)
         }
-        .sheet(item: $shareSheetItem) { item in
+        .sheet(item: $sharePresentation.shareSheetItem) { item in
             ActivityView(activityItems: [item.image])
         }
         .onChange(of: imageReloadToken) { _, _ in
@@ -283,8 +280,8 @@ struct ArtworkDetailView: View {
                 isIncreaseDisabled: settings.artworkDetailFontScaleStep >= ArtworkDetailTypography.maximumScaleStep,
                 isDecreaseDisabled: settings.artworkDetailFontScaleStep <= ArtworkDetailTypography.minimumScaleStep,
                 onShare: {
+                    sharePresentation.queueSharePreparationAfterSecondaryActionsDismissal()
                     isShowingSecondaryActionsPopover = false
-                    handleShareButtonTap()
                 },
                 onIncrease: {
                     adjustDetailFontScale(by: 1)
@@ -293,6 +290,9 @@ struct ArtworkDetailView: View {
                     adjustDetailFontScale(by: -1)
                 }
             )
+            .onDisappear {
+                handleSecondaryActionsPopoverDisappear()
+            }
             .presentationCompactAdaptation(.popover)
         }
         .accessibilityLabel("更多操作")
@@ -556,7 +556,7 @@ struct ArtworkDetailView: View {
         isPreparingShareImage = true
         defer { isPreparingShareImage = false }
 
-        guard let image = DetailScreenshotRenderer.render(
+        guard let image = ArtworkShareSnapshotRenderer.render(
             artwork: displayedArtwork,
             image: loadedPreviewImage,
             imageAspectRatio: effectiveImageAspectRatio
@@ -568,7 +568,7 @@ struct ArtworkDetailView: View {
             return
         }
 
-        sharePreviewItem = SharedImageSheetItem(image: image)
+        sharePresentation.presentPreview(with: image)
     }
 
     private func adjustDetailFontScale(by delta: Int) {
@@ -576,11 +576,18 @@ struct ArtworkDetailView: View {
     }
 
     private func presentPendingShareSheetIfNeeded() {
-        guard let pendingShareSheetItem else {
+        sharePresentation.presentPendingShareSheetIfNeeded()
+    }
+
+    private func handleSecondaryActionsPopoverDisappear() {
+        guard sharePresentation.consumeQueuedSharePreparationAfterSecondaryActionsDismissal() else {
             return
         }
-        self.pendingShareSheetItem = nil
-        shareSheetItem = pendingShareSheetItem
+
+        Task { @MainActor in
+            await Task.yield()
+            handleShareButtonTap()
+        }
     }
 }
 
@@ -624,11 +631,6 @@ private enum ArtworkAIShortcutConfiguration {
         ]
         return components.url
     }
-}
-
-private struct SharedImageSheetItem: Identifiable {
-    let id = UUID()
-    let image: UIImage
 }
 
 private struct DetailAlertState: Identifiable {
@@ -734,7 +736,7 @@ private struct ArtworkDetailMoreActionsPopover: View {
 private struct ArtworkSharePreviewSheet: View {
     @Environment(\.dismiss) private var dismiss
 
-    let item: SharedImageSheetItem
+    let item: ArtworkShareImageItem
     let onShare: () -> Void
 
     var body: some View {
@@ -812,31 +814,6 @@ private struct SharePreviewSecondaryButtonStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(Color(.secondarySystemBackground).opacity(configuration.isPressed ? 0.8 : 1))
             )
-    }
-}
-
-private enum DetailScreenshotRenderer {
-    @MainActor
-    static func render(
-        artwork: Artwork,
-        image: UIImage?,
-        imageAspectRatio: CGFloat
-    ) -> UIImage? {
-        let metrics = ShareSnapshotMetrics.current
-        let content = ArtworkDetailShareSnapshotView(
-            artwork: artwork,
-            previewImage: image,
-            imageAspectRatio: imageAspectRatio,
-            metrics: metrics
-        )
-        .frame(width: metrics.width)
-        .background(Color(.systemBackground))
-
-        let renderer = ImageRenderer(content: content)
-        renderer.scale = metrics.scale
-        renderer.proposedSize = ProposedViewSize(width: metrics.width, height: nil)
-        renderer.isOpaque = true
-        return renderer.uiImage
     }
 }
 
@@ -1223,133 +1200,6 @@ private enum PreviewImageSaveError: LocalizedError {
         switch self {
         case .unknown:
             return "系统相册返回了未知结果，请稍后重试。"
-        }
-    }
-}
-
-private struct ShareSnapshotMetrics {
-    let width: CGFloat
-    let scale: CGFloat
-
-    @MainActor
-    static var current: ShareSnapshotMetrics {
-        let screenBounds = UIScreen.main.bounds
-        let width = screenBounds.width > 0 ? screenBounds.width : 393
-        let scale = UIScreen.main.scale > 0 ? UIScreen.main.scale : 3
-
-        return ShareSnapshotMetrics(
-            width: width,
-            scale: scale
-        )
-    }
-}
-
-private struct ArtworkDetailShareSnapshotView: View {
-    let artwork: Artwork
-    let previewImage: UIImage?
-    let imageAspectRatio: CGFloat
-    let metrics: ShareSnapshotMetrics
-
-    private var infoRows: [(String, String)] {
-        [
-            ("作者", artwork.artistDisplayName),
-            ("年代", artwork.objectDate),
-            ("材质", artwork.medium),
-            ("尺寸", artwork.dimensions),
-            ("类别", artwork.department),
-            ("文化", artwork.culture),
-            ("国家", artwork.country)
-        ]
-        .compactMap { label, value in
-            guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !trimmed.isEmpty else {
-                return nil
-            }
-            return (label, trimmed)
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            imageSection
-
-            Text(artwork.title)
-                .font(.system(.title2, weight: .semibold))
-                .foregroundStyle(Color(.label))
-                .fixedSize(horizontal: false, vertical: true)
-
-            if let description = artwork.normalizedDescriptionText {
-                Text(description)
-                    .font(.body)
-                    .foregroundStyle(Color(.label))
-                    .lineSpacing(5)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.vertical, 4)
-            }
-
-            VStack(alignment: .leading, spacing: 10) {
-                ForEach(infoRows, id: \.0) { row in
-                    shareInfoRow(label: row.0, value: row.1)
-                }
-            }
-
-            Text(artwork.museumID.copyrightNotice)
-                .font(.footnote)
-                .foregroundStyle(Color(.secondaryLabel))
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .padding(.top, 8)
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.systemBackground))
-    }
-
-    @ViewBuilder
-    private var imageSection: some View {
-        if let previewImage {
-            Image(uiImage: previewImage)
-                .resizable()
-                .scaledToFit()
-                .frame(maxWidth: .infinity)
-                .aspectRatio(normalizedImageAspectRatio, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        } else {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(.systemGray5))
-                .overlay {
-                    VStack(spacing: 12) {
-                        Image(systemName: "photo")
-                            .font(.system(size: 30, weight: .medium))
-                        Text("加载图片中")
-                            .font(.footnote)
-                    }
-                    .foregroundStyle(Color(.secondaryLabel))
-                }
-                .frame(maxWidth: .infinity)
-                .aspectRatio(normalizedImageAspectRatio, contentMode: .fit)
-        }
-    }
-
-    private var normalizedImageAspectRatio: CGFloat {
-        guard imageAspectRatio.isFinite, imageAspectRatio > 0 else {
-            return 0.8
-        }
-        return imageAspectRatio
-    }
-
-    private func shareInfoRow(label: String, value: String) -> some View {
-        HStack(alignment: .top, spacing: 16) {
-            Text(label)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color(.secondaryLabel))
-                .frame(width: 44, alignment: .leading)
-
-            Text(value)
-                .font(.subheadline)
-                .foregroundStyle(Color(.label))
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

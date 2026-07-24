@@ -60,6 +60,9 @@
 		6E98875786462837438D5333 /* ImageMemoryCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFBFD7C33C4CE48C10423B05 /* ImageMemoryCache.swift */; };
 		752579CACD31E606674EED80 /* Museum.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22F7ECE0FEA6838A9CA48031 /* Museum.swift */; };
 		768CB71B07681723D487B0E7 /* Artwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6236876208BA288526D7D379 /* Artwork.swift */; };
+		A0D000020000000000000001 /* ArtworkShareSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0D000010000000000000001 /* ArtworkShareSnapshot.swift */; };
+		A0D000030000000000000001 /* ArtworkShareSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0D000010000000000000001 /* ArtworkShareSnapshot.swift */; };
+		A0D000040000000000000001 /* ArtworkShareSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0D000010000000000000001 /* ArtworkShareSnapshot.swift */; };
 		7C1D0CDB2BA138EC3688D49E /* ArtworkFeedCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EC70DA2766D6FFD98283BC4 /* ArtworkFeedCache.swift */; };
 		7D49ED0C055B49ADF0BB67BA /* ArtworkFeedCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EC70DA2766D6FFD98283BC4 /* ArtworkFeedCache.swift */; };
 		7D7B4261C7FDB3E5EF55DC31 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D567DE125D65B4BF7B005CEA /* SettingsStore.swift */; };
@@ -171,6 +174,7 @@
 		5BA863EC7AE41653AA5A9382 /* ImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageLoader.swift; sourceTree = "<group>"; };
 		5BD5690663479FBDA165A96B /* SettingsKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsKeys.swift; sourceTree = "<group>"; };
 		6236876208BA288526D7D379 /* Artwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Artwork.swift; sourceTree = "<group>"; };
+		A0D000010000000000000001 /* ArtworkShareSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkShareSnapshot.swift; sourceTree = "<group>"; };
 		63B74CA27ECF1DE6E23D8E0F /* LogTimestampFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogTimestampFormatter.swift; sourceTree = "<group>"; };
 		64A154303832F3F9AF23F141 /* WaterfallGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaterfallGrid.swift; sourceTree = "<group>"; };
 		66FE9D0B5E8CBC6277FA891B /* DailyMuseumApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyMuseumApp.swift; sourceTree = "<group>"; };
@@ -316,6 +320,7 @@
 			children = (
 				217B48EE2D107B1146488C81 /* AppDeepLink.swift */,
 				6236876208BA288526D7D379 /* Artwork.swift */,
+				A0D000010000000000000001 /* ArtworkShareSnapshot.swift */,
 				22F7ECE0FEA6838A9CA48031 /* Museum.swift */,
 				0D1100010000000000000001 /* MuseumMetadata.swift */,
 				0D1200010000000000000001 /* MuseumMetadataStore.swift */,
@@ -572,6 +577,7 @@
 			files = (
 				1A5FF2DFAC46F3920B6A67E4 /* AppDeepLink.swift in Sources */,
 				ECEEB099502FBD99207B7915 /* Artwork.swift in Sources */,
+				A0D000040000000000000001 /* ArtworkShareSnapshot.swift in Sources */,
 				7C1D0CDB2BA138EC3688D49E /* ArtworkFeedCache.swift in Sources */,
 				AA13EE5D38DF6679999B07EF /* ArtworkFeedItem.swift in Sources */,
 				ECE253F7723E9092C651604B /* ArtworkFeedViewModel.swift in Sources */,
@@ -606,6 +612,7 @@
 			files = (
 				FA0D5BE2C5BFAD512BE486C0 /* AppDeepLink.swift in Sources */,
 				D70FAF2FDD8A6B78C62DDA9D /* Artwork.swift in Sources */,
+				A0D000030000000000000001 /* ArtworkShareSnapshot.swift in Sources */,
 				19972E0AC511408E6B230C44 /* ArtworkFeedCache.swift in Sources */,
 				BA503B583A43593254FC7A8E /* ArtworkFeedItem.swift in Sources */,
 				5601240D9836EF70D90487A0 /* ArtworkFeedViewModel.swift in Sources */,
@@ -644,6 +651,7 @@
 				9DA9630412EDAEFDE3EAC41E /* AppRouter.swift in Sources */,
 				FA1DFAF26C30C3811D3EE7D2 /* AppShortcutHandler.swift in Sources */,
 				768CB71B07681723D487B0E7 /* Artwork.swift in Sources */,
+				A0D000020000000000000001 /* ArtworkShareSnapshot.swift in Sources */,
 				0C29EBB7118BA7DA8620B6F1 /* ArtworkCardView.swift in Sources */,
 				A9EFC7883E19EBC1EF52F69D /* ArtworkDetailLoaderView.swift in Sources */,
 				F47332D90352D1E9E64D26C4 /* ArtworkDetailView.swift in Sources */,
