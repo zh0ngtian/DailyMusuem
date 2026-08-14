@@ -672,6 +672,14 @@
   - 本次设置修改不生效
   - 不允许写入记忆状态
   - 二级页面继续保持进入设置前的显示和筛选状态
+- 如果用户取消全部品类勾选后点击 `完成`：
+  - 页面设置保持打开，不保存空选择
+  - 提示固定为：`当前未勾选任何品类，请至少勾选一个品类后再完成。`
+- 如果已勾选品类的后端请求成功但返回 `0` 件展品：
+  - 二级页必须显示 `所选品类暂无展品`
+  - 说明文案固定为：`当前勾选的品类没有可展示的展品，请重新选择品类。`
+  - 页面内提供 `重新选择品类` 按钮并打开页面设置
+  - 不允许把这种空结果显示成网络 `加载失败`，也不应只提供无效的重复重试
 
 #### 4.3.2 数据加载
 
@@ -1064,6 +1072,12 @@
     - 真机构建成功
     - 真机安装成功
     - 真机启动成功
+- 仓库提供 `scripts/ios_nightly_installer.py`，用于在 macOS 状态栏常驻并于每日本地时间 `23:00` 自动检查真机：
+  - 目标默认为 `Yao iPhone 17 Pro`（`00008150-000E4010362B401C`），可通过命令行参数覆盖。
+  - 只有 `devicectl device info details` 确认 `localNetwork`、开发 tunnel 已连接、设备已配对、开发者模式开启且 DDI 服务可用时，才允许进入构建。
+  - 构建使用 `DailyMuseum` scheme、真机 destination 和独立 `.deriveddata-nightly`；安装使用 `devicectl device install app`。
+  - 自动流程只编译和安装，不允许调用 process launch 主动打开 App。
+  - `scripts/setup_ios_nightly_installer.sh` 负责创建独立 PyObjC 虚拟环境并安装用户级 LaunchAgent；使用与限制见 `docs/ios-nightly-installer.md`。
 
 ### 6.3 小组件截图闭环测试
 

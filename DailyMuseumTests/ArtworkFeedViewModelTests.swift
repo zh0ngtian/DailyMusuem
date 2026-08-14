@@ -149,6 +149,52 @@ final class ArtworkFeedViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.displayItems.map(\.id), ["tnm-\(itemID)"])
     }
 
+    func testEmptyBackendPageUsesEmptyStateInsteadOfNetworkFailure() async throws {
+        let session = makeStubSession(testID: UUID().uuidString) { request in
+            guard let url = request.url, url.path == "/v1/museums/tnm/artworks" else {
+                throw URLError(.badURL)
+            }
+
+            return FeedViewModelStubbedResponse(
+                response: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                data: try JSONSerialization.data(withJSONObject: [
+                    "dataVersion": "test-version",
+                    "data": [
+                        "items": [],
+                        "nextCursor": NSNull(),
+                        "hasMore": false
+                    ]
+                ])
+            )
+        }
+        let backendClient = MuseumBackendClient(
+            baseURL: URL(string: "https://backend.example")!,
+            session: session
+        )
+        let viewModel = ArtworkFeedViewModel(
+            museum: MuseumRepository.museum(for: MuseumIdentifier("tnm")),
+            settings: StubArtworkFeedSettings(),
+            cache: StubArtworkFeedCache(),
+            backendClient: backendClient
+        )
+
+        await viewModel.reload()
+
+        XCTAssertEqual(viewModel.state, .empty(.allCategories))
+        XCTAssertTrue(viewModel.displayItems.isEmpty)
+        XCTAssertFalse(viewModel.hasMoreItems)
+        XCTAssertTrue(viewModel.loadingLogs.contains { $0.contains("显示“暂无展品”空态") })
+    }
+
+    func testSelectedCategoriesEmptyStateGuidesUserBackToPageSettings() {
+        let emptyState = ArtworkFeedViewModel.emptyState(isAllCategoriesSelected: false)
+
+        XCTAssertEqual(emptyState, .selectedCategories)
+        XCTAssertEqual(emptyState.title, "所选品类暂无展品")
+        XCTAssertEqual(emptyState.message, "当前勾选的品类没有可展示的展品，请重新选择品类。")
+        XCTAssertTrue(emptyState.suggestsChangingCategories)
+    }
+
     private func makeStubSession(
         testID: String,
         handler: @escaping @Sendable (URLRequest) throws -> FeedViewModelStubbedResponse

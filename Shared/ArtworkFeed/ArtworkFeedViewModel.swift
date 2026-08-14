@@ -64,20 +64,31 @@ final class ArtworkFeedViewModel: ObservableObject {
         case inlineInitialBatch
     }
 
-    private enum FeedLoadingError: LocalizedError {
-        case noDisplayableArtworks
+    struct EmptyState: Equatable {
+        let title: String
+        let systemImage: String
+        let message: String
+        let suggestsChangingCategories: Bool
 
-        var errorDescription: String? {
-            switch self {
-            case .noDisplayableArtworks:
-                return "暂时没有可展示的展品，请稍后重试。"
-            }
-        }
+        static let allCategories = EmptyState(
+            title: "暂无展品",
+            systemImage: "tray",
+            message: "当前博物馆暂时没有可展示的展品，请稍后重试。",
+            suggestsChangingCategories: false
+        )
+
+        static let selectedCategories = EmptyState(
+            title: "所选品类暂无展品",
+            systemImage: "line.3.horizontal.decrease.circle",
+            message: "当前勾选的品类没有可展示的展品，请重新选择品类。",
+            suggestsChangingCategories: true
+        )
     }
 
     enum State: Equatable {
         case idle
         case loading
+        case empty(EmptyState)
         case loaded
         case failed(String)
     }
@@ -243,8 +254,10 @@ final class ArtworkFeedViewModel: ObservableObject {
         do {
             try await loadNextBatch(count: Constants.initialBatchSize)
             guard !items.isEmpty else {
-                appendLoadingLog("首批加载后仍无可展示展品，转为失败态，避免空白页面。")
-                throw FeedLoadingError.noDisplayableArtworks
+                let emptyState = Self.emptyState(isAllCategoriesSelected: isAllCategoriesSelected)
+                appendLoadingLog("首批加载后仍无可展示展品，显示“\(emptyState.title)”空态。")
+                state = .empty(emptyState)
+                return
             }
             appendLoadingLog("首批 \(items.count) 个展品已准备完成。")
             state = .loaded
@@ -392,6 +405,10 @@ final class ArtworkFeedViewModel: ObservableObject {
 
     private var selectedCategoriesLogLabel: String {
         isAllCategoriesSelected ? "全部" : selectedCategories.map(\.displayName).joined(separator: "、")
+    }
+
+    static func emptyState(isAllCategoriesSelected: Bool) -> EmptyState {
+        isAllCategoriesSelected ? .allCategories : .selectedCategories
     }
 
     private func updateSelectedCategories(_ categories: [MuseumCategory]) async {

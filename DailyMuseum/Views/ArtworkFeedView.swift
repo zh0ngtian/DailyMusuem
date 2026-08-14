@@ -57,6 +57,21 @@ struct ArtworkFeedView: View {
                             isInitialLoading: true
                         )
                     }
+                case .empty(let emptyState):
+                    ContentUnavailableView {
+                        Label(emptyState.title, systemImage: emptyState.systemImage)
+                    } description: {
+                        Text(emptyState.message)
+                    } actions: {
+                        if emptyState.suggestsChangingCategories {
+                            Button("重新选择品类") {
+                                presentPageSettings()
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                    }
+                    .padding(24)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .failed(let message):
                     VStack(spacing: 16) {
                         ContentUnavailableView("加载失败", systemImage: "wifi.exclamationmark", description: Text(message))
@@ -436,7 +451,7 @@ struct ArtworkFeedView: View {
 
             let selectedCategories = availableCategories.filter { draftSelectedCategoryIDs.contains($0.id) }
             if selectedCategories.isEmpty {
-                return "未选择任何类别"
+                return "未选择任何品类"
             }
 
             if selectedCategories.count <= 2 {
@@ -478,7 +493,7 @@ struct ArtworkFeedView: View {
 
             let selectedCategories = availableCategories.filter { draftSelectedCategoryIDs.contains($0.id) }
             guard !selectedCategories.isEmpty else {
-                alertMessage = "请至少选择一个类别后再完成。"
+                alertMessage = "当前未勾选任何品类，请至少勾选一个品类后再完成。"
                 return
             }
 

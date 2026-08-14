@@ -13,6 +13,8 @@
 		076F9714F7BD5FF4BB3C9548 /* DailyMuseumWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 677E368A7DD1F542B480E2C3 /* DailyMuseumWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		07D7736A77F39CB6028E891B /* ArtworkFeedItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71CBDD45FB2452D4E907C758 /* ArtworkFeedItem.swift */; };
 		090F68A2DF9313C3F0E986FC /* RequestLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0773F3ED0D9C2C7D00381424 /* RequestLogger.swift */; };
+		0B5F10A5A1B44D74885A5E01 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 0B5F10A5A1B44D74885A5E04 /* InfoPlist.strings */; };
+		0C29EBB7118BA7DA8620B6F1 /* ArtworkCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3069A0CBA34322E131468A6 /* ArtworkCardView.swift */; };
 		0CBE00100000000000000001 /* MuseumBackendClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CBE000F0000000000000000 /* MuseumBackendClient.swift */; };
 		0CBE00110000000000000002 /* MuseumBackendClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CBE000F0000000000000000 /* MuseumBackendClient.swift */; };
 		0CBE00120000000000000003 /* MuseumBackendClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CBE000F0000000000000000 /* MuseumBackendClient.swift */; };
@@ -22,8 +24,6 @@
 		0D1200030000000000000003 /* MuseumMetadataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D1200010000000000000001 /* MuseumMetadataStore.swift */; };
 		0D1200040000000000000004 /* MuseumMetadataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D1200010000000000000001 /* MuseumMetadataStore.swift */; };
 		0D1200050000000000000005 /* MuseumMetadataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D1200010000000000000001 /* MuseumMetadataStore.swift */; };
-		0B5F10A5A1B44D74885A5E01 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 0B5F10A5A1B44D74885A5E04 /* InfoPlist.strings */; };
-		0C29EBB7118BA7DA8620B6F1 /* ArtworkCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3069A0CBA34322E131468A6 /* ArtworkCardView.swift */; };
 		10BFA44C9A4240C5EBF57018 /* SettingsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD5690663479FBDA165A96B /* SettingsKeys.swift */; };
 		14B082D6FFDB65D6DA0F9EB7 /* WidgetStateAndSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E85039D52D33451509A0868 /* WidgetStateAndSettingsTests.swift */; };
 		164B18A892946803105F93B3 /* nmc-detail.html in Resources */ = {isa = PBXBuildFile; fileRef = BD550F604C3CC2B156729689 /* nmc-detail.html */; };
@@ -60,9 +60,6 @@
 		6E98875786462837438D5333 /* ImageMemoryCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFBFD7C33C4CE48C10423B05 /* ImageMemoryCache.swift */; };
 		752579CACD31E606674EED80 /* Museum.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22F7ECE0FEA6838A9CA48031 /* Museum.swift */; };
 		768CB71B07681723D487B0E7 /* Artwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6236876208BA288526D7D379 /* Artwork.swift */; };
-		A0D000020000000000000001 /* ArtworkShareSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0D000010000000000000001 /* ArtworkShareSnapshot.swift */; };
-		A0D000030000000000000001 /* ArtworkShareSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0D000010000000000000001 /* ArtworkShareSnapshot.swift */; };
-		A0D000040000000000000001 /* ArtworkShareSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0D000010000000000000001 /* ArtworkShareSnapshot.swift */; };
 		7C1D0CDB2BA138EC3688D49E /* ArtworkFeedCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EC70DA2766D6FFD98283BC4 /* ArtworkFeedCache.swift */; };
 		7D49ED0C055B49ADF0BB67BA /* ArtworkFeedCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EC70DA2766D6FFD98283BC4 /* ArtworkFeedCache.swift */; };
 		7D7B4261C7FDB3E5EF55DC31 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D567DE125D65B4BF7B005CEA /* SettingsStore.swift */; };
@@ -74,6 +71,9 @@
 		915F168BF32339F1C34D5E69 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D567DE125D65B4BF7B005CEA /* SettingsStore.swift */; };
 		96F201E336F9C153509002C3 /* CoreLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5EEE2EB1580589947A6FEDA /* CoreLogicTests.swift */; };
 		9DA9630412EDAEFDE3EAC41E /* AppRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D49DEAE0ACDF038EE933986B /* AppRouter.swift */; };
+		A0D000020000000000000001 /* ArtworkShareSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0D000010000000000000001 /* ArtworkShareSnapshot.swift */; };
+		A0D000030000000000000001 /* ArtworkShareSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0D000010000000000000001 /* ArtworkShareSnapshot.swift */; };
+		A0D000040000000000000001 /* ArtworkShareSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0D000010000000000000001 /* ArtworkShareSnapshot.swift */; };
 		A160B9CD7430EE891181FA94 /* met-overview.html in Resources */ = {isa = PBXBuildFile; fileRef = 15CC322130D2C36A4D586EC3 /* met-overview.html */; };
 		A38484C2185A31CF1C746E1F /* FavoritesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59C380E89F1FC0CACD45A21B /* FavoritesStore.swift */; };
 		A5994779E3359E86DD37A8BD /* WidgetConfigurationIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ABE6EEDAB63E735DD709799 /* WidgetConfigurationIntent.swift */; };
@@ -149,12 +149,12 @@
 		0773F3ED0D9C2C7D00381424 /* RequestLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestLogger.swift; sourceTree = "<group>"; };
 		090F116BD2F05BC2CB7C3DC7 /* FavoritesStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesStoreTests.swift; sourceTree = "<group>"; };
 		0ACA67A0EFEEB5748BD15991 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		0CBE000F0000000000000000 /* MuseumBackendClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuseumBackendClient.swift; sourceTree = "<group>"; };
-		0D1100010000000000000001 /* MuseumMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuseumMetadata.swift; sourceTree = "<group>"; };
-		0D1200010000000000000001 /* MuseumMetadataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuseumMetadataStore.swift; sourceTree = "<group>"; };
 		0B5F10A5A1B44D74885A5E02 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		0B5F10A5A1B44D74885A5E03 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		0C0F1A000000000000000001 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+		0CBE000F0000000000000000 /* MuseumBackendClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuseumBackendClient.swift; sourceTree = "<group>"; };
+		0D1100010000000000000001 /* MuseumMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuseumMetadata.swift; sourceTree = "<group>"; };
+		0D1200010000000000000001 /* MuseumMetadataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuseumMetadataStore.swift; sourceTree = "<group>"; };
 		15CC322130D2C36A4D586EC3 /* met-overview.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "met-overview.html"; sourceTree = "<group>"; };
 		1B7AF25AA60373F1FEF52146 /* DailyMuseumWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DailyMuseumWidget.entitlements; sourceTree = "<group>"; };
 		1CA69050D6181865B9708213 /* DailyMuseumTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DailyMuseumTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -174,7 +174,6 @@
 		5BA863EC7AE41653AA5A9382 /* ImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageLoader.swift; sourceTree = "<group>"; };
 		5BD5690663479FBDA165A96B /* SettingsKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsKeys.swift; sourceTree = "<group>"; };
 		6236876208BA288526D7D379 /* Artwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Artwork.swift; sourceTree = "<group>"; };
-		A0D000010000000000000001 /* ArtworkShareSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkShareSnapshot.swift; sourceTree = "<group>"; };
 		63B74CA27ECF1DE6E23D8E0F /* LogTimestampFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogTimestampFormatter.swift; sourceTree = "<group>"; };
 		64A154303832F3F9AF23F141 /* WaterfallGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaterfallGrid.swift; sourceTree = "<group>"; };
 		66FE9D0B5E8CBC6277FA891B /* DailyMuseumApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyMuseumApp.swift; sourceTree = "<group>"; };
@@ -191,6 +190,7 @@
 		9DDA86A50855406853C9B17B /* RequestLoggerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestLoggerTests.swift; sourceTree = "<group>"; };
 		9E85039D52D33451509A0868 /* WidgetStateAndSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetStateAndSettingsTests.swift; sourceTree = "<group>"; };
 		9F3052397EB170BF0730F5B4 /* RequestLogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestLogsView.swift; sourceTree = "<group>"; };
+		A0D000010000000000000001 /* ArtworkShareSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkShareSnapshot.swift; sourceTree = "<group>"; };
 		A49931525A891BFC0604633C /* DailyMuseum.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DailyMuseum.entitlements; sourceTree = "<group>"; };
 		A5EEE2EB1580589947A6FEDA /* CoreLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreLogicTests.swift; sourceTree = "<group>"; };
 		AFEC49CE4C55DCDEA5364224 /* WidgetSettingsReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSettingsReader.swift; sourceTree = "<group>"; };
@@ -224,18 +224,34 @@
 			path = NaraMuseum;
 			sourceTree = "<group>";
 		};
-		0F8ACE05F507B92A0E80653D /* JapanSearch */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = JapanSearch;
-			sourceTree = "<group>";
-		};
 		0B2200020000000000000002 /* GuimetMuseum */ = {
 			isa = PBXGroup;
 			children = (
 			);
 			path = GuimetMuseum;
+			sourceTree = "<group>";
+		};
+		0C0F1A000000000000000002 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				0C0F1A000000000000000001 /* Secrets.xcconfig */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+		0CBE000E0000000000000000 /* Backend */ = {
+			isa = PBXGroup;
+			children = (
+				0CBE000F0000000000000000 /* MuseumBackendClient.swift */,
+			);
+			path = Backend;
+			sourceTree = "<group>";
+		};
+		0F8ACE05F507B92A0E80653D /* JapanSearch */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = JapanSearch;
 			sourceTree = "<group>";
 		};
 		24F54B3AB67BE88EFFFE3CE4 /* MetMuseum */ = {
@@ -261,14 +277,6 @@
 			path = ShanghaiMuseum;
 			sourceTree = "<group>";
 		};
-		0CBE000E0000000000000000 /* Backend */ = {
-			isa = PBXGroup;
-			children = (
-				0CBE000F0000000000000000 /* MuseumBackendClient.swift */,
-			);
-			path = Backend;
-			sourceTree = "<group>";
-		};
 		41BF8271109E2C2D713CC4AF /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -277,14 +285,6 @@
 				677E368A7DD1F542B480E2C3 /* DailyMuseumWidgetExtension.appex */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		0C0F1A000000000000000002 /* Config */ = {
-			isa = PBXGroup;
-			children = (
-				0C0F1A000000000000000001 /* Secrets.xcconfig */,
-			);
-			path = Config;
 			sourceTree = "<group>";
 		};
 		5225386D7CA9D444567A323F /* ArtworkFeed */ = {
