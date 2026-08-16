@@ -105,7 +105,15 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(reader.widgetRefreshInterval(), .threeHours)
     }
 
-    func testWidgetSettingsReaderDefaultsRefreshIntervalToOff() {
+    func testWidgetSettingsReaderDefaultsRefreshIntervalToTwentyFourHours() {
+        let reader = WidgetSettingsReader(defaults: defaults)
+
+        XCTAssertEqual(reader.widgetRefreshInterval(), .twentyFourHours)
+    }
+
+    func testWidgetSettingsReaderKeepsExplicitlyDisabledRefreshInterval() {
+        defaults.set(WidgetRefreshInterval.off.rawValue, forKey: SettingsKeys.widgetRefreshIntervalHours)
+
         let reader = WidgetSettingsReader(defaults: defaults)
 
         XCTAssertEqual(reader.widgetRefreshInterval(), .off)

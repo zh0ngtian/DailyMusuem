@@ -49,7 +49,7 @@ enum WidgetRefreshInterval: Int, CaseIterable, Identifiable, Equatable, Hashable
     case twelveHours = 12
     case twentyFourHours = 24
 
-    static let defaultValue: WidgetRefreshInterval = .off
+    static let defaultValue: WidgetRefreshInterval = .twentyFourHours
 
     var id: Int { rawValue }
 
@@ -69,7 +69,10 @@ enum WidgetRefreshInterval: Int, CaseIterable, Identifiable, Equatable, Hashable
     }
 
     static func storedValue(in defaults: UserDefaults) -> WidgetRefreshInterval {
-        WidgetRefreshInterval(rawValue: defaults.integer(forKey: SettingsKeys.widgetRefreshIntervalHours)) ?? defaultValue
+        guard let storedHours = defaults.object(forKey: SettingsKeys.widgetRefreshIntervalHours) as? NSNumber else {
+            return defaultValue
+        }
+        return WidgetRefreshInterval(rawValue: storedHours.intValue) ?? defaultValue
     }
 }
 
