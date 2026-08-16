@@ -2,6 +2,32 @@ import Foundation
 import XCTest
 
 final class ParsingAndAPITests: XCTestCase {
+    func testMuseumMetadataLoadGateQueuesForegroundRetryUntilCurrentLoadFinishes() {
+        var gate = MuseumMetadataLoadGate()
+
+        XCTAssertTrue(gate.beginLoad())
+        XCTAssertFalse(gate.requestForegroundRetry(hasVisibleMetadata: false))
+        XCTAssertTrue(gate.finishLoad(hasVisibleMetadata: false))
+        XCTAssertTrue(gate.beginLoad())
+        XCTAssertFalse(gate.finishLoad(hasVisibleMetadata: true))
+    }
+
+    func testMuseumMetadataLoadGateStartsForegroundRetryWhenIdleAndEmpty() {
+        var gate = MuseumMetadataLoadGate()
+
+        XCTAssertTrue(gate.requestForegroundRetry(hasVisibleMetadata: false))
+        XCTAssertTrue(gate.beginLoad())
+        XCTAssertFalse(gate.finishLoad(hasVisibleMetadata: true))
+    }
+
+    func testMuseumMetadataLoadGateDoesNotRetryWhenMetadataIsAlreadyVisible() {
+        var gate = MuseumMetadataLoadGate()
+
+        XCTAssertTrue(gate.beginLoad())
+        XCTAssertFalse(gate.requestForegroundRetry(hasVisibleMetadata: true))
+        XCTAssertFalse(gate.finishLoad(hasVisibleMetadata: false))
+    }
+
     func testMuseumBackendClientDecodesDynamicMuseumMetadata() async throws {
         let recorder = RequestRecorder()
         let session = makeStubSession(testID: UUID().uuidString) { request in

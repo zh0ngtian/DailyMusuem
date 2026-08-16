@@ -1,10 +1,12 @@
 import SwiftUI
 
 struct MuseumListView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selectedMuseum: Museum?
     @State private var countrySections: [MuseumCountrySection] = []
     @State private var isLoadingMetadata = true
     @State private var metadataErrorMessage: String?
+    @State private var metadataLoadGate = MuseumMetadataLoadGate()
 
     var body: some View {
         museumList
@@ -14,6 +16,14 @@ struct MuseumListView: View {
         }
         .task {
             await loadMuseumMetadata(cachePolicy: .useCaches, useCachedSnapshot: true)
+        }
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+            guard oldPhase != .active, newPhase == .active else {
+                return
+            }
+            Task {
+                await retryMetadataAfterReturningToForeground()
+            }
         }
         .refreshable {
             await loadMuseumMetadata(cachePolicy: .networkOnly, useCachedSnapshot: false)
@@ -130,6 +140,39 @@ struct MuseumListView: View {
     }
 
     private func loadMuseumMetadata(
+        cachePolicy: MuseumRequestCachePolicy,
+        useCachedSnapshot: Bool
+    ) async {
+        guard metadataLoadGate.beginLoad() else {
+            return
+        }
+
+        var nextCachePolicy = cachePolicy
+        var shouldUseCachedSnapshot = useCachedSnapshot
+
+        while true {
+            await performMuseumMetadataLoad(
+                cachePolicy: nextCachePolicy,
+                useCachedSnapshot: shouldUseCachedSnapshot
+            )
+
+            let shouldRetry = metadataLoadGate.finishLoad(hasVisibleMetadata: !countrySections.isEmpty)
+            guard shouldRetry, metadataLoadGate.beginLoad() else {
+                return
+            }
+            nextCachePolicy = .networkOnly
+            shouldUseCachedSnapshot = false
+        }
+    }
+
+    private func retryMetadataAfterReturningToForeground() async {
+        guard metadataLoadGate.requestForegroundRetry(hasVisibleMetadata: !countrySections.isEmpty) else {
+            return
+        }
+        await loadMuseumMetadata(cachePolicy: .networkOnly, useCachedSnapshot: false)
+    }
+
+    private func performMuseumMetadataLoad(
         cachePolicy: MuseumRequestCachePolicy,
         useCachedSnapshot: Bool
     ) async {

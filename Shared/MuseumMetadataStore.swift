@@ -110,3 +110,38 @@ private struct PersistedMuseumMetadataSnapshot: Codable {
     let updatedAt: Date
     let museums: [MuseumMetadata]
 }
+
+struct MuseumMetadataLoadGate {
+    private(set) var isLoading = false
+    private var shouldRetryWhenCurrentLoadFinishes = false
+
+    mutating func beginLoad() -> Bool {
+        guard !isLoading else {
+            return false
+        }
+        isLoading = true
+        return true
+    }
+
+    mutating func requestForegroundRetry(hasVisibleMetadata: Bool) -> Bool {
+        guard !hasVisibleMetadata else {
+            shouldRetryWhenCurrentLoadFinishes = false
+            return false
+        }
+        guard isLoading else {
+            return true
+        }
+        shouldRetryWhenCurrentLoadFinishes = true
+        return false
+    }
+
+    mutating func finishLoad(hasVisibleMetadata: Bool) -> Bool {
+        isLoading = false
+        guard !hasVisibleMetadata, shouldRetryWhenCurrentLoadFinishes else {
+            shouldRetryWhenCurrentLoadFinishes = false
+            return false
+        }
+        shouldRetryWhenCurrentLoadFinishes = false
+        return true
+    }
+}
