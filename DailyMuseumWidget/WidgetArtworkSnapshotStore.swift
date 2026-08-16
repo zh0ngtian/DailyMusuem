@@ -26,7 +26,8 @@ actor WidgetArtworkSnapshotStore {
         static let stateFileName = "instances.json"
         static let displayedHistoryFileName = "displayed-history.json"
         static let imagesDirectoryName = "images"
-        static let widgetImageMaximumDimension: CGFloat = 1200
+        static let widgetImageMaximumDimension: CGFloat = 1024
+        static let widgetImageMaximumPixelArea: CGFloat = 1_000_000
         static let storedImageCompressionQuality: CGFloat = 0.85
     }
 
@@ -268,6 +269,7 @@ actor WidgetArtworkSnapshotStore {
                     instances[instanceToken] = updatedState
                     persist(instances)
                 }
+                prepareStoredImageIfNeeded(named: updatedState.artwork?.imageFileName)
                 return presentationState(for: updatedState)
             }
 
@@ -643,8 +645,14 @@ actor WidgetArtworkSnapshotStore {
             return imageData
         }
 
-        let maximumDimension = max(dimensions.width, dimensions.height)
-        guard maximumDimension > Int(Constants.widgetImageMaximumDimension),
+        let sourceWidth = CGFloat(dimensions.width)
+        let sourceHeight = CGFloat(dimensions.height)
+        let maximumDimension = max(sourceWidth, sourceHeight)
+        let pixelArea = sourceWidth * sourceHeight
+        let dimensionScale = Constants.widgetImageMaximumDimension / maximumDimension
+        let areaScale = sqrt(Constants.widgetImageMaximumPixelArea / pixelArea)
+        let scale = min(1, dimensionScale, areaScale)
+        guard scale < 1,
               let source = CGImageSourceCreateWithData(
                 imageData as CFData,
                 [kCGImageSourceShouldCache: false] as CFDictionary
@@ -652,11 +660,13 @@ actor WidgetArtworkSnapshotStore {
             return imageData
         }
 
+        let thumbnailMaximumDimension = max(1, Int(floor(maximumDimension * scale)))
+
         let thumbnailOptions: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
             kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceThumbnailMaxPixelSize: Int(Constants.widgetImageMaximumDimension),
+            kCGImageSourceThumbnailMaxPixelSize: thumbnailMaximumDimension,
         ]
         guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(
             source,
@@ -691,6 +701,21 @@ actor WidgetArtworkSnapshotStore {
             return
         }
         try? FileManager.default.removeItem(at: imagesDirectoryURL.appendingPathComponent(fileName))
+    }
+
+    private func prepareStoredImageIfNeeded(named fileName: String?) {
+        guard let fileName else {
+            return
+        }
+        let fileURL = imagesDirectoryURL.appendingPathComponent(fileName)
+        guard let storedData = try? Data(contentsOf: fileURL) else {
+            return
+        }
+        let preparedData = Self.preparedImageDataForStorage(storedData)
+        guard preparedData != storedData else {
+            return
+        }
+        try? preparedData.write(to: fileURL, options: [.atomic])
     }
 
     private func safeFileName(for rawValue: String) -> String {
