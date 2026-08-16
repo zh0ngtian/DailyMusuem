@@ -1013,6 +1013,9 @@
     - `Widget archival failed due to image being too large`
     - `imageTooLarge`
   - 成功态背景图必须在图片下载成功后、写入 App Group 前先降采样到受控像素尺寸，渲染时直接读取已降采样文件并交给 SwiftUI `scaledToFill` 裁剪，避免在 Widget View 内再次 `UIImage(data:)` + 重绘导致真机 Widget 内存峰值过高、`idle`、归档失败或进程被系统终止。
+  - 当前归档安全上限同时约束最大边和总像素面积：最大边不得超过 `1024`，总像素不得超过 `1,000,000`；只限制最大边不足以覆盖接近正方形的图片。
+  - Widget provider 读取成功态实例时必须同步检查并迁移旧版本遗留的超限 App Group 图片；不能要求用户等待下一次网络刷新才能消除旧图片造成的归档失败。
+  - 图片降采样测试必须至少覆盖横图、竖图和接近正方形图片，并同时断言最大边和总像素面积；模拟器闭环仍需确认系统日志没有 `imageTooLarge`，不能只看单元测试或 `Widget 完成渲染`。
 - Widget 当前不再按隐藏 `instanceToken` 隔离内容：
   - provider 必须优先按 `scope` 命中共享状态
   - 即便配置里的旧 `instanceToken` 发生变化，同组实例也应继续显示同一份内容

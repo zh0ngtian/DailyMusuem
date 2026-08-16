@@ -640,13 +640,81 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
         let storedData = try Data(contentsOf: imageURL)
         let storedDimensions = try XCTUnwrap(WidgetArtworkSnapshotStore.imageDimensions(from: storedData))
 
-        XCTAssertGreaterThan(max(sourceDimensions.width, sourceDimensions.height), 1200)
-        XCTAssertLessThanOrEqual(max(storedDimensions.width, storedDimensions.height), 1200)
+        XCTAssertGreaterThan(max(sourceDimensions.width, sourceDimensions.height), 1024)
+        XCTAssertLessThanOrEqual(max(storedDimensions.width, storedDimensions.height), 1024)
+        XCTAssertLessThanOrEqual(storedDimensions.width * storedDimensions.height, 1_000_000)
         XCTAssertEqual(
             CGFloat(storedDimensions.width) / CGFloat(storedDimensions.height),
             CGFloat(sourceDimensions.width) / CGFloat(sourceDimensions.height),
             accuracy: 0.02
         )
+    }
+
+    func testPreparedImagesRespectWidgetArchiveLimitsForLandscapePortraitAndSquare() throws {
+        let sourceSizes = [
+            CGSize(width: 5000, height: 3757),
+            CGSize(width: 3757, height: 5000),
+            CGSize(width: 1100, height: 1100),
+        ]
+
+        for sourceSize in sourceSizes {
+            let sourceData = makeJPEGData(size: sourceSize)
+            let preparedData = WidgetArtworkSnapshotStore.preparedImageDataForStorage(sourceData)
+            let preparedDimensions = try XCTUnwrap(
+                WidgetArtworkSnapshotStore.imageDimensions(from: preparedData)
+            )
+
+            XCTAssertLessThanOrEqual(
+                max(preparedDimensions.width, preparedDimensions.height),
+                1024,
+                "Unexpected maximum dimension for source size \(sourceSize)"
+            )
+            XCTAssertLessThanOrEqual(
+                preparedDimensions.width * preparedDimensions.height,
+                1_000_000,
+                "Unexpected pixel area for source size \(sourceSize)"
+            )
+        }
+    }
+
+    func testRenderStateMigratesLegacyOversizedStoredImage() async throws {
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let refreshKey = WidgetRefreshGroupKey.make(scope: .all, family: nil)
+
+        _ = await store.beginRefresh(
+            instanceToken: refreshKey,
+            scopeRawValue: WidgetMuseumScope.all.rawValue
+        )
+        let successState = await store.markSuccess(
+            instanceToken: refreshKey,
+            expectedNonce: 1,
+            payload: makePayload(
+                museumID: MuseumIdentifier("nnm"),
+                museumName: "奈良国立博物馆",
+                title: "旧版本大图"
+            ),
+            imageData: makeJPEGData(size: CGSize(width: 800, height: 600))
+        )
+        let imageFileName = try XCTUnwrap(successState?.artwork?.imageFileName)
+        let imageURL = baseURL
+            .appendingPathComponent("WidgetInstances", isDirectory: true)
+            .appendingPathComponent("images", isDirectory: true)
+            .appendingPathComponent(imageFileName)
+        let legacyData = makeJPEGData(size: CGSize(width: 1200, height: 901))
+        try legacyData.write(to: imageURL, options: [.atomic])
+
+        _ = await store.renderState(
+            for: refreshKey,
+            scopeRawValue: WidgetMuseumScope.all.rawValue,
+            familyToken: WidgetFamily.systemSmall.debugToken
+        )
+
+        let migratedData = try Data(contentsOf: imageURL)
+        let migratedDimensions = try XCTUnwrap(
+            WidgetArtworkSnapshotStore.imageDimensions(from: migratedData)
+        )
+        XCTAssertLessThanOrEqual(max(migratedDimensions.width, migratedDimensions.height), 1024)
+        XCTAssertLessThanOrEqual(migratedDimensions.width * migratedDimensions.height, 1_000_000)
     }
 
     private func makePayload(

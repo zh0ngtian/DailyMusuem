@@ -998,8 +998,9 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         )
         let payloadDimensions = try XCTUnwrap(WidgetArtworkSnapshotStore.imageDimensions(from: payload.imageData))
 
-        XCTAssertGreaterThan(max(sourceDimensions.width, sourceDimensions.height), 1200)
-        XCTAssertLessThanOrEqual(max(payloadDimensions.width, payloadDimensions.height), 1200)
+        XCTAssertGreaterThan(max(sourceDimensions.width, sourceDimensions.height), 1024)
+        XCTAssertLessThanOrEqual(max(payloadDimensions.width, payloadDimensions.height), 1024)
+        XCTAssertLessThanOrEqual(payloadDimensions.width * payloadDimensions.height, 1_000_000)
         XCTAssertEqual(
             CGFloat(payloadDimensions.width) / CGFloat(payloadDimensions.height),
             CGFloat(sourceDimensions.width) / CGFloat(sourceDimensions.height),
