@@ -1079,6 +1079,8 @@
 - 仓库提供 `scripts/ios_nightly_installer.py`，用于在 macOS 状态栏常驻并于每日本地时间 `23:00` 自动检查真机：
   - 目标默认为 `Yao iPhone 17 Pro`（`00008150-000E4010362B401C`），可通过命令行参数覆盖。
   - 只有 `devicectl device info details` 确认 `localNetwork`、开发 tunnel 已连接、设备已配对、开发者模式开启且 DDI 服务可用时，才允许进入构建。
+  - 构建前检查 Xcode 用户目录中主 App 与 Widget 的开发描述文件；如果某个 target 的最新描述文件剩余有效期不足 `24` 小时，必须先安全暂存该 target 的所有旧缓存，再依赖 `xcodebuild -allowProvisioningUpdates` 强制续签。构建失败时恢复旧缓存，构建成功后删除暂存副本。
+  - 自动续签依赖 Xcode Accounts 中持续登录项目 Team 对应账号；账号退出、会话失效或 Apple 开发者服务不可用时不得删除仍可恢复的旧描述文件。
   - 构建使用 `DailyMuseum` scheme、真机 destination 和独立 `.deriveddata-nightly`；安装使用 `devicectl device install app`。
   - 自动流程只编译和安装，不允许调用 process launch 主动打开 App。
   - `scripts/setup_ios_nightly_installer.sh` 负责创建独立 PyObjC 虚拟环境并安装用户级 LaunchAgent；使用与限制见 `docs/ios-nightly-installer.md`。

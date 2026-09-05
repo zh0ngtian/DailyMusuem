@@ -29,6 +29,11 @@ LAUNCH_AGENT_LABEL = "tech.zh0ngtian.museummuse-nightly-installer"
 DEFAULT_DEVICE_ID = "00008150-000E4010362B401C"
 DEFAULT_DEVICE_NAME = "Yao iPhone 17 Pro"
 DEFAULT_SCHEDULE = "23:00"
+DEFAULT_PROVISIONING_REFRESH_HOURS = 24
+DEFAULT_SIGNED_BUNDLES = (
+    ("tech.zh0ngtian.MuseumMuse", "主 App"),
+    ("tech.zh0ngtian.MuseumMuse.widget", "Widget"),
+)
 
 
 def _user_library_path(*parts: str) -> Path:
@@ -40,6 +45,15 @@ DEFAULT_STATE_DIR = _user_library_path("Application Support", "MuseumMuseNightly
 DEFAULT_LAUNCH_AGENT_PATH = _user_library_path(
     "LaunchAgents", f"{LAUNCH_AGENT_LABEL}.plist"
 )
+
+
+def _default_provisioning_profile_directories() -> tuple[Path, ...]:
+    return (
+        _user_library_path(
+            "Developer", "Xcode", "UserData", "Provisioning Profiles"
+        ),
+        _user_library_path("MobileDevice", "Provisioning Profiles"),
+    )
 
 
 class InstallerError(RuntimeError):
@@ -58,6 +72,11 @@ class InstallerConfig:
     product_name: str = "DailyMuseum.app"
     log_path: Path = DEFAULT_LOG_PATH
     state_dir: Path = DEFAULT_STATE_DIR
+    provisioning_profile_directories: tuple[Path, ...] = (
+        _default_provisioning_profile_directories()
+    )
+    signed_bundles: tuple[tuple[str, str], ...] = DEFAULT_SIGNED_BUNDLES
+    provisioning_refresh_hours: int = DEFAULT_PROVISIONING_REFRESH_HOURS
 
     @property
     def project_path(self) -> Path:
@@ -88,6 +107,10 @@ class InstallerConfig:
     @property
     def app_lock_path(self) -> Path:
         return self.state_dir / "menubar.lock"
+
+    @property
+    def provisioning_profile_backup_dir(self) -> Path:
+        return self.state_dir / "provisioning-profile-refresh-backups"
 
 
 def command_environment() -> dict[str, str]:
@@ -229,6 +252,124 @@ def _run_streaming(config: InstallerConfig, command: Sequence[str]) -> int:
         return process.wait()
 
 
+def _read_provisioning_profile(path: Path) -> dict[str, object] | None:
+    completed = subprocess.run(
+        ["/usr/bin/security", "cms", "-D", "-i", str(path)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return None
+    try:
+        payload = plistlib.loads(completed.stdout)
+    except (plistlib.InvalidFileException, ValueError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _utc_datetime(value: dt.datetime) -> dt.datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=dt.timezone.utc)
+    return value.astimezone(dt.timezone.utc)
+
+
+@dataclass
+class ProvisioningProfileRefresh:
+    moved_profiles: list[tuple[Path, Path]]
+    labels: tuple[str, ...]
+
+    def restore(self) -> None:
+        for original_path, backup_path in reversed(self.moved_profiles):
+            if not backup_path.exists() or original_path.exists():
+                continue
+            original_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(backup_path), str(original_path))
+        self._remove_empty_backup_directories()
+
+    def discard_backups(self) -> None:
+        for _original_path, backup_path in self.moved_profiles:
+            backup_path.unlink(missing_ok=True)
+        self._remove_empty_backup_directories()
+
+    def _remove_empty_backup_directories(self) -> None:
+        for _original_path, backup_path in self.moved_profiles:
+            try:
+                backup_path.parent.rmdir()
+            except OSError:
+                pass
+
+
+def stage_expiring_provisioning_profiles(
+    config: InstallerConfig, now: dt.datetime | None = None
+) -> ProvisioningProfileRefresh:
+    """Temporarily remove near-expiry app profiles so Xcode must renew them."""
+    now_utc = _utc_datetime(now or dt.datetime.now(dt.timezone.utc))
+    refresh_deadline = now_utc + dt.timedelta(
+        hours=config.provisioning_refresh_hours
+    )
+    bundle_labels = dict(config.signed_bundles)
+    profiles_by_bundle: dict[str, list[tuple[Path, dt.datetime]]] = {
+        bundle_identifier: [] for bundle_identifier in bundle_labels
+    }
+
+    for directory in config.provisioning_profile_directories:
+        if not directory.is_dir():
+            continue
+        for path in directory.glob("*.mobileprovision"):
+            payload = _read_provisioning_profile(path)
+            if payload is None:
+                continue
+            application_identifier = payload.get("Entitlements")
+            if not isinstance(application_identifier, dict):
+                continue
+            raw_application_identifier = application_identifier.get(
+                "application-identifier"
+            )
+            expiration = payload.get("ExpirationDate")
+            if not isinstance(raw_application_identifier, str) or not isinstance(
+                expiration, dt.datetime
+            ):
+                continue
+            for bundle_identifier in bundle_labels:
+                if raw_application_identifier.endswith(f".{bundle_identifier}"):
+                    profiles_by_bundle[bundle_identifier].append(
+                        (path, _utc_datetime(expiration))
+                    )
+                    break
+
+    paths_to_move: list[Path] = []
+    labels: list[str] = []
+    for bundle_identifier, profiles in profiles_by_bundle.items():
+        if not profiles:
+            continue
+        latest_expiration = max(expiration for _path, expiration in profiles)
+        if latest_expiration > refresh_deadline:
+            continue
+        labels.append(bundle_labels[bundle_identifier])
+        paths_to_move.extend(path for path, _expiration in profiles)
+
+    if not paths_to_move:
+        return ProvisioningProfileRefresh([], ())
+
+    backup_directory = config.provisioning_profile_backup_dir / now_utc.strftime(
+        "%Y%m%d-%H%M%S-%f"
+    )
+    backup_directory.mkdir(parents=True, exist_ok=False)
+    moved_profiles: list[tuple[Path, Path]] = []
+    try:
+        for index, original_path in enumerate(paths_to_move):
+            backup_path = backup_directory / f"{index}-{original_path.name}"
+            shutil.move(str(original_path), str(backup_path))
+            moved_profiles.append((original_path, backup_path))
+    except OSError as exc:
+        refresh = ProvisioningProfileRefresh(moved_profiles, tuple(labels))
+        refresh.restore()
+        raise InstallerError(f"无法暂存即将过期的描述文件：{exc}") from exc
+
+    return ProvisioningProfileRefresh(moved_profiles, tuple(labels))
+
+
 def device_is_reachable(config: InstallerConfig) -> tuple[bool, str]:
     """Connect to the device and require a usable local-network developer tunnel."""
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as json_file:
@@ -316,10 +457,32 @@ class NightlyInstaller:
                 self._finish(False, f"找不到 Xcode 项目：{self.config.project_path}")
                 return False
 
-            build_exit_code = _run_streaming(self.config, build_command(self.config))
+            try:
+                profile_refresh = stage_expiring_provisioning_profiles(self.config)
+            except InstallerError as exc:
+                self._finish(False, str(exc))
+                return False
+            if profile_refresh.labels:
+                labels = "、".join(profile_refresh.labels)
+                self._status(
+                    "building",
+                    f"{labels} 描述文件将在 {self.config.provisioning_refresh_hours} "
+                    "小时内到期；正在强制续签",
+                )
+
+            try:
+                build_exit_code = _run_streaming(
+                    self.config, build_command(self.config)
+                )
+            except OSError as exc:
+                profile_refresh.restore()
+                self._finish(False, f"无法启动编译命令：{exc}")
+                return False
             if build_exit_code != 0:
+                profile_refresh.restore()
                 self._finish(False, f"编译失败（退出码 {build_exit_code}），请查看日志")
                 return False
+            profile_refresh.discard_backups()
             if not self.config.app_path.is_dir():
                 self._finish(False, f"编译完成但找不到 App：{self.config.app_path}")
                 return False
