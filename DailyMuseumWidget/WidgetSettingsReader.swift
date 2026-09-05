@@ -106,7 +106,8 @@ enum WidgetScheduledRefreshPolicy {
             return Resolution(
                 shouldRefresh: true,
                 scheduledAt: nextAutomaticRefreshAt,
-                nextAutomaticRefreshAt: schedule.nextRefreshDate(after: nextAutomaticRefreshAt),
+                // Coalesce overdue slots into this refresh instead of replaying the backlog.
+                nextAutomaticRefreshAt: schedule.nextRefreshDate(after: now),
                 scheduleSignature: schedule.signature
             )
         }

@@ -448,6 +448,53 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         XCTAssertEqual(resolution.nextAutomaticRefreshAt, date(hour: 15, minute: 0, calendar: calendar))
     }
 
+    func testWidgetScheduledRefreshPolicyCoalescesOverdueSlotsAcrossDaysAndWindowEnd() throws {
+        let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 8 * 60 * 60))
+        let calendar = makeCalendar(timeZone: timeZone)
+        let schedule = try XCTUnwrap(WidgetAutoRefreshSchedule(
+            interval: .threeHours,
+            startMinutes: 9 * 60,
+            endMinutes: 18 * 60,
+            calendar: calendar,
+            timeZone: timeZone
+        ))
+        let scheduledAt = date(hour: 9, minute: 0, calendar: calendar)
+        let tomorrow = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: scheduledAt))
+        let cases: [(now: Date, expectedNext: Date)] = [
+            (date(hour: 16, minute: 30, calendar: calendar), date(hour: 18, minute: 0, calendar: calendar)),
+            (date(hour: 18, minute: 0, calendar: calendar), tomorrow),
+            (date(hour: 23, minute: 0, calendar: calendar), tomorrow),
+            (
+                try XCTUnwrap(calendar.date(byAdding: .day, value: 5, to: date(hour: 16, minute: 30, calendar: calendar))),
+                try XCTUnwrap(calendar.date(byAdding: .day, value: 5, to: date(hour: 18, minute: 0, calendar: calendar)))
+            )
+        ]
+
+        for testCase in cases {
+            var state = makeWidgetState(
+                scopeRawValue: "single:nmc",
+                phase: .success,
+                lastUpdatedAt: scheduledAt.timeIntervalSince1970,
+                nextAutomaticRefreshAt: scheduledAt.timeIntervalSince1970,
+                automaticRefreshScheduleSignature: schedule.signature
+            )
+            let resolution = WidgetScheduledRefreshPolicy.resolve(
+                state: state, scopeRawValue: "single:nmc", schedule: schedule, now: testCase.now
+            )
+            XCTAssertTrue(resolution.shouldRefresh)
+            XCTAssertEqual(resolution.scheduledAt, scheduledAt)
+            XCTAssertEqual(resolution.nextAutomaticRefreshAt, testCase.expectedNext)
+            XCTAssertGreaterThan(try XCTUnwrap(resolution.nextAutomaticRefreshAt), testCase.now)
+
+            state.nextAutomaticRefreshAt = resolution.nextAutomaticRefreshAt?.timeIntervalSince1970
+            let repeated = WidgetScheduledRefreshPolicy.resolve(
+                state: state, scopeRawValue: "single:nmc", schedule: schedule, now: testCase.now
+            )
+            XCTAssertFalse(repeated.shouldRefresh)
+            XCTAssertNil(repeated.scheduledAt)
+        }
+    }
+
     func testWidgetScheduledRefreshPolicyKeepsFutureSlotBeforeItIsDue() throws {
         let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
         let calendar = makeCalendar(timeZone: timeZone)

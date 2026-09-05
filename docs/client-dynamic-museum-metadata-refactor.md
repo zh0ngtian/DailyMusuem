@@ -7,7 +7,7 @@ sequenceDiagram
     participant Widget as Widget Extension
     participant MetaCache as App Group Metadata Cache
     participant API as MuseumMuse API
-    participant DB as 服务端 SQLite / D1
+    participant DB as 服务端只读 SQLite
     participant Img as 图片源站
 
     rect rgb(245, 248, 255)
@@ -33,10 +33,10 @@ sequenceDiagram
     rect rgb(255, 250, 245)
         Note over Widget,MetaCache: Widget 配置与刷新
         Widget->>MetaCache: 读取最近一次成功的博物馆元数据
-        Widget->>API: GET /v1/widget/candidate?scope=single:{museum_id}
-        API->>DB: 查询一个可渲染候选
-        DB-->>API: ArtworkDTO
-        API-->>Widget: 返回 Widget 候选
+        Widget->>API: GET /v1/museums/{museum_id}/artworks?limit=1&source=...
+        API->>DB: 查询一件带图片 URL 的候选
+        DB-->>API: ArtworkDTO page
+        API-->>Widget: 返回单件候选，Widget 再验证图片
     end
 ```
 
@@ -51,7 +51,7 @@ sequenceDiagram
 - 在二级页瀑布流中按当前博物馆的图片策略排队拉取缩略图。
 - 发起详情、收藏、深链接、Widget 刷新等通用行为。
 
-本设计不考虑旧版本兼容。不保留 `MuseumID` 静态 fallback，不迁移旧 Widget 配置，不保证旧 UserDefaults key 继续可读。交付时可以清空或重建本地设置。
+本设计不考虑旧版本兼容。不保留 `MuseumID` 静态 fallback，不迁移旧 Widget 配置，不保证旧 UserDefaults key 继续可读。该迁移设计不构成清空用户现有设置的授权；实际数据重置需按当前任务权限单独处理。
 
 ## 2. 非目标
 
@@ -73,7 +73,7 @@ sequenceDiagram
 
 ## 4. 服务端元数据契约
 
-新增或替换现有博物馆元数据接口：
+当前博物馆元数据接口：
 
 ```http
 GET /v1/museums/metadata
@@ -172,7 +172,7 @@ GET /v1/museums/metadata
 
 ## 5. 服务端存储调整
 
-现有 `museums`、`data_sources`、`categories` 已经覆盖一部分字段。为了支撑客户端去枚举，需要补齐以下服务端字段或等价 JSON 配置。
+现有 `museums`、`data_sources`、`categories` 已经覆盖一部分字段。为了支撑客户端去枚举，当前由 `server/crawler/stores.py` 补齐以下字段或等价 JSON 配置。
 
 ### 5.1 `museums`
 
@@ -297,7 +297,7 @@ struct MuseumMetadata: Identifiable, Hashable, Codable, Sendable {
 
 ## 7. Metadata Store
 
-新增共享元数据存储：
+当前共享元数据存储接口摘要：
 
 ```swift
 actor MuseumMetadataStore {
@@ -360,7 +360,7 @@ GET /v1/museums/{museum_id}/artworks/{object_id}?source={source_key}
 
 二级页瀑布流图片加载需要支持按馆 QPS 控制。该控制只用于卡片缩略图；详情页主图、全屏预览图和 Widget 图片不受影响。
 
-新增 feed 级缩略图加载协调器，并只在瀑布流卡片 `CachedAsyncImage` 传入 `waterfallMuseumID` 时启用：
+使用 feed 级缩略图加载协调器，并只在瀑布流卡片 `CachedAsyncImage` 传入 `waterfallMuseumID` 时启用：
 
 ```swift
 actor WaterfallImageLoadCoordinator {
@@ -390,7 +390,7 @@ struct WaterfallImageFetchPolicy: Codable, Hashable, Sendable {
 
 `WidgetConfiguredMuseumScope` 使用动态 AppIntents `AppEntity`，不再用 `AppEnum + CaseIterable` 固定枚举六馆。
 
-建议模型：
+模型摘要：
 
 ```swift
 struct WidgetConfiguredMuseumScope: AppEntity {
@@ -424,11 +424,13 @@ Widget 不参与瀑布流图片策略。Widget 图片加载维持现有成功态
 | 当前 source / 分类 | `feed.preferences.v2` JSON 中的 `{museum_id}` 条目 |
 | 展示模式 | `feed.displayMode.{museum_id}` |
 | Widget scope | `all` 或 `single:{museum_id}` |
-| 收藏 key | `{museum_id}:{source_key}:{object_id}` |
+| 收藏 key | `{museum_id}::{object_id}`（`FavoriteArtworkSnapshot.makeID`）；source 随收藏的 artwork 保存 |
 
 不再遍历 `MuseumID.allCases` 导出设置。导入导出时保留 `feed.preferences.v2`、`feed.displayMode.*` 和 Widget scope 等通用动态设置。
 
-## 12. 实施步骤
+## 12. 实现与回归检查顺序
+
+以下按现有模块列出检查顺序；每次验收需运行对应验证，不能把步骤表视为已完成凭证。
 
 1. 定义服务端 metadata schema。
    - 验证：服务端测试覆盖所有正式馆 metadata 字段非空约束、排序、分类、source、瀑布流图片 QPS 策略。
@@ -455,7 +457,7 @@ Widget 不参与瀑布流图片策略。Widget 图片加载维持现有成功态
 | --- | --- | --- |
 | metadata 字段不完整 | 客户端缺少展示或请求参数 | schema 先定稿，服务端测试强校验 |
 | 服务端下发脏数据 | UI 空白、设置失效、请求失败 | 客户端对缺图标、空分类、非法 policy 做降级 |
-| 特殊馆逻辑残留在客户端 | 新增馆仍需发版 | `sources`、`listFilter`、`capabilities` 必须覆盖特殊行为 |
+| 特殊馆逻辑残留在客户端 | 新增馆仍需发版 | `sources`、服务端 `list_filter_json`、`capabilities` 必须覆盖特殊行为 |
 | Widget metadata 快照为空 | Widget 配置页暂时只有所有博物馆 | 主 App 启动和首页刷新 metadata 后写入 App Group；Widget query 从快照读取单馆项 |
 | 国博瀑布流缩略图突发请求 | 源站图片请求被打爆 | `museum_client_policies.waterfall_image_qps=1`，feed 级 coordinator 按 QPS 控制请求启动 |
 | 删除 enum 后编译错误面大 | 改造周期变长 | 按模型、首页、二级页、详情、Widget 分阶段提交 |

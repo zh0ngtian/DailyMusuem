@@ -104,8 +104,7 @@ enum WidgetRefreshTrigger: Equatable, Sendable {
         case .manual:
             return "开始手动刷新"
         case .automatic(let scheduledAt):
-            let minutes = WidgetAutoRefreshWindow.minutesSinceStartOfDay(for: scheduledAt)
-            return "开始自动刷新，计划时间 \(WidgetAutoRefreshWindow.displayText(for: minutes))"
+            return "开始自动刷新，计划时间 \(LogTimestampFormatter.requestLogTimestamp(from: scheduledAt))"
         }
     }
 }

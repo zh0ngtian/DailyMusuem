@@ -1,4 +1,6 @@
-# MuseumMuse 前后端分离改造设计
+# MuseumMuse 前后端架构与验证
+
+本文描述当前代码架构；示意代码和目标明确标注，不作为生产验收凭证。metadata 扩展字段以 [动态 metadata 契约](client-dynamic-museum-metadata-refactor.md) 为详细来源，产品约束见 [AGENTS.md](../AGENTS.md)，部署操作见 [SCF 运维](../server/tencent_scf/README.md)。
 
 ```mermaid
 sequenceDiagram
@@ -11,7 +13,7 @@ sequenceDiagram
 
     rect rgb(245, 248, 255)
         Note over R,M: 离线数据准备阶段
-        R->>M: 按现有 iOS 请求和解析规则抓取候选池
+        R->>M: 按各馆 crawler 规则抓取候选池
         M-->>R: 返回 objectID / itemID / code / detail path
         R->>M: 抓取展品详情 HTML / JSON / 图片 URL
         Note right of R: 国博 API 严格预算 + 串行限流<br/>上博等非国博源可用共享 limiter 调整 QPS
@@ -23,10 +25,8 @@ sequenceDiagram
     rect rgb(247, 250, 247)
         Note over S,DB: 服务端启动和查询阶段
         S->>DB: 只读打开 SQLite，读取 dataVersion
-        C->>S: 获取短期访问凭证 / 提交 App Attest 证明
-        S-->>C: 返回短期 token 或拒绝
-        C->>S: 带鉴权头请求博物馆、分类、列表、详情、Widget 候选
-        S->>S: 校验 token、签名、时间戳、nonce、限流
+        C->>S: 携带 simple HMAC 签名、时间戳、nonce 请求业务接口
+        S->>S: 校验签名、请求摘要、10 秒时间窗和 nonce
         S->>DB: 查询展品文本字段、分类、图片 URL
         DB-->>S: 返回结构化展品数据
         S-->>C: 返回 ArtworkDTO / 分页 cursor / dataVersion
@@ -42,18 +42,18 @@ sequenceDiagram
 
 ## 1. 背景与目标
 
-当前 App 和 Widget 在客户端直接访问六个博物馆的公开 API 或官网页面。这样会把网页解析、限流、候选池准备、详情字段清洗和 Widget 刷新策略都放在 iOS 端，导致以下问题：
+迁移前 App 和 Widget 在客户端直接访问六个博物馆的公开 API 或官网页面。这样会把网页解析、限流、候选池准备、详情字段清洗和 Widget 刷新策略都放在 iOS 端，导致以下问题：
 
 - 客户端逻辑重，且 App / Widget 都要承受上游接口不稳定、网页结构变化和限流风险。
 - 中国国家博物馆、上海博物馆这类严格限流链路在用户设备上触发，难以统一控制。
 - 后续新增博物馆时，需要同时改 Swift 网络层、解析层、缓存层、Widget 和深链接分发。
-- Widget 刷新必须走 network-only，但现在 network-only 仍然指向各馆官方源，失败率不可控。
+- Widget 刷新必须走 network-only，迁移前 network-only 仍然指向各馆官方源，失败率不可控。
 
 本设计的目标是：
 
 - 离线爬取当前正式支持的六馆展品信息，图片只保存 URL，不保存图片二进制。
 - 用 SQLite 存储展品、分类、图片链接、源站字段和抓取元信息，保证后续可扩展。
-- 用 Python 基于 SQLite 提供本地服务端 API，未来可迁移到 serverless。
+- 用 Python 基于 SQLite 提供本地和腾讯云 SCF 服务端 API。
 - iOS 主 App 和 Widget 不再直接请求各馆官方展品接口，改为请求服务端；拿到文字信息后立即上屏，再由现有图片加载管线异步拉取图片 URL。
 
 ## 2. 范围与假设
@@ -83,21 +83,20 @@ sequenceDiagram
 
 ## 3. 现有客户端参考点
 
-爬虫和客户端改造需要参考当前 Swift 代码中的数据契约，而不是重新发明字段：
+当前实现入口：
 
 - 统一展品模型：`Shared/Artwork.swift`
-- 博物馆、分类和支持范围：`Shared/Museum.swift`
+- 字符串标识：`Shared/Museum.swift`；metadata 模型与快照：`Shared/MuseumMetadata.swift`、`Shared/MuseumMetadataStore.swift`
 - 主 App 批量加载：`Shared/ArtworkFeed/ArtworkFeedViewModel.swift`
 - 共享候选池与详情批加载：`DailyMuseumWidget/WidgetSettingsReader.swift` 中的 `ArtworkBatchLoader`
-- 详情页按馆分发：`DailyMuseum/Views/ArtworkDetailLoaderView.swift`
+- 后端详情加载：`DailyMuseum/Views/ArtworkDetailLoaderView.swift`
 - Widget 刷新与候选推进：`DailyMuseumWidget/WidgetRefreshDeliveryTracker.swift`
 - 各馆源站逻辑已收敛到服务端 crawler：
   - `server/crawler/museums/met.py`
-  - `server/crawler/museums/tnm.py`
-  - `server/crawler/museums/nnm_official.py`
-  - `server/crawler/museums/nnm_colbase.py`
+  - `server/crawler/museums/japan_search.py`
+  - `server/crawler/museums/nara_official.py`
   - `server/crawler/museums/nmc.py`
-  - `server/crawler/museums/shm.py`
+  - `server/crawler/museums/shanghai.py`
   - `server/crawler/museums/guimet.py`
 
 爬虫脚本是源站请求参数、分页、解析和字段清洗规则的唯一实现位置，保证后端返回的 `Artwork` 语义与客户端通用模型一致。
@@ -110,7 +109,7 @@ sequenceDiagram
 - `server`：Python HTTP API，只读查询 SQLite。
 - `client`：iOS 主 App / Widget 的统一后端客户端，替换现有官方源请求。
 
-建议目录结构：
+当前主要目录结构（数据文件需另行生成）：
 
 ```text
 server/
@@ -122,9 +121,9 @@ server/
     museums/
       met.py
       japan_search.py
-      nara.py
+      nara_official.py
       nmc.py
-      shm.py
+      shanghai.py
       guimet.py
   api/
     __init__.py
@@ -143,7 +142,7 @@ server/
 
 ```bash
 python -m server.crawler.seed_sample_data --db server/data/museummuse.sqlite
-MUSEUMMUSE_DB_PATH=server/data/museummuse-live-all.sqlite MUSEUMMUSE_AUTH_MODE=simple MUSEUMMUSE_SIMPLE_AUTH_SECRET=dev-secret python -m uvicorn server.api.app:app --host 127.0.0.1 --port 8000
+MUSEUMMUSE_DB_PATH=server/data/museummuse.sqlite MUSEUMMUSE_AUTH_MODE=simple MUSEUMMUSE_SIMPLE_AUTH_SECRET=dev-secret python -m uvicorn server.api.app:app --host 127.0.0.1 --port 8000
 MUSEUMMUSE_SIMPLE_AUTH_SECRET=dev-secret python3 scripts/probe_backend_simple_auth.py --base-url http://127.0.0.1:8000
 ```
 
@@ -165,7 +164,7 @@ python -m server.crawler.main crawl --museum all --db server/data/museummuse.sql
 - 每个展品以 `(museum_id, source_key, object_id)` 唯一标识。
 - 候选池和详情页分开抓：先拿 ID / path / code，再进入详情页补齐字段。
 - 每条详情都记录 `source_detail_url`、`raw_json` 或关键 HTML 摘要，方便以后重跑解析。
-- 抓取过程必须可断点续跑：已存在且 `content_hash` 未变化的详情可跳过。
+- 抓取过程必须可断点续跑：显式 `--skip-existing` 时按已存在的 `(museum_id, source_key, object_id)` 跳过详情请求，不会先回源比较 `content_hash`。
 - 抓取失败只记录到 `crawl_errors`，不让单个展品阻断整馆抓取。
 
 ### 5.2 各馆抓取策略
@@ -203,7 +202,7 @@ Met 搜索候选池可能返回少量详情 API 不可取的 objectID；若 obje
 
 当前 Japan Search crawler 已支持 `crawl --museum tnm --sample-detail-json` 和 `crawl --museum nnm-colbase --sample-detail-json` 离线验证 item JSON 解析和 SQLite 入库；真实网络抓取必须显式传入 `--allow-network`，并继续保留 `size=10` 小页、contributor 空结果 fallback、provider / contributor 本地过滤和可选 `--category-id` 分类 membership 写入。
 
-当前奈良馆方 crawler 已支持 `crawl --museum nnm-official --sample-detail-html --sample-object-id {原始ID}` 离线验证馆方详情 HTML 解析和 SQLite 入库；搜索页解析、`narahaku-` objectID、图片 URL 规范化、说明文本清洗、缺失材质行处理和官方门类 membership 需要继续与 Swift 侧规则保持一致。
+当前奈良馆方 crawler 已支持 `crawl --museum nnm-official --sample-detail-html --sample-object-id {原始ID}` 离线验证馆方详情 HTML 解析和 SQLite 入库；搜索页解析、`narahaku-` objectID、图片 URL 规范化、说明文本清洗、缺失材质行处理和官方门类 membership 由服务端 crawler 及其测试统一维护。
 
 当前 Guimet crawler 已支持 `crawl --museum guimet --sample-detail-html --sample-detail-url {详情页URL}` 离线验证官网详情 HTML 解析和 SQLite 入库；真实网络抓取必须显式传入 `--allow-network`，并继续保留官网分类页候选、详情页字段解析、`~` objectID 分隔和“不混入了解更多藏品”规则。
 
@@ -264,7 +263,7 @@ class RateLimiter:
 - 支持抓取审计、失败重试和未来新增字段。
 - 让服务端常用查询有稳定索引。
 
-文档以表格定义数据契约；后续迁移脚本可以从这些表格生成 SQL。
+下列表格是存储结构摘要；实际 schema 初始化与扩展以 `server/migrations/001_initial.sql` 和 `server/crawler/stores.py` 为准。metadata 新增字段及 `museum_client_policies` 详见动态 metadata 契约第 5 节。
 
 ### 6.1 表关系总览
 
@@ -444,7 +443,7 @@ class RateLimiter:
 
 首版使用：
 
-- Python 3.11+
+- Python 3.10+（SCF 打包目标为 3.10）
 - FastAPI
 - Uvicorn 本地运行
 - 标准库 `sqlite3`
@@ -476,7 +475,7 @@ PRAGMA temp_store = MEMORY;
 
 ### 7.2 API 版本与响应约定
 
-所有接口放在 `/v1` 下。响应统一包含数据版本：
+业务接口放在 `/v1` 下，健康检查为 `/health`。响应统一包含数据版本：
 
 ```json
 {
@@ -487,7 +486,7 @@ PRAGMA temp_store = MEMORY;
 
 分页使用不透明 cursor。客户端不能解析 cursor，只能原样传回。
 
-错误响应：
+错误响应由 `server/api/app.py` 的异常处理器统一包装：
 
 ```json
 {
@@ -512,10 +511,10 @@ PRAGMA temp_store = MEMORY;
 - 代码已实现轻量 `AUTH_MODE=simple`，用于在 App Attest 生产链路完成前替代裸露业务 API。
 - simple 模式中，客户端和服务端共享同一个 secret，对 canonical request hash 做 `HMAC-SHA256`，签名放在 `Authorization: Bearer <signature>`。
 - canonical request hash 继续包含 method、path、query、body hash、timestamp 和 nonce；服务端只接受 timestamp 与服务端时间偏移 `10` 秒内的请求，并对 nonce 做短期去重。
-- secret 不写入源码；Worker 统一通过 `MUSEUMMUSE_SIMPLE_AUTH_SECRET` secret 注入，iOS App / Widget 通过 `MuseumBackendSimpleAuthSecret` Info.plist 构建配置注入。Xcode 使用已提交的 `Config/Secrets.xcconfig` 可选 include 未提交的 `Config/Secrets.local.xcconfig`，本地和 CI 只生成 local 文件或通过 build setting 注入真实 secret。
-- simple 模式只能提高普通抓包复用和脚本爬取成本，不提供设备真实性证明；当前 Worker 使用 D1 运行态表 `auth_nonces` 做短期 nonce 去重，该表不属于博物馆离线数据迁移表。
+- secret 不写入源码；SCF 通过 `MUSEUMMUSE_SIMPLE_AUTH_SECRET` 环境变量注入，iOS App / Widget 通过 `MuseumBackendSimpleAuthSecret` Info.plist 构建配置注入。Xcode 使用已提交的 `Config/Secrets.xcconfig` 可选 include 未提交的 `Config/Secrets.local.xcconfig`，本地和 CI 只生成 local 文件或通过 build setting 注入真实 secret。
+- simple 模式只能提高普通抓包复用和脚本爬取成本，不提供设备真实性证明；当前 SCF 使用 COS 原子写入 nonce marker；该运行态状态不属于只读博物馆 SQLite。
 
-推荐方案：
+后续 App Attest 目标（生产校验尚未实现；以下注册/token/设备限流流程不是 simple 模式现状）：
 
 | 环节 | 参与方 | 机制 | 目的 |
 | --- | --- | --- | --- |
@@ -604,7 +603,7 @@ GET /health
 GET /v1/museums
 ```
 
-返回六馆的名称、国家、城市、默认数据源和是否支持 Widget。
+返回博物馆名称、国家、城市和是否支持 Widget；默认数据源及完整能力由 `GET /v1/museums/metadata` 返回。
 
 鉴权：需要。
 
@@ -641,7 +640,7 @@ GET /v1/museums/{museum_id}/artworks?source=official&category_ids=a,b&limit=10&c
 
 列表项直接返回完整 `ArtworkDTO`，不要只返回 ID。这样客户端拿到 JSON 后可以立即渲染文字，图片由 URL 触发异步加载。
 
-鉴权：需要。服务端必须限制 `limit` 最大值，拒绝没有 cursor 的循环式高频翻页。
+鉴权：需要。当前服务端校验 `limit=1…50`；额外的翻页频率识别属于后续防爬增强，不作为当前能力。
 
 响应示例：
 
@@ -685,14 +684,14 @@ GET /v1/museums/{museum_id}/artworks/{object_id}?source=official
 规则：
 
 - 返回完整 `ArtworkDTO`。
-- 奈良 `source` 可省略；服务端可以通过 `object_id` 是否以 `narahaku-` 开头推断馆方源，否则走 ColBase。
+- `source` 可省略；后端先按 `(museum_id, object_id)` 查询唯一记录的 source，无法唯一确定时使用该馆默认 source。客户端和后端均不按奈良 ID 前缀分发。
 - 详情接口必须返回与列表接口一致的字段语义，避免列表页和详情页展示不一致。
 - 鉴权：需要。
 
 #### Widget 候选
 
 ```http
-GET /v1/widget/candidate?scope=single:nmc&source=default&category_ids=...&exclude_keys=...
+GET /v1/widget/candidate?scope=single:nmc&source=nmc_api&category_ids=...&exclude_keys=...
 ```
 
 用途：
@@ -703,7 +702,7 @@ GET /v1/widget/candidate?scope=single:nmc&source=default&category_ids=...&exclud
 - `exclude_keys` 传入客户端已展示历史，避免短时间重复。
 - 鉴权：需要。当前过渡实现使用 simple HMAC；生产目标仍是 Widget 请求同样使用 App Attest 绑定的短期 token。
 
-如果首版想减少后端复杂度，也可以先不做该接口，让 Widget 继续调用列表接口并在客户端推进候选。但最终建议提供专用候选接口，便于 serverless 统一控制随机和去重策略。
+该接口已实现，但当前 Widget 刷新实际调用各馆列表接口 `limit=1`，在客户端按单件候选推进、验证图片和排除历史。专用候选接口只返回候选 DTO，不能据此证明图片可渲染或桌面已显示。
 
 ### 7.5 查询策略
 
@@ -726,7 +725,7 @@ GET /v1/widget/candidate?scope=single:nmc&source=default&category_ids=...&exclud
 
 分页：
 
-- cursor 内部编码 `last_sort_value`、`last_artwork_pk`、`seed` 和筛选摘要。
+- 当前 cursor 编码 `offset`、`seed` 和筛选摘要；它不是 keyset cursor。
 - 服务端校验 cursor 的筛选摘要，避免用户换分类后继续用旧 cursor。
 
 ### 7.6 Serverless 注意事项
@@ -735,7 +734,7 @@ GET /v1/widget/candidate?scope=single:nmc&source=default&category_ids=...&exclud
 - SQLite 文件随函数包、镜像或只读层发布；冷启动时打开只读连接。
 - 如果数据文件超过平台包体限制，需要改为对象存储下载到临时目录，或迁移到平台托管 SQLite。
 - 不依赖本地持久化写入，不启用 WAL。
-- 鉴权需要短期状态存储：nonce、限流计数、设备注册信息不能放 SQLite 发布包里；serverless 部署时需要使用平台 KV、Redis、DynamoDB、D1 或等价托管存储。当前 simple HMAC Worker 使用 D1 运行态表 `auth_nonces` 做 nonce 去重，该表由 Worker 按需创建，不随博物馆 SQLite dump 迁移。
+- 鉴权需要短期状态存储：nonce、限流计数、设备注册信息不能放 SQLite 发布包里；serverless 部署时需要使用平台 KV、Redis、DynamoDB、D1 或等价托管存储。当前 SCF simple HMAC 使用 COS 原子 marker 去重，具体权限和 lifecycle 见 SCF 运维文档。
 - 数据更新流程是“离线生成新 SQLite -> 验证 -> 发布新服务版本或替换只读数据文件”。
 
 ## 8. 客户端改造设计
@@ -782,19 +781,9 @@ DTO 到现有模型的转换必须保持当前 `Artwork` 字段语义：
 
 ### 8.2 替换主 App 列表加载
 
-当前 `ArtworkBatchLoader` 同时负责：
+当前 `ArtworkBatchLoader` 是后端分页编排层：`nextBatch(count:)` 一次请求列表接口，传递 source、category IDs、seed 和 cursor，并记录批次日志；返回的 DTO 已含完整展品，不再预拉官方候选池或逐件抓源。
 
-- 搜索候选池。
-- 批量拉详情。
-- 按类别和当前 `sourceKey` 组织参数。
-- 给页面写加载日志。
-
-改造后建议保留 `ArtworkBatchLoader` 作为客户端分页编排层，但内部从“各馆 API 分发”改为“后端列表接口查询”：
-
-- `warmPoolIfNeeded` 不再请求官方候选池，改为初始化后端分页 query。
-- `nextBatch(count:)` 调用 `/v1/museums/{museum_id}/artworks`。
-- `selectedCategories` 和当前 `sourceKey` 继续转成 query 参数；不再保留 `naraMuseumDataSource`、`metShowsOnlyOnViewArtworks` 这类按馆专用参数。
-- `ArtworkFeedCache` 的缓存 key 继续包含分类、`sourceKey` 和 `dataVersion`，避免 SQLite 数据或 metadata 更新后复用旧缓存。
+`ArtworkFeedCache` 当前只保存进程内快照，key 包含 source、分类和 `dataVersion`。重启后恢复页面磁盘缓存仍待实现，不能把 metadata 持久化或 URLSession 协议缓存当作该能力。
 
 文字与图片渲染顺序：
 
@@ -805,11 +794,11 @@ DTO 到现有模型的转换必须保持当前 `Artwork` 字段语义：
 
 ### 8.3 替换详情页加载
 
-`ArtworkDetailLoaderView` 当前按 `museumID` switch 到各馆 API。改造后：
+`ArtworkDetailLoaderView` 当前使用统一后端详情接口：
 
 - 入口仍然接收 `ArtworkReference(museumID, objectID, imageAspectRatio)`。
 - `loadArtwork` 改为调用 `/v1/museums/{museum_id}/artworks/{object_id}`。
-- 详情页根据当前引用或后端唯一 `(museum_id, object_id)` 解析传递 / 推断 `source`，不再按馆写 objectID 前缀分支。
+- 当前 `ArtworkReference` 不携带 source，详情 loader 不传 source，后端按唯一 `(museum_id, object_id)` 解析；不按馆写 objectID 前缀分支。新增真实数据源时需防止同馆 objectID 冲突，否则需要单独扩展引用和收藏标识。
 - 大都会官网概述、上海图片页、国博 HTML 解析等全部前移到爬虫；详情页不再做官网解析。
 - 刷新详情页时只重新请求后端详情，并清理图片内存缓存后重拉图片 URL。
 
@@ -818,7 +807,7 @@ DTO 到现有模型的转换必须保持当前 `Artwork` 字段语义：
 Widget 必须继续满足：
 
 - 单馆 scope 只能从当前博物馆和当前生效类别中选候选。
-- 手动 / 自动刷新必须实例隔离。
+- 手动 / 自动刷新按 scope 共享，同 scope 同内容、不同 scope 隔离。
 - 刷新走 network-only，不复用主 App 搜索 / 详情缓存。
 - 找到首个可渲染展品后立即停止，不继续拉第二个候选。
 
@@ -864,7 +853,7 @@ Widget 必须继续满足：
    - 或显式设置 `MUSEUMMUSE_BACKEND_BASE_URL=https://museum-api.zh0ngtian.tech`。
    - 继续注入与 SCF secret 一致的 `MUSEUMMUSE_SIMPLE_AUTH_SECRET`。
 7. 在线上 SCF + SQLite 上再跑一遍回归：
-   - 使用 `MUSEUMMUSE_SIMPLE_AUTH_SECRET={secret} python3 scripts/probe_backend_simple_auth.py --base-url https://museum-api.zh0ngtian.tech` 验证 health、无签名拒绝、metadata、列表、详情和 Widget 候选，并确认 nonce 重放返回 `401 replayed_request`。
+   - 按 [SCF 验证步骤](../server/tencent_scf/README.md#verification) 执行签名 probe，并额外检查 health、展品列表/详情和重放。默认 probe 不覆盖这些额外检查。
    - 后端详情接口。
    - 后端客户端 DTO 映射和 source 选择相关单元测试。
    - 必要的模拟器 smoke 验证。
@@ -898,27 +887,21 @@ ORDER BY c.museum_id, c.sort_order;
 
 ### 10.1 爬虫验证
 
-- 单馆 dry run：每馆至少抓取 20 条，检查字段映射。
+- 离线验证：用已有 fixture / `--sample-*` 检查字段和入库，不触发网络；live smoke 另需显式网络授权和详情预算。
 - 全量抓取：生成 SQLite 和 manifest。
 - 国博抓取日志中相邻 API 请求时间差必须大于等于 1 秒；上博在用户批准的离线全量抓取中可验证共享 limiter 的 `--request-interval 0.1 --concurrency 10` 组合。
-- 对比当前 Swift parser fixture，确认标题、日期、分类、介绍、图片 URL 解析结果一致。
+- 运行 `server/crawler/tests/` 的 parser fixture 回归，确认标题、日期、分类、介绍和图片 URL。
 - 随机抽样打开 `object_url` 和图片 URL，确认链接可访问。
 
 ### 10.2 服务端验证
 
-- `pytest` 覆盖：
-  - 未鉴权请求返回 `401`。
-  - 过期 token 返回 `401`。
-  - 重放同一 nonce 返回 `403`。
-  - 超过频率返回 `429`。
-  - 六馆列表接口。
-  - 分类过滤。
-  - 奈良 `official` / `colbase` 源切换。
-  - 大都会 `source=met_on_view`。
-  - 分页 cursor。
-  - 详情查询。
-  - Widget 单馆候选不越界。
-- 本地压测：
+- 现有服务端测试用 `unittest`：安装依赖后运行 `python3 -m unittest discover -s server -p 'test_*.py'`。
+  - `test_auth.py`：debug/simple 请求鉴权与 nonce 重放拒绝、debug 摘要篡改、simple 过期时间戳。
+  - `test_db.py`：manifest 优先级、六馆 metadata、source 与客户端策略。
+  - `test_nonce_store.py`：COS 哈希 key、禁止覆盖与冲突去重。
+- 接口回归还需通过本地/线上签名 probe 覆盖无签名拒绝、六馆列表/详情和候选；分类组合、source 实际筛选、分页 cursor、过期 token 等端到端边界仍需补齐，不能宣称现有单测已完整覆盖。
+- simple 模式 nonce 重放返回 `401 replayed_request`；设备/IP 频率限制与 `429` 属于尚未实现的鉴权增强，应在实现后补对应回归。
+- 本地压测目标（需另行测量，不代表已达标）：
   - `limit=10` 列表接口 P95 小于 100ms。
   - 详情接口 P95 小于 50ms。
 
@@ -939,7 +922,9 @@ ORDER BY c.museum_id, c.sort_order;
   - 现有单元测试。
   - 新增后端客户端 DTO 映射测试。
 
-## 11. 分阶段落地计划
+## 11. 原迁移阶段参考
+
+以下保留迁移分工与验证顺序供排查；不是当前未完成清单，也不是本次部署或 UI 验收凭证。现有文件和接口以上文实现入口为准。
 
 ### 阶段 1：只做数据层
 
@@ -952,19 +937,19 @@ ORDER BY c.museum_id, c.sort_order;
 
 - 新增 FastAPI 只读服务。
 - 完成 `/v1/museums`、分类、列表、详情接口。
-- 用 curl / pytest 验证六馆查询。
+- 用签名 probe / unittest 验证六馆查询。
 
 ### 阶段 3：主 App 接入后端
 
 - 新增 `MuseumBackendClient`。
 - 替换 `ArtworkBatchLoader` 和 `ArtworkDetailLoaderView` 的官方源请求。
-- 保留旧 API 类作为爬虫参考和短期 fallback，但默认走后端。
+- 旧 Swift 官方源 API 已删除；解析参考保留在服务端 crawler 和 fixture 中，不提供客户端 fallback。
 - 验证二级页、详情页、收藏夹和深链接。
 
 ### 阶段 4：Widget 接入后端
 
 - 替换 Widget 候选 loader。
-- 保留实例隔离、network-only、单件候选推进。
+- 保留同 scope 共享、不同 scope 隔离、network-only、单件候选推进。
 - 完成桌面截图和日志闭环。
 
 ### 阶段 5：Serverless 发布

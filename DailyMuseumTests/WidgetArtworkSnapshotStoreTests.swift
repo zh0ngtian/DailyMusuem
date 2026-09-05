@@ -454,6 +454,54 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
         XCTAssertEqual(refreshed.displayedArtworkKeys, [])
     }
 
+    func testOverdueAutomaticRefreshIsNotReplayedAfterFailureAndStoreRestart() async throws {
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 8 * 60 * 60))
+        let calendar = makeCalendar(timeZone: timeZone)
+        let scope = "single:nmc"
+        let schedule = try XCTUnwrap(WidgetAutoRefreshSchedule(
+            interval: .twelveHours, startMinutes: 0, endMinutes: 23 * 60,
+            calendar: calendar, timeZone: timeZone
+        ))
+        let initialDate = date(hour: 0, minute: 0, calendar: calendar)
+        let overdueDate = date(hour: 12, minute: 0, calendar: calendar)
+        _ = await store.resolveAutomaticRefresh(
+            for: scope, scopeRawValue: scope, familyToken: "small", schedule: schedule, now: initialDate
+        )
+        let now = try XCTUnwrap(calendar.date(
+            byAdding: .day, value: 5, to: date(hour: 12, minute: 21, calendar: calendar)
+        ))
+        let expectedNext = try XCTUnwrap(calendar.date(byAdding: .day, value: 6, to: initialDate))
+        let due = await store.resolveAutomaticRefresh(
+            for: scope, scopeRawValue: scope, familyToken: "small", schedule: schedule, now: now
+        )
+        XCTAssertTrue(due.shouldRefresh)
+        XCTAssertEqual(due.scheduledAt, overdueDate)
+        XCTAssertEqual(due.nextAutomaticRefreshAt, expectedNext)
+
+        // The future slot must already be on disk before the network refresh starts.
+        let restarted = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let persisted = await restarted.state(for: scope)
+        XCTAssertEqual(persisted?.nextAutomaticRefreshAt, expectedNext.timeIntervalSince1970)
+        let refreshing = await restarted.beginRefresh(instanceToken: scope, scopeRawValue: scope, now: now)
+        _ = await restarted.markFailure(
+            instanceToken: scope, expectedNonce: refreshing.nonce, message: "网络不可用", now: now
+        )
+        let reloaded = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let repeated = await reloaded.resolveAutomaticRefresh(
+            for: scope, scopeRawValue: scope, familyToken: "large", schedule: schedule,
+            now: now.addingTimeInterval(60)
+        )
+        XCTAssertFalse(repeated.shouldRefresh)
+        XCTAssertEqual(repeated.nextAutomaticRefreshAt, expectedNext)
+
+        let nextDay = await reloaded.resolveAutomaticRefresh(
+            for: scope, scopeRawValue: scope, schedule: schedule, now: expectedNext
+        )
+        XCTAssertTrue(nextDay.shouldRefresh)
+        XCTAssertEqual(nextDay.scheduledAt, expectedNext)
+    }
+
     func testResolveAutomaticRefreshPersistsNextScheduledRefresh() async throws {
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
         let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))

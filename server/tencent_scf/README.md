@@ -38,7 +38,7 @@ SQLite 随代码包部署且运行时只读。更新数据时必须构建新 zip
 
 ## Verification
 
-发布后至少验证：
+以下命令均在仓库根目录运行。先通过环境变量注入同一个 secret。默认 probe 只覆盖无签名拒绝、metadata、博物馆列表、Widget 候选，不检查响应完整性、health、展品列表/详情或 nonce 重放：
 
 ```bash
 MUSEUMMUSE_SIMPLE_AUTH_SECRET={secret} \
@@ -46,7 +46,50 @@ python3 scripts/probe_backend_simple_auth.py \
   --base-url https://museum-api.zh0ngtian.tech
 ```
 
-还需验证相同签名请求第二次返回 `401 replayed_request`。
+完整验收还需检查 `/health` 的 `ok` / `databaseReadable`、六馆列表及详情，并用**同一组 headers** 连续请求两次确认第二次返回 `401 replayed_request`。如果只检查指定展品，可向 probe 重复传入 `--path`；显式传入 `--path` 会替换默认路径集合。下面的补充检查只访问后端，不抓取博物馆源站或图片：
+
+```bash
+export MUSEUMMUSE_PROBE_BASE_URL=https://museum-api.zh0ngtian.tech
+python3 - <<'PYTHON'
+import json
+import os
+import urllib.parse
+import urllib.request
+from scripts.probe_backend_simple_auth import signed_headers, request_status
+
+base = os.environ['MUSEUMMUSE_PROBE_BASE_URL'].rstrip('/')
+secret = os.environ['MUSEUMMUSE_SIMPLE_AUTH_SECRET']
+def get(path, signed=True):
+    url = base + path
+    headers = signed_headers('GET', url, secret) if signed else {}
+    with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=12) as response:
+        return json.load(response)
+health = get('/health', signed=False)
+assert health['ok'] and health['databaseReadable']
+print('health: OK; dataVersion=' + health['dataVersion'])
+metadata = get('/v1/museums/metadata')['data']['museums']
+print('metadata museums:', ','.join(m['museumID'] for m in metadata))
+for museum in metadata:
+    mid = urllib.parse.quote(museum['museumID'], safe='')
+    source = urllib.parse.quote(museum['defaultSourceKey'], safe='')
+    path = f'/v1/museums/{mid}/artworks?source={source}&limit=1'
+    rows = get(path)['data']['items']
+    assert rows, 'No list items: ' + mid
+    item = rows[0]
+    detail_path = f"/v1/museums/{mid}/artworks/{urllib.parse.quote(item['objectID'], safe='')}?source={source}"
+    detail = get(detail_path)['data']
+    assert detail['objectID'] == item['objectID']
+    print(mid + ': list/detail OK')
+url = base + '/v1/museums/metadata'
+headers = signed_headers('GET', url, secret)
+first, _ = request_status(url, headers, 12)
+second, body = request_status(url, headers, 12)
+assert first == 200 and second == 401 and 'replayed_request' in body, (first, second)
+print('nonce replay: HTTP 401 replayed_request')
+PYTHON
+```
+
+签名接口通过仍不代表客户端图片或 Widget 已显示；发布 marker、包内 SQLite/manifest 和 [客户端交付验证](../../docs/verification-and-delivery.md) 要分别核验。
 
 自定义域名由 DNSPod `museum-api` CNAME 指向 `1259375612.ap-guangzhou.tencentscf.com`，SCF 将 `/*` 路由到 `default/museummuse-api:$LATEST`。HTTPS 证书 ID 为 `ZSoYf0pa`，有效期截至 `2026-10-22 22:59:59`；到期前必须申请新证书并更新 SCF 域名绑定。
 
