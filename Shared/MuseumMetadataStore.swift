@@ -3,7 +3,7 @@ import Foundation
 actor MuseumMetadataStore {
     static let shared = MuseumMetadataStore()
 
-    private static let snapshotKey = "museum.metadata.snapshot.v1"
+    private static let snapshotKey = SettingsKeys.storageKey("museum.metadata.snapshot.v1")
 
     private let defaults: UserDefaults
     private let refresher: @Sendable (MuseumRequestCachePolicy) async throws -> MuseumMetadataSnapshot
@@ -11,7 +11,7 @@ actor MuseumMetadataStore {
     private var inMemorySnapshot: MuseumMetadataSnapshot?
 
     init(
-        defaults: UserDefaults = UserDefaults(suiteName: SettingsKeys.appGroupID) ?? .standard,
+        defaults: UserDefaults = SettingsKeys.sharedDefaults,
         refresher: @escaping @Sendable (MuseumRequestCachePolicy) async throws -> MuseumMetadataSnapshot = { cachePolicy in
             try await MuseumBackendClient.shared.museumMetadata(cachePolicy: cachePolicy)
         }
@@ -59,7 +59,7 @@ actor MuseumMetadataStore {
     }
 
     nonisolated static func cachedSnapshot(
-        defaults: UserDefaults = UserDefaults(suiteName: SettingsKeys.appGroupID) ?? .standard
+        defaults: UserDefaults = SettingsKeys.sharedDefaults
     ) -> MuseumMetadataSnapshot? {
         guard let data = defaults.data(forKey: snapshotKey),
               let cached = try? JSONDecoder().decode(PersistedMuseumMetadataSnapshot.self, from: data) else {
@@ -73,7 +73,7 @@ actor MuseumMetadataStore {
 
     nonisolated static func cachedMuseum(
         id: MuseumIdentifier,
-        defaults: UserDefaults = UserDefaults(suiteName: SettingsKeys.appGroupID) ?? .standard
+        defaults: UserDefaults = SettingsKeys.sharedDefaults
     ) -> MuseumMetadata? {
         cachedSnapshot(defaults: defaults)?.museums.first { $0.id == id }
     }
@@ -81,7 +81,7 @@ actor MuseumMetadataStore {
     nonisolated static func cachedSourceMetadata(
         museumID: MuseumIdentifier,
         sourceKey: String?,
-        defaults: UserDefaults = UserDefaults(suiteName: SettingsKeys.appGroupID) ?? .standard
+        defaults: UserDefaults = SettingsKeys.sharedDefaults
     ) -> MuseumSourceMetadata? {
         guard let metadata = cachedMuseum(id: museumID, defaults: defaults) else {
             return nil

@@ -6,6 +6,8 @@
 
 ### 6.1 默认验证策略
 
+- iOS 发布继续要求 [OTA + Yao App Source 双渠道](ios-adhoc-ota.md#双渠道发布流程)，使用同一正式签名 IPA；软件源具体发布与验收每次遵循 [SignOs PUBLISH_PROMPT.md](https://github.com/zh0ngtian/SignOs/blob/main/cloudflare/app-source/PUBLISH_PROMPT.md) 最新内容。只改发布工具时执行相应脚本检查，不要求重建 App；OTA `--plan` 只表示本地验签，不代表线上发布通过。
+
 - 后续每次修复问题或新增功能后，都需要优先使用模拟器 `iPhone 17 Pro` 作为默认构建和运行目标再交付。
 - 当前 Codex 沙箱内执行 `xcrun simctl` 或 `xcodebuild` 访问模拟器时，可能出现 `CoreSimulatorService connection became invalid`、`simdiskimaged crashed or is not responding`、`Operation not permitted`、`No available simulator runtimes` 或 `iOS 26.5 Platform Not Installed` 等假性失败；这不一定表示本机缺少 runtime 或项目构建失败。遇到这类错误时，应先用脱离沙箱的 Xcode CLI 路径复核，例如 `xcrun simctl list runtimes` 和对应 `xcodebuild ... build-for-testing`，再判断是否真的是代码或环境问题。
 - 运行 iOS 单元测试时，当前默认关闭 parallel testing：
@@ -39,9 +41,13 @@
     - `xcrun devicectl device install app --device 00008150-000E4010362B401C .deriveddata/Build/Products/Debug-iphoneos/DailyMuseum.app`
     - `xcrun devicectl device process launch --device 00008150-000E4010362B401C tech.zh0ngtian.DailyMuseum`
   - 上述命令是既有验证路径；设备在线状态、构建/安装/启动结果必须在本次交付时重新核验，不能沿用历史成功结论。
-- 仓库提供 `scripts/ios_nightly_installer.py`，每日 `23:00` 检查真机局域网开发连接、签名有效期并构建安装；不主动启动 App。修改该链路前必须阅读 [每晚自动安装到真机](ios-nightly-installer.md)，继续保持描述文件不足 `24` 小时续签、失败恢复缓存、独立 `.deriveddata-nightly` 和 `scripts/tests/test_ios_nightly_installer.py` 回归。
+- 仓库提供 `scripts/ios_nightly_installer.py`，每日 `00:00` 检查真机局域网开发连接、签名有效期并构建安装；不主动启动 App。修改该链路前必须阅读 [每晚自动安装到真机](ios-nightly-installer.md)，继续保持描述文件不足 `24` 小时续签、失败恢复缓存、独立 `.deriveddata-nightly` 和 `scripts/tests/test_ios_nightly_installer.py` 回归。
 
 ### 6.3 小组件截图闭环测试
+
+- 2026-10-10 移除桌面组号角标：常规版在默认 `iPhone 17 Pro` / iOS 26.5 构建、安装、启动通过；兼容版在 `MuseumMuse Widget Groups` / iOS 27 构建、安装、启动通过。第 1 组定向刷新成功并停止候选推进，小尺寸桌面成功态确认无组号；现有第 1 组小、中、大、超大和第 2 组中尺寸均生成成功 timeline。相关 Widget/SpringBoard/chronod 日志未命中 `imageTooLarge`、归档失败、`CHSErrorDomain`、`Fatal error` 或 `No AppIntent`。证据在 `build/verification/widget-hide-group-number/`；随后已发布 OTA `1.1.2 (8)`，设备 Release、逐目标验签及 HTTPS 回验通过，发布证据在 `build/verification/ios-ota-1.1.2/`。本次未安装真机，未逐尺寸截图及重测自动调度。
+
+- 私有 OTA 兼容版另按 [OTA 文档](ios-adhoc-ota.md) 构建与签名；真实小组件、点击刷新打开 App、共享日志与详情链接必须实机验证。兼容版需验证 10 个 kind 的注册、四种尺寸（超大须 iOS 27）、同组跨尺寸同步和不同组独立选馆/刷新、组 1 升级迁移、选择持久化及无实例不刷新。日志以 `compat:<组号>|<scope>` 区分同馆不同组；不得要求兼容版通过桌面 AppIntent 编辑验收。用户指定模拟器时按其要求验证，实机/整点自动刷新等未覆盖项如实记录。
 
 - 验证小组件问题时，默认要形成“构建 / 安装 / 启动 + 日志 + 桌面截图 + 系统日志”的闭环，不接受只看 provider 日志就下结论。
 - 模拟器推荐链路：
@@ -54,7 +60,7 @@
     - `--udid <SIMULATOR_ID>`：指定模拟器
     - `--clear`：清空旧日志
     - `--trigger-refresh`：触发 `dailymuseum://debug/widget-refresh`
-    - `--instance-token <TOKEN>`：按共享刷新键定向触发刷新，当前键格式为 `scope`
+    - `--instance-token <TOKEN>`：按共享刷新键定向触发刷新，常规版键为 `scope`，兼容版为 `compat:<组号>|<scope>`
     - `--scope-raw-value <RAW>`：按 scope 触发刷新，例如 `single:nmc`、`single:shm`
     - `--wait <SECONDS>`：刷新后等待
     - `--tail <N>`：输出最后 N 条日志

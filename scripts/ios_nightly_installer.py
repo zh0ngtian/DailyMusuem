@@ -28,7 +28,7 @@ APP_NAME = "MuseumMuse Nightly Installer"
 LAUNCH_AGENT_LABEL = "tech.zh0ngtian.museummuse-nightly-installer"
 DEFAULT_DEVICE_ID = "00008150-000E4010362B401C"
 DEFAULT_DEVICE_NAME = "Yao iPhone 17 Pro"
-DEFAULT_SCHEDULE = "23:00"
+DEFAULT_SCHEDULE = "00:00"
 DEFAULT_PROVISIONING_REFRESH_HOURS = 24
 DEFAULT_SIGNED_BUNDLES = (
     ("tech.zh0ngtian.MuseumMuse", "主 App"),
@@ -133,7 +133,7 @@ def parse_schedule(value: str) -> tuple[int, int]:
     try:
         parsed = dt.datetime.strptime(value, "%H:%M")
     except ValueError as exc:
-        raise argparse.ArgumentTypeError("时间必须使用 HH:MM 格式，例如 23:00") from exc
+        raise argparse.ArgumentTypeError("时间必须使用 HH:MM 格式，例如 00:00") from exc
     return parsed.hour, parsed.minute
 
 

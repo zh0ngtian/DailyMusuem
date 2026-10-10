@@ -58,24 +58,35 @@ struct DailyMuseumWidgetView: View {
             Color.black
         }
         .id(entry.renderID)
-        .widgetURL(entry.appURL)
+        .widgetURL(entry.appURL ?? (SettingsKeys.widgetCompatibilityMode ? compatibilityRefreshURL : nil))
+    }
+
+    private var compatibilityRefreshURL: URL {
+        (entry.compatibilityGroupID.flatMap { WidgetCompatibilityGroup(id: $0) } ?? .first).refreshURL
+    }
+    private var isExtraLargePortrait: Bool {
+        if #available(iOS 27.0, *) { return family == .systemExtraLargePortrait }
+        return false
     }
 
     private var refreshControl: some View {
-        Button(
-            intent: RefreshWidgetIntent(
-                refreshKey: entry.refreshKey,
-                museumScope: configuredScope,
-                widgetFamilyToken: family.debugToken
-            )
-        ) {
-            Image(systemName: "arrow.clockwise.circle.fill")
-                .font(refreshIconFont)
-                .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.35), radius: 6, x: 0, y: 2)
+        Group {
+            if SettingsKeys.widgetCompatibilityMode {
+                Link(destination: compatibilityRefreshURL) { refreshIcon }
+            } else {
+                Button(intent: RefreshWidgetIntent(refreshKey: entry.refreshKey, museumScope: configuredScope,
+                                                   widgetFamilyToken: family.debugToken)) { refreshIcon }
+            }
         }
         .buttonStyle(.plain)
         .frame(width: refreshControlSize, height: refreshControlSize)
+    }
+
+    private var refreshIcon: some View {
+        Image(systemName: "arrow.clockwise.circle.fill")
+            .font(refreshIconFont)
+            .foregroundStyle(.white)
+            .shadow(color: .black.opacity(0.35), radius: 6, x: 0, y: 2)
     }
 
     private func backgroundView(size: CGSize, image: UIImage?) -> some View {
@@ -120,7 +131,7 @@ struct DailyMuseumWidgetView: View {
     private var displaySubtitle: String? {
         switch entry.phase {
         case .idle, .refreshing:
-            return "长按小组件，选择「编辑小组件」以改变展品展示范围"
+            return SettingsKeys.widgetIdleSubtitle
         case .success:
             return entry.subtitle
         case .failure:
@@ -149,6 +160,7 @@ struct DailyMuseumWidgetView: View {
     }
 
     private var titleFont: Font {
+        if isExtraLargePortrait { return Font.title2 }
         switch family {
         case .systemSmall:
             return .footnote
@@ -162,6 +174,7 @@ struct DailyMuseumWidgetView: View {
     }
 
     private var maxTitleLines: Int {
+        if isExtraLargePortrait { return 4 }
         switch family {
         case .systemSmall:
             return 3
@@ -175,6 +188,7 @@ struct DailyMuseumWidgetView: View {
     }
 
     private var subtitleFont: Font {
+        if isExtraLargePortrait { return Font.title3 }
         switch family {
         case .systemSmall:
             return .caption2
@@ -188,6 +202,7 @@ struct DailyMuseumWidgetView: View {
     }
 
     private var maxSubtitleLines: Int {
+        if isExtraLargePortrait { return 3 }
         switch entry.phase {
         case .idle, .refreshing:
             return family == .systemSmall ? 3 : 2
@@ -204,6 +219,7 @@ struct DailyMuseumWidgetView: View {
     }
 
     private var refreshIconFont: Font {
+        if isExtraLargePortrait { return Font.largeTitle }
         switch family {
         case .systemSmall:
             return .title3
@@ -217,6 +233,7 @@ struct DailyMuseumWidgetView: View {
     }
 
     private var textCardPadding: CGFloat {
+        if isExtraLargePortrait { return 16 }
         switch family {
         case .systemSmall:
             return 8
@@ -230,6 +247,7 @@ struct DailyMuseumWidgetView: View {
     }
 
     private var textCardCornerRadius: CGFloat {
+        if isExtraLargePortrait { return 20 }
         switch family {
         case .systemSmall:
             return 12
@@ -243,6 +261,7 @@ struct DailyMuseumWidgetView: View {
     }
 
     private var contentPadding: CGFloat {
+        if isExtraLargePortrait { return 20 }
         switch family {
         case .systemSmall:
             return 10
@@ -256,6 +275,7 @@ struct DailyMuseumWidgetView: View {
     }
 
     private var refreshControlSize: CGFloat {
+        if isExtraLargePortrait { return 44 }
         switch family {
         case .systemSmall:
             return 24

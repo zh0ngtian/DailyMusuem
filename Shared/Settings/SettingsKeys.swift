@@ -1,17 +1,68 @@
 import Foundation
 
 enum SettingsKeys {
-    static let appGroupID = "group.tech.zh0ngtian.MuseumMuse"
+    static let defaultAppGroupID = "group.tech.zh0ngtian.MuseumMuse"
+    // The OTA signer writes the same authorized group into both targets.
+    static let appGroupID: String = {
+        let value = Bundle.main.object(forInfoDictionaryKey: "MuseumAppGroupIdentifier") as? String
+        return value?.hasPrefix("group.") == true ? value! : defaultAppGroupID
+    }()
+    static let storagePrefix = appGroupID == defaultAppGroupID ? "" : "MuseumMuse."
+    static func storageKey(_ key: String) -> String { storagePrefix + key }
+    static func portableKey(_ key: String) -> String {
+        key.hasPrefix(storagePrefix) ? String(key.dropFirst(storagePrefix.count)) : key
+    }
+    static let sharedDefaults: UserDefaults = {
+        let defaults = UserDefaults(suiteName: appGroupID) ?? .standard
+        // Only the containing app owns the legacy private preferences. Never mark
+        // migration complete from an extension, which cannot read that container.
+        if !storagePrefix.isEmpty, Bundle.main.bundleURL.pathExtension != "appex" {
+            migrateLegacyPreferences(to: defaults)
+        }
+        return defaults
+    }()
+
+    static func migrateLegacyPreferences(to defaults: UserDefaults) {
+        let marker = storageKey("legacyPreferencesMigrated.v1")
+        guard !defaults.bool(forKey: marker),
+              FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID) != nil else { return }
+        let legacy = UserDefaults(suiteName: defaultAppGroupID)?.persistentDomain(forName: defaultAppGroupID) ?? [:]
+        for (key, value) in legacy where isMuseumPreference(key) {
+            let destination = storageKey(key)
+            if defaults.object(forKey: destination) == nil { defaults.set(value, forKey: destination) }
+        }
+        defaults.set(true, forKey: marker)
+        defaults.synchronize()
+    }
+
+    static func isMuseumPreference(_ key: String) -> Bool {
+        ["feed.", "widget.", "artworkDetail.", "requestLog.", "museum.", "favorites."].contains { key.hasPrefix($0) }
+    }
+
+    static func sharedContainerURL(fileManager: FileManager = .default) -> URL? {
+        guard let root = fileManager.containerURL(forSecurityApplicationGroupIdentifier: appGroupID) else { return nil }
+        return storagePrefix.isEmpty ? root : root.appendingPathComponent("MuseumMuse", isDirectory: true)
+    }
+    #if WIDGET_COMPATIBILITY
+    static let widgetCompatibilityMode = true
+    #else
+    static let widgetCompatibilityMode = false
+    #endif
+    static let widgetRefreshURL = URL(string: "dailymuseum://widget/refresh")!
+    static var widgetIdleSubtitle: String {
+        widgetCompatibilityMode ? "点击刷新，在 App 中获取展品" : "长按小组件，选择「编辑小组件」以改变展品展示范围"
+    }
     static let widgetKind = "DailyMuseumWidget"
-    static let feedPreferences = "feed.preferences.v2"
-    static let feedDisplayModePrefix = "feed.displayMode."
-    static let widgetRefreshIntervalHours = "widget.refreshIntervalHours"
-    static let widgetAutoRefreshStartMinutes = "widget.autoRefreshStartMinutes"
-    static let widgetAutoRefreshEndMinutes = "widget.autoRefreshEndMinutes"
-    static let artworkDetailFontScaleStep = "artworkDetail.fontScaleStep"
-    static let requestLogAccessUnlocked = "requestLog.accessUnlocked"
-    static let museumDisplayOrder = "museum.displayOrder"
-    static let favoritesArtworks = "favorites.artworks"
+    static let feedPreferences = storageKey("feed.preferences.v2")
+    static let feedDisplayModePrefix = storageKey("feed.displayMode.")
+    static let widgetCompatibilityScope = storageKey("widget.compatibilityScope.v1")
+    static let widgetRefreshIntervalHours = storageKey("widget.refreshIntervalHours")
+    static let widgetAutoRefreshStartMinutes = storageKey("widget.autoRefreshStartMinutes")
+    static let widgetAutoRefreshEndMinutes = storageKey("widget.autoRefreshEndMinutes")
+    static let artworkDetailFontScaleStep = storageKey("artworkDetail.fontScaleStep")
+    static let requestLogAccessUnlocked = storageKey("requestLog.accessUnlocked")
+    static let museumDisplayOrder = storageKey("museum.displayOrder")
+    static let favoritesArtworks = storageKey("favorites.artworks")
 
 }
 

@@ -3,7 +3,7 @@ import Foundation
 struct WidgetSettingsReader {
     private let defaults: UserDefaults
 
-    init(defaults: UserDefaults = UserDefaults(suiteName: SettingsKeys.appGroupID) ?? .standard) {
+    init(defaults: UserDefaults = SettingsKeys.sharedDefaults) {
         self.defaults = defaults
     }
 

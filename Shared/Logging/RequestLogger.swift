@@ -37,7 +37,7 @@ actor RequestLogger {
     private let decoder = JSONDecoder()
 
     init(fileManager: FileManager = .default) {
-        let baseURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: SettingsKeys.appGroupID)
+        let baseURL = SettingsKeys.sharedContainerURL(fileManager: fileManager)
             ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? fileManager.temporaryDirectory
         directoryURL = baseURL.appendingPathComponent(Constants.directoryName, isDirectory: true)

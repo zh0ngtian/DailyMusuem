@@ -19,20 +19,23 @@ SPEC.loader.exec_module(MODULE)
 
 
 class ScheduleTests(unittest.TestCase):
+    def test_default_schedule_is_midnight(self) -> None:
+        self.assertEqual(MODULE.DEFAULT_SCHEDULE, "00:00")
+
     def test_due_once_during_scheduled_minute_or_later_in_hour(self) -> None:
-        now = dt.datetime(2026, 8, 15, 23, 8)
-        self.assertTrue(MODULE.is_schedule_due(now, "23:00", None))
-        self.assertFalse(MODULE.is_schedule_due(now, "23:00", "2026-08-15"))
+        now = dt.datetime(2026, 8, 16, 0, 8)
+        self.assertTrue(MODULE.is_schedule_due(now, "00:00", None))
+        self.assertFalse(MODULE.is_schedule_due(now, "00:00", "2026-08-16"))
 
     def test_does_not_catch_up_after_scheduled_hour(self) -> None:
-        now = dt.datetime(2026, 8, 16, 0, 1)
-        self.assertFalse(MODULE.is_schedule_due(now, "23:00", None))
+        now = dt.datetime(2026, 8, 16, 1, 1)
+        self.assertFalse(MODULE.is_schedule_due(now, "00:00", None))
 
     def test_next_schedule_rolls_to_tomorrow(self) -> None:
-        now = dt.datetime(2026, 8, 15, 23, 0)
+        now = dt.datetime(2026, 8, 15, 0, 0)
         self.assertEqual(
-            MODULE.next_schedule_time(now, "23:00"),
-            dt.datetime(2026, 8, 16, 23, 0),
+            MODULE.next_schedule_time(now, "00:00"),
+            dt.datetime(2026, 8, 16, 0, 0),
         )
 
 

@@ -67,22 +67,20 @@ struct WidgetCenterCurrentConfigurationResolver: WidgetCurrentConfigurationResol
         let configurations = try await widgetCenter.currentConfigurations()
         var targets: [WidgetRefreshTarget] = []
 
-        for configuration in configurations where configuration.kind == SettingsKeys.widgetKind {
-            guard let intent = configuration.widgetConfigurationIntent(
-                of: DailyMuseumWidgetConfigurationIntent.self
-            ) else {
-                continue
+        for configuration in configurations {
+            let scope: WidgetMuseumScope
+            let refreshKey: String
+            if SettingsKeys.widgetCompatibilityMode {
+                guard let group = WidgetCompatibilityGroup.from(kind: configuration.kind) else { continue }
+                scope = WidgetCompatibilityScope.read(group: group)
+                refreshKey = group.refreshKey(scope: scope)
+            } else {
+                guard configuration.kind == SettingsKeys.widgetKind,
+                      let intent = configuration.widgetConfigurationIntent(of: DailyMuseumWidgetConfigurationIntent.self) else { continue }
+                scope = intent.museumScope.scope
+                refreshKey = WidgetRefreshGroupKey.make(scope: scope, family: configuration.family)
             }
-            let scope = intent.museumScope.scope
-            let refreshKey = WidgetRefreshGroupKey.make(scope: scope, family: configuration.family)
-
-            targets.append(
-                WidgetRefreshTarget(
-                    refreshKey: refreshKey,
-                    scope: scope,
-                    familyToken: configuration.family.debugToken
-                )
-            )
+            targets.append(WidgetRefreshTarget(refreshKey: refreshKey, scope: scope, familyToken: configuration.family.debugToken))
         }
 
         return targets.sorted { $0.refreshKey < $1.refreshKey }
@@ -162,7 +160,7 @@ actor WidgetRefreshCoordinator {
         }
 
         if reloadTimelines {
-            widgetCenter.reloadTimelines(ofKind: SettingsKeys.widgetKind)
+            widgetCenter.reloadTimelines(ofKind: WidgetCompatibilityGroup.from(refreshKey: refreshKey)?.kind ?? SettingsKeys.widgetKind)
         }
 
         let engine = makeEngine()
@@ -225,7 +223,7 @@ actor WidgetRefreshCoordinator {
             activeRefreshes[refreshKey] = nil
         }
         if reloadTimelines {
-            widgetCenter.reloadTimelines(ofKind: SettingsKeys.widgetKind)
+            widgetCenter.reloadTimelines(ofKind: WidgetCompatibilityGroup.from(refreshKey: refreshKey)?.kind ?? SettingsKeys.widgetKind)
         }
     }
 
@@ -288,6 +286,7 @@ actor WidgetRefreshCoordinator {
 
     func refreshCurrentConfigurations(
         matching scopeFilter: WidgetMuseumScope? = nil,
+        matchingGroup groupFilter: WidgetCompatibilityGroup? = nil,
         logSource: String = "App 快捷操作"
     ) async {
         let targets: [WidgetRefreshTarget]
@@ -295,9 +294,9 @@ actor WidgetRefreshCoordinator {
             let resolvedTargets = try await currentConfigurationResolver.refreshTargets()
             await logCurrentConfigurations(resolvedTargets, logSource: logSource)
             if let scopeFilter {
-                targets = resolvedTargets.filter { $0.scope == scopeFilter }
+                targets = resolvedTargets.filter { $0.scope == scopeFilter && (groupFilter == nil || WidgetCompatibilityGroup.from(refreshKey: $0.refreshKey) == groupFilter) }
             } else {
-                targets = resolvedTargets
+                targets = resolvedTargets.filter { groupFilter == nil || WidgetCompatibilityGroup.from(refreshKey: $0.refreshKey) == groupFilter }
             }
             await removeStaleInstances(keeping: resolvedTargets)
         } catch {
@@ -343,7 +342,7 @@ actor WidgetRefreshCoordinator {
         } else {
             let targetSummary = targets
                 .map { target in
-                    "scope=\(target.scope.rawValue) family=\(target.familyToken ?? "unknown")"
+                    "key=\(target.refreshKey) scope=\(target.scope.rawValue) family=\(target.familyToken ?? "unknown")"
                 }
                 .joined(separator: "；")
             summary = "当前 WidgetKit 配置：\(targetSummary)"
@@ -356,9 +355,11 @@ actor WidgetRefreshCoordinator {
     }
 
     private func removeStaleInstances(keeping targets: [WidgetRefreshTarget]) async {
-        await store.removeInstances(
-            excludingRefreshKeys: Set(targets.map(\.refreshKey))
-        )
+        let currentKeys = Set(targets.map(\.refreshKey))
+        for key in Array(activeRefreshes.keys) where !currentKeys.contains(key) {
+            activeRefreshes.removeValue(forKey: key)?.task.cancel()
+        }
+        await store.removeInstances(excludingRefreshKeys: currentKeys)
     }
 
     private func deduplicatedRefreshTargets(_ targets: [WidgetRefreshTarget]) -> [WidgetRefreshTarget] {

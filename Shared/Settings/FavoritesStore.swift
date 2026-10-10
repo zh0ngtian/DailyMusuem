@@ -42,7 +42,7 @@ final class FavoritesStore: ObservableObject {
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
-    init(defaults: UserDefaults = UserDefaults(suiteName: SettingsKeys.appGroupID) ?? .standard) {
+    init(defaults: UserDefaults = SettingsKeys.sharedDefaults) {
         self.defaults = defaults
         favorites = []
         favorites = loadFavorites()

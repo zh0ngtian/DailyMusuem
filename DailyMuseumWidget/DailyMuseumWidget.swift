@@ -14,6 +14,7 @@ struct WidgetArtworkEntry: TimelineEntry {
     let imageFileName: String?
     let appURL: URL?
     let failureMessage: String?
+    var compatibilityGroupID: Int? = nil
 }
 
 struct DailyMuseumWidget: Widget {
@@ -35,10 +36,51 @@ struct DailyMuseumWidget: Widget {
     }
 }
 
-struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
-    private let settingsReader = WidgetSettingsReader()
+struct CompatibleMuseumWidget<Slot: CompatibleWidgetSlot>: Widget {
+    private var group: WidgetCompatibilityGroup { WidgetCompatibilityGroup(id: Slot.id)! }
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: group.kind, provider: CompatibleMuseumWidgetProvider(group: group)) {
+            DailyMuseumWidgetView(entry: $0)
+        }
+        .configurationDisplayName(Text(verbatim: "博物女神 · \(group.name)"))
+        .description("在 App 中为本组选馆，同组尺寸同步，点击刷新打开 App")
+        .supportedFamilies(WidgetCompatibilityGroup.supportedFamilies)
+        .contentMarginsDisabled()
+    }
+}
 
-    func placeholder(in context: Context) -> WidgetArtworkEntry {
+struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
+    private let content = WidgetArtworkTimelineContent()
+    func placeholder(in context: Context) -> WidgetArtworkEntry { content.placeholder() }
+    func snapshot(for configuration: DailyMuseumWidgetConfigurationIntent, in context: Context) async -> WidgetArtworkEntry {
+        await content.entry(scope: configuration.museumScope.scope, date: .now, family: context.family,
+                            persistRenderState: false, logRender: false)
+    }
+    func timeline(for configuration: DailyMuseumWidgetConfigurationIntent, in context: Context) async -> Timeline<WidgetArtworkEntry> {
+        await content.timeline(scope: configuration.museumScope.scope, family: context.family, isPreview: context.isPreview)
+    }
+}
+
+struct CompatibleMuseumWidgetProvider: TimelineProvider {
+    let group: WidgetCompatibilityGroup
+    private let content = WidgetArtworkTimelineContent()
+    func placeholder(in context: Context) -> WidgetArtworkEntry { content.placeholder(group: group) }
+    func getSnapshot(in context: Context, completion: @escaping (WidgetArtworkEntry) -> Void) {
+        Task {
+            completion(await content.entry(scope: WidgetCompatibilityScope.read(group: group), date: .now, family: context.family, group: group,
+                                           persistRenderState: false, logRender: false))
+        }
+    }
+    func getTimeline(in context: Context, completion: @escaping (Timeline<WidgetArtworkEntry>) -> Void) {
+        Task {
+            completion(await content.timeline(scope: WidgetCompatibilityScope.read(group: group), family: context.family, isPreview: context.isPreview, group: group))
+        }
+    }
+}
+
+private struct WidgetArtworkTimelineContent {
+    private let settingsReader = WidgetSettingsReader()
+    func placeholder(group: WidgetCompatibilityGroup? = nil) -> WidgetArtworkEntry {
         WidgetArtworkEntry(
             date: .now,
             renderID: "placeholder",
@@ -47,45 +89,31 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
             phase: .idle,
             museumName: "MuseumMuse",
             title: "点击刷新获取展品",
-            subtitle: "长按小组件，选择「编辑小组件」以改变展品展示范围",
+            subtitle: SettingsKeys.widgetIdleSubtitle,
             imageFileName: nil,
             appURL: nil,
-            failureMessage: nil
+            failureMessage: nil,
+            compatibilityGroupID: group?.id
         )
     }
 
-    func snapshot(
-        for configuration: DailyMuseumWidgetConfigurationIntent,
-        in context: Context
-    ) async -> WidgetArtworkEntry {
-        await entry(
-            for: configuration,
-            date: .now,
-            family: context.family,
-            persistRenderState: false,
-            logRender: false
-        )
-    }
-
-    func timeline(
-        for configuration: DailyMuseumWidgetConfigurationIntent,
-        in context: Context
-    ) async -> Timeline<WidgetArtworkEntry> {
-        let scope = scope(for: configuration)
-        let refreshKey = WidgetRefreshGroupKey.make(scope: scope, family: context.family)
+    func timeline(scope: WidgetMuseumScope, family: WidgetFamily, isPreview: Bool, group: WidgetCompatibilityGroup? = nil) async -> Timeline<WidgetArtworkEntry> {
+        let refreshKey = group?.refreshKey(scope: scope) ?? WidgetRefreshGroupKey.make(scope: scope, family: family)
         let store = WidgetArtworkSnapshotStore.shared
         let now = Date()
         let canPersistTimeline = await shouldPersistTimeline(
+            refreshKey: refreshKey,
             scope: scope,
-            family: context.family,
-            isPreview: context.isPreview
+            family: family,
+            isPreview: isPreview
         )
 
         guard canPersistTimeline else {
             let entry = await entry(
-                for: configuration,
+                scope: scope,
                 date: now,
-                family: context.family,
+                family: family,
+                group: group,
                 persistRenderState: false,
                 logRender: false
             )
@@ -96,7 +124,7 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
         let automaticRefreshResolution = await store.resolveAutomaticRefresh(
             for: refreshKey,
             scopeRawValue: scope.rawValue,
-            familyToken: context.family.debugToken,
+            familyToken: family.debugToken,
             schedule: schedule,
             now: now
         )
@@ -106,7 +134,7 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
             await WidgetRefreshCoordinator.shared.refresh(
                 refreshKey: refreshKey,
                 scope: scope,
-                familyToken: context.family.debugToken,
+                familyToken: family.debugToken,
                 trigger: .automatic(scheduledAt: scheduledAt),
                 logSource: "Widget 自动刷新",
                 reloadTimelines: false
@@ -115,9 +143,10 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
 
         let entryDate = Date()
         let entry = await entry(
-            for: configuration,
+            scope: scope,
             date: entryDate,
-            family: context.family,
+            family: family,
+            group: group,
             persistRenderState: true,
             logRender: true
         )
@@ -127,15 +156,15 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
         return Timeline(entries: [entry], policy: .never)
     }
 
-    private func entry(
-        for configuration: DailyMuseumWidgetConfigurationIntent,
+    func entry(
+        scope: WidgetMuseumScope,
         date: Date,
         family: WidgetFamily?,
+        group: WidgetCompatibilityGroup? = nil,
         persistRenderState: Bool,
         logRender: Bool
     ) async -> WidgetArtworkEntry {
-        let scope = scope(for: configuration)
-        let refreshKey = WidgetRefreshGroupKey.make(scope: scope, family: family)
+        let refreshKey = group?.refreshKey(scope: scope) ?? WidgetRefreshGroupKey.make(scope: scope, family: family)
         let store = WidgetArtworkSnapshotStore.shared
         let state: WidgetArtworkSnapshotStore.InstanceState?
         if persistRenderState {
@@ -175,7 +204,8 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
                     subtitle: artwork.subtitle,
                     imageFileName: artwork.imageFileName,
                     appURL: artwork.appURL,
-                    failureMessage: nil
+                    failureMessage: nil,
+                    compatibilityGroupID: group?.id
                 )
             }
         case .failure:
@@ -190,7 +220,8 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
                 subtitle: state?.failureMessage,
                 imageFileName: nil,
                 appURL: nil,
-                failureMessage: state?.failureMessage
+                failureMessage: state?.failureMessage,
+                compatibilityGroupID: group?.id
             )
         case .idle, .refreshing:
             break
@@ -204,18 +235,16 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
             phase: .idle,
             museumName: scope.displayName,
             title: "点击刷新获取展品",
-            subtitle: "长按小组件，选择「编辑小组件」以改变展品展示范围",
+            subtitle: SettingsKeys.widgetIdleSubtitle,
             imageFileName: nil,
             appURL: nil,
-            failureMessage: nil
+            failureMessage: nil,
+            compatibilityGroupID: group?.id
         )
     }
 
-    private func scope(for configuration: DailyMuseumWidgetConfigurationIntent) -> WidgetMuseumScope {
-        configuration.museumScope.scope
-    }
-
     private func shouldPersistTimeline(
+        refreshKey: String,
         scope: WidgetMuseumScope,
         family: WidgetFamily,
         isPreview: Bool
@@ -230,7 +259,7 @@ struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
                 excludingRefreshKeys: Set(targets.map(\.refreshKey))
             )
             return targets.contains { target in
-                target.scope == scope && target.familyToken == family.debugToken
+                target.refreshKey == refreshKey && target.scope == scope && target.familyToken == family.debugToken
             }
         } catch {
             return true
@@ -249,3 +278,15 @@ private extension WidgetMuseumScope {
         }
     }
 }
+
+protocol CompatibleWidgetSlot { static var id: Int { get } }
+enum CompatibleWidgetSlot1: CompatibleWidgetSlot { static let id = 1 }
+enum CompatibleWidgetSlot2: CompatibleWidgetSlot { static let id = 2 }
+enum CompatibleWidgetSlot3: CompatibleWidgetSlot { static let id = 3 }
+enum CompatibleWidgetSlot4: CompatibleWidgetSlot { static let id = 4 }
+enum CompatibleWidgetSlot5: CompatibleWidgetSlot { static let id = 5 }
+enum CompatibleWidgetSlot6: CompatibleWidgetSlot { static let id = 6 }
+enum CompatibleWidgetSlot7: CompatibleWidgetSlot { static let id = 7 }
+enum CompatibleWidgetSlot8: CompatibleWidgetSlot { static let id = 8 }
+enum CompatibleWidgetSlot9: CompatibleWidgetSlot { static let id = 9 }
+enum CompatibleWidgetSlot10: CompatibleWidgetSlot { static let id = 10 }

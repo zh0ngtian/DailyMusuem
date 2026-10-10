@@ -5,7 +5,9 @@
 - 进行任何功能性修改后，必须同步检查 `AGENTS.md` 是否需要修改或补充。
 - 如果本次改动影响了功能范围、交互规则、数据接入、分类映射、Widget 行为、验证方式或已知约束，必须在交付前把对应内容回填到 `AGENTS.md`。
 - 不允许代码已经修改完成，但 `AGENTS.md` 仍停留在旧行为描述。
+- 用户已授权后续每次 App/Widget 改动完成并通过必要验证后，直接发布到现有私有 Ad Hoc OTA 和 Yao App Source 双渠道，无需再次询问；每次递增版本和 Build，完成逐目标验签与 HTTPS 回验。先完成 OTA，再将同一已签名 IPA 原样同步到软件源，两边版本、Build、大小与 SHA-256 一致才算发布完成。软件源失败只重试同一 IPA，不重新签名或递增版本；纯文档或发布工具修改不重建 App。软件源具体发布流程每次读取 [SignOs PUBLISH_PROMPT.md](https://github.com/zh0ngtian/SignOs/blob/main/cloudflare/app-source/PUBLISH_PROMPT.md) 最新内容，本仓库不保留流程副本。
 - 第 3、4、6 章的详细合同分别维护在 `docs/data-ingestion-contract.md`、`docs/app-behavior-contract.md` 和 `docs/verification-and-delivery.md`；功能修改时同时检查本文件的摘要/入口与对应合同。保留单一详细解释，不复制成平行规范。
+- 软件源发布的开发者署名统一使用 GitHub 用户名 `zh0ngtian`；署名调整不更改安装包和签名身份。
 
 ## 目录
 
@@ -163,17 +165,21 @@
 
 ### 5.1 总体要求
 
+- 私有 Ad Hoc OTA 渠道可显式编译 `WIDGET_COMPATIBILITY` 兼容版：提供 10 组静态小组件，由主 App 设置 → 小组件 →“分组与展示博物馆”分别选馆（默认所有博物馆，可选 metadata 支持 Widget 的单馆）。同组各尺寸同步，组间内容和刷新独立，即使选同馆也不合并；刷新通过链接打开主 App 完成，主体继续跳转展品详情。正常构建保持完整 AppIntent 行为。发布与真实验证限制见 [OTA 文档](docs/ios-adhoc-ota.md)。
+
 - 需要提供 WidgetKit 小组件。
 - 支持三种尺寸：
   - `systemSmall`
   - `systemMedium`
   - `systemLarge`
+- 兼容版每组额外支持 iOS 27 `systemExtraLargePortrait` 竖向超大尺寸；较旧系统仍提供小、中、大三尺寸。
 - 小组件用于随机展示一件展品。
 - 当前小组件支持手动刷新，并可在首页全局设置中开启自动刷新。
 - 自动刷新间隔支持：`关闭`、`1小时`、`3小时`、`6小时`、`12小时`、`24小时`，默认值为 `24小时`；用户明确保存为 `关闭` 时仍保持关闭。
 - 自动刷新需要额外配置每日 `开始时间` 与 `结束时间`；默认值分别为 `00:00` 和 `23:00`。
 - `开始时间` 与 `结束时间` 只支持选择整点。
-- 小组件仍按实例单独配置展示范围，但渲染状态和刷新任务改为按 `scope` 共享：
+- 下述按 `scope` 共享、桌面编辑配置规则适用于常规完整版；兼容版以“组号 + scope”为共享键，同组同步、不同组独立。
+- 常规完整版小组件仍按实例单独配置展示范围，但渲染状态和刷新任务改为按 `scope` 共享：
   - 同展示范围的多个桌面实例必须显示同一件展品
   - 任一同范围实例手动或自动刷新后，该范围其他实例也应显示同一刷新结果
   - 不同展示范围之间仍保持独立
@@ -183,7 +189,7 @@
 
 ### 5.2 配置要求
 
-- 小组件改为按实例配置，不再使用旧的全局小组件设置页语义。
+- 常规完整版小组件按实例配置；私有 OTA 兼容版由主 App 为 10 组分别选馆。第 1 组保留旧 Widget kind 与选馆设置；第 2–10 组初始为全部。具体持久化、链接和迁移合同见 [主 App 规范](docs/app-behavior-contract.md#私有-ota-兼容小组件入口)。
 - 每个小组件实例都需要单独配置展示范围。
 - 如果新添加的小组件与桌面上已有实例属于同 `scope`：
   - 新实例需要直接复用这组当前共享内容
@@ -204,7 +210,8 @@
 
 ### 5.3 刷新逻辑
 
-- 点击刷新按钮时，需要刷新当前 `scope` 对应的共享组。
+- 兼容版刷新只针对链接指定组，实际桌面配置须同时匹配 kind 对应组号、scope 与尺寸；未添加的组不得发起网络刷新。每组独立保存内容、任务、失败态和自动计划；自动时间设置仍为全局，已展示展品历史仍按博物馆共享。
+- 点击刷新按钮时，需要刷新当前共享组。
 - 开启自动刷新后，由 WidgetKit timeline 调度触发，实际执行时间以系统调度为准。
 - 开启自动刷新后，到 `开始时间` 时需要自动刷新一次，并在未超过 `结束时间` 前按当前刷新间隔继续刷新；若某次时间点恰好等于 `结束时间`，该次仍可执行。
 - 开启自动刷新后，到期时需要刷新当前 `scope` 对应的共享组，并继续复用同一套候选推进、图片校验和状态持久化规则。
@@ -274,6 +281,7 @@
 
 ### 5.5 视觉
 
+- 桌面小组件内容不显示组号；兼容版组名仅在添加小组件与主 App 分组设置中用于选组。
 - 展品照片需要裁剪填满小组件。
 - 不要求展示完整照片内容。
 - 可以只展示照片的一部分。
@@ -298,6 +306,8 @@
 
 ### 5.7 常见坑
 
+- 兼容版多个 Widget 的名称用 `Text(verbatim:)` 传给 `configurationDisplayName`；直接使用字符串插值会在 iOS 27 注册描述时触发 formatted text fatal error，导致整个扩展不出现在小组件库。
+
 - 不能把 provider 返回 `success` 误判为“桌面一定已正常显示”：
   - `Widget 完成渲染` 日志只能说明 timeline 已生成。
   - 真正的验收仍然要看 SpringBoard 桌面截图。
@@ -313,13 +323,13 @@
   - provider 必须优先按 `scope` 命中共享状态
   - 即便配置里的旧 `instanceToken` 发生变化，同组实例也应继续显示同一份内容
 - 用 `scope` 级别调试刷新时，同 scope 的多个桌面实例会被一起触发：
-  - 同组刷新和日志共享是预期行为；`--instance-token` 当前也使用 scope 共享键，不能隔离同 scope 的单个桌面实例。
+  - 同组刷新和日志共享是预期行为；`--instance-token` 使用共享键（兼容版包含组号），不能隔离同组的单个桌面实例。
   - 需要稳定复现时，定向选择当前共享组，并避免并发触发同组刷新。
 - Widget 相关 request logs 当前需要显式打印共享刷新键：
   - 底层日志字段仍沿用 `instanceToken`
-  - 但当前值语义是 `scope`，例如 `single:met`
+  - 常规版值为 `scope`，例如 `single:met`；兼容版为 `compat:<组号>|<scope>`，例如 `compat:2|single:met`。日志需同时包含共享键、scope 和尺寸，不能把同馆不同组折叠。
 - Widget 的 request logs、实例状态和主 App 日志页依赖主 App 与 Widget Extension 共享同一个 App Group：
-  - 当前必须同时保留 `DailyMuseum/DailyMuseum.entitlements` 和 `DailyMuseumWidget/DailyMuseumWidgetAppGroup.entitlements` 中的 `group.tech.zh0ngtian.MuseumMuse`
+  - 常规构建必须同时保留 `DailyMuseum/DailyMuseum.entitlements` 和 `DailyMuseumWidget/DailyMuseumWidgetAppGroup.entitlements` 中的 `group.tech.zh0ngtian.MuseumMuse`；私有 OTA 允许签名器同时写入已获 profile 授权的共享组，运行时读取两个目标一致的 `MuseumAppGroupIdentifier`，具体命名空间、迁移与隔离限制见 OTA 文档。
   - 任一 target 丢失该 App Group 后，主 App 将无法读取 widget 写入的 request logs 与实例状态
 - SpringBoard 和 WidgetKit 都存在快照缓存：
   - 代码修好后，桌面仍可能短时间继续显示旧占位态或旧快照。
@@ -337,6 +347,7 @@
 - 沙箱内 CoreSimulator / runtime / destination 异常先按权限流程用沙箱外 Xcode CLI 复核，不直接认定代码失败。
 - AI 快捷指令实际拉起、联网/相册权限等模拟器不能稳定覆盖的场景，再用 `Yao iPhone 17 Pro` 真机补验。
 - Widget 验收必须同时有构建/安装/启动、request logs、SpringBoard 桌面截图和系统日志；provider success 不等于已显示，需确认没有 `imageTooLarge`、归档或 Chrono 错误。
-- `scripts/pull_simulator_request_logs.sh` 的 `--instance-token` 当前值为 scope 共享键，不能隔离同 scope 的单个实例；具体参数见验证文档。
+- `scripts/pull_simulator_request_logs.sh` 的 `--instance-token` 为共享键，常规版是 scope，兼容版为 `compat:<组号>|<scope>`，不能隔离同组的单个实例；具体参数见验证文档。
 - 夜间真机安装修改还需阅读 [夜间安装文档](docs/ios-nightly-installer.md)，保持只构建安装、不主动启动，以及描述文件续签失败时恢复缓存。
 - 纯文档修改检查链接、代码依据和 `git diff --check`；不将未执行的模拟器、真机或线上验证写成已通过。
+- Ad Hoc / OTA 接入状态与签名前置检查见 [Ad Hoc 发布文档](docs/ios-adhoc-ota.md)。`scripts/publish_ios_widget_ota.py` 只负责 OTA；软件源发布遵循 [SignOs PUBLISH_PROMPT.md](https://github.com/zh0ngtian/SignOs/blob/main/cloudflare/app-source/PUBLISH_PROMPT.md) 最新流程，项目发布信息见 [双渠道发布](docs/ios-adhoc-ota.md#双渠道发布流程)。各版本的真机覆盖范围以 OTA 文档的实际记录为准。默认 profile 不授权项目原始身份，不能将私有兼容渠道描述为原始身份的正式 Ad Hoc 导出。不得删除 Widget、移除必要 App Group 或将主 App profile 自动套给扩展以绕过签名缺项。

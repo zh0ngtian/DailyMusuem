@@ -14,6 +14,11 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section {
+                if SettingsKeys.widgetCompatibilityMode {
+                    NavigationLink("分组与展示博物馆") {
+                        CompatibleWidgetGroupsSettingsView(settings: settings)
+                    }
+                }
                 Picker("自动刷新", selection: widgetRefreshIntervalBinding) {
                     ForEach(WidgetRefreshInterval.allCases) { interval in
                         Text(interval.displayName).tag(interval)
@@ -434,4 +439,42 @@ private struct TimeSelectionSheet: View {
 private func displayTime(_ date: Date) -> String {
     let components = Calendar.autoupdatingCurrent.dateComponents([.hour, .minute], from: date)
     return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
+}
+
+private struct CompatibleWidgetGroupsSettingsView: View {
+    @ObservedObject var settings: SettingsStore
+
+    var body: some View {
+        Form {
+            Section {
+                ForEach(WidgetCompatibilityGroup.all) { group in
+                    Picker(group.name, selection: scopeBinding(for: group)) {
+                        Text("所有博物馆").tag(WidgetMuseumScope.all)
+                        ForEach(MuseumRepository.widgetSupportedMuseums) { museum in
+                            Text(museum.displayName).tag(WidgetMuseumScope.single(museum.id))
+                        }
+                    }
+                }
+            } header: {
+                Text("10 组小组件")
+            } footer: {
+                Text("添加桌面小组件时选择对应组。同组的不同尺寸显示同一件展品，各组独立选馆与刷新。仅刷新已添加到桌面的组。")
+            }
+        }
+        .navigationTitle("分组与展示博物馆")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func scopeBinding(for group: WidgetCompatibilityGroup) -> Binding<WidgetMuseumScope> {
+        Binding {
+            settings.widgetScope(for: group)
+        } set: { scope in
+            guard scope != settings.widgetScope(for: group) else { return }
+            settings.saveWidgetCompatibilityScope(scope, group: group)
+            Task {
+                await WidgetManualRefreshRunner(logSource: "Widget \(group.name)选馆")
+                    .perform(compatibilityGroup: group)
+            }
+        }
+    }
 }

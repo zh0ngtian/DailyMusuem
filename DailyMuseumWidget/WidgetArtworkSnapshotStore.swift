@@ -142,7 +142,7 @@ actor WidgetArtworkSnapshotStore {
     private let decoder = JSONDecoder()
 
     init(fileManager: FileManager = .default) {
-        let containerURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: SettingsKeys.appGroupID)
+        let containerURL = SettingsKeys.sharedContainerURL(fileManager: fileManager)
             ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? fileManager.temporaryDirectory
         self.init(baseURL: containerURL)
@@ -578,10 +578,17 @@ actor WidgetArtworkSnapshotStore {
     private func normalizedState(for state: InstanceState) -> InstanceState {
         var normalized = state
         normalized.familyToken = normalizedFamilyToken(state.familyToken)
-        normalized.instanceToken = WidgetRefreshGroupKey.make(
-            scopeRawValue: state.scopeRawValue,
-            familyToken: normalized.familyToken ?? ""
-        )
+        if let group = WidgetCompatibilityGroup.from(refreshKey: state.instanceToken),
+           let scope = WidgetMuseumScope(rawValue: state.scopeRawValue) {
+            normalized.instanceToken = group.refreshKey(scope: scope)
+        } else if SettingsKeys.widgetCompatibilityMode,
+                  let scope = WidgetMuseumScope(rawValue: state.scopeRawValue) {
+            normalized.instanceToken = WidgetCompatibilityGroup.first.refreshKey(scope: scope)
+        } else {
+            normalized.instanceToken = WidgetRefreshGroupKey.make(
+                scopeRawValue: state.scopeRawValue, familyToken: normalized.familyToken ?? ""
+            )
+        }
         normalized.displayedArtworkKeys = []
         return normalized
     }
@@ -827,7 +834,7 @@ actor WidgetArtworkSnapshotStore {
     }
 
     static func imageURL(for fileName: String) -> URL? {
-        let baseURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: SettingsKeys.appGroupID)
+        let baseURL = SettingsKeys.sharedContainerURL()
             ?? FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
         return baseURL

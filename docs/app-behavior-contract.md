@@ -266,3 +266,13 @@
   - `上海`
   - `巴黎`
 - 不再在副标题中重复展示博物馆名称。
+
+## 私有 OTA 兼容小组件入口
+
+仅在 `WIDGET_COMPATIBILITY` 构建中提供 10 组静态 Widget。主 App 设置 → 小组件 →“分组与展示博物馆”可分别为第 1–10 组选馆；默认所有博物馆，单馆选项只来自 metadata 中支持 Widget 的馆并沿用其排序。每组支持小、中、大及 iOS 27 的 `systemExtraLargePortrait` 竖向超大尺寸。桌面添加时选择对应组，同组各尺寸共享内容，组间独立；即使两组选同馆也不得共享刷新任务或覆盖对方内容。桌面 Widget 内容不显示组号，组名仅在添加小组件与主 App 分组设置中用于选组。
+
+组 1 保留原 `DailyMuseumWidget` kind 和 `widget.compatibilityScope.v1` 偏好，原有桌面小组件及选馆设置自动归入组 1；组 2–10 使用 `.group<n>` kind/偏好后缀。共享状态键为 `compat:<组号>|<scope>`，与尺寸无关；迁移旧 scope 状态至组 1 时保留其展品图片。选馆立即保存、只重载对应 kind，并通过既有 network-only 链路刷新该组当前桌面配置。没有该组桌面实例时不发起展品请求；清理旧状态并取消主 App 中不再属于当前配置的任务。预览和历史状态不代表实际桌面实例。
+
+`dailymuseum://widget/refresh?group=<1...10>` 打开首页并通过 `WidgetManualRefreshRunner` 刷新指定组；缺少 group 的旧链接归入组 1，重复/越界/非法 group 不刷新。手动和自动入口都从共享偏好读取该组选馆，不解析 AppIntent 配置。展品主体继续使用既有详情深链接。常规 AppIntent 构建不显示分组页，也不接管兼容刷新链接。
+
+全局自动刷新时间规则、馆内 source/类别、network-only 候选推进和降采样约束保持适用；每组独立保存下一次自动计划。已展示历史仍按博物馆共享，避免不同组重复命中同一展品。配置导入导出包含全部 10 组选馆项。缺失/非法值、metadata 已移除或不支持 Widget 的馆回退全部；暂缺 metadata 时保留合法已存标识。发布与实际覆盖范围见 [OTA 文档](ios-adhoc-ota.md)。

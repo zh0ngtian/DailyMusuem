@@ -23,6 +23,90 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         try super.tearDownWithError()
     }
 
+    func testCompatibleGroupsHaveUniqueKindsKeysAndValidatedLinks() throws {
+        XCTAssertEqual(WidgetCompatibilityGroup.all.count, 10)
+        XCTAssertEqual(Set(WidgetCompatibilityGroup.all.map(\.kind)).count, 10)
+        XCTAssertEqual(Set(WidgetCompatibilityGroup.all.map { $0.refreshKey(scope: .all) }).count, 10)
+        XCTAssertEqual(WidgetCompatibilityGroup.first.kind, SettingsKeys.widgetKind)
+        for group in WidgetCompatibilityGroup.all {
+            XCTAssertEqual(WidgetCompatibilityGroup.from(kind: group.kind), group)
+            XCTAssertEqual(WidgetCompatibilityGroup.from(refreshURL: group.refreshURL), group)
+            XCTAssertEqual(WidgetCompatibilityGroup.from(refreshKey: group.refreshKey(scope: .all)), group)
+        }
+        for suffix in ["?group=0", "?group=11", "?group=x", "?group=1&group=2"] {
+            XCTAssertNil(WidgetCompatibilityGroup.from(refreshURL: URL(string: "dailymuseum://widget/refresh" + suffix)!))
+        }
+        XCTAssertEqual(WidgetCompatibilityGroup.from(refreshURL: SettingsKeys.widgetRefreshURL), .first)
+        if #available(iOS 27.0, *) {
+            XCTAssertEqual(WidgetCompatibilityGroup.supportedFamilies, [.systemSmall, .systemMedium, .systemLarge, .systemExtraLargePortrait])
+            XCTAssertEqual(WidgetFamily.systemExtraLargePortrait.debugToken, "extraLargePortrait")
+        }
+    }
+
+    @MainActor
+    func testCompatibleGroupsPersistAndExportIndependentSelections() async throws {
+        let store = SettingsStore(defaults: defaults, widgetSnapshotStore: WidgetArtworkSnapshotStore(baseURL: temporaryBaseURL()))
+        let second = WidgetCompatibilityGroup(id: 2)!
+        let tenth = WidgetCompatibilityGroup(id: 10)!
+        store.saveWidgetCompatibilityScope(.single(MuseumIdentifier("nmc")))
+        store.saveWidgetCompatibilityScope(.single(MuseumIdentifier("shm")), group: second)
+        store.saveWidgetCompatibilityScope(.single(MuseumIdentifier("met")), group: tenth)
+        XCTAssertEqual(WidgetCompatibilityScope.read(from: defaults), .single(MuseumIdentifier("nmc")))
+        XCTAssertEqual(WidgetCompatibilityScope.read(group: second, from: defaults), .single(MuseumIdentifier("shm")))
+        let export = await store.makeConfigurationExport()
+        store.saveWidgetCompatibilityScope(.all, group: second)
+        await store.importConfiguration(export)
+        let reloaded = SettingsStore(defaults: defaults)
+        XCTAssertEqual(reloaded.widgetScope(for: second), .single(MuseumIdentifier("shm")))
+        XCTAssertEqual(reloaded.widgetScope(for: tenth), .single(MuseumIdentifier("met")))
+        XCTAssertEqual(reloaded.widgetScope(for: WidgetCompatibilityGroup(id: 3)!), .all)
+    }
+
+    func testCompatibleGroupRefreshDoesNotTouchOtherGroupWithSameMuseum() async throws {
+        let baseURL = temporaryBaseURL()
+        let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let scope = WidgetMuseumScope.single(MuseumIdentifier("met"))
+        let first = WidgetCompatibilityGroup.first
+        let second = WidgetCompatibilityGroup(id: 2)!
+        let firstKey = first.refreshKey(scope: scope)
+        let secondKey = second.refreshKey(scope: scope)
+        _ = await store.renderState(for: secondKey, scopeRawValue: scope.rawValue, familyToken: "large")
+        let counter = IntRecorder()
+        let coordinator = WidgetRefreshCoordinator(store: store, currentConfigurationResolver: StubCurrentConfigurationResolver(targets: [
+            WidgetRefreshTarget(refreshKey: firstKey, scope: scope, familyToken: "small"),
+            WidgetRefreshTarget(refreshKey: firstKey, scope: scope, familyToken: "medium"),
+            WidgetRefreshTarget(refreshKey: secondKey, scope: scope, familyToken: "large")
+        ]), makeEngine: { [self] in
+            counter.increment()
+            return WidgetRefreshEngine(snapshotStore: store, loaderFactory: { [self] museumID, _, _ in
+                StubBatchLoader(batches: [[self.makeArtwork(museumID: museumID, objectID: "group-one", title: "Group One", imageURL: URL(string: "https://example.com/one.png"))]])
+            }, randomIndex: { _ in 0 }, imageDataFetcher: { _, _ in widgetValidPNGData })
+        })
+        await coordinator.refreshCurrentConfigurations(matchingGroup: first)
+        XCTAssertEqual(counter.value, 1)
+        let freshStore = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let firstState = await freshStore.state(for: firstKey)
+        let secondState = await freshStore.state(for: secondKey)
+        XCTAssertEqual(firstState?.artwork?.title, "Group One")
+        XCTAssertEqual(secondState?.phase, .idle)
+        XCTAssertNotEqual(firstState?.instanceToken, secondState?.instanceToken)
+        await coordinator.refreshCurrentConfigurations(matchingGroup: WidgetCompatibilityGroup(id: 10)!)
+        XCTAssertEqual(counter.value, 1, "An uninstalled group must not fetch content")
+    }
+
+    @MainActor
+    func testCompatibleScopePersistsAndFallsBackForRemovedMuseum() {
+        let store = SettingsStore(defaults: defaults)
+        XCTAssertEqual(store.widgetCompatibilityScope, .all)
+        store.saveWidgetCompatibilityScope(.single(MuseumIdentifier("shm")))
+        XCTAssertEqual(WidgetCompatibilityScope.read(from: defaults), .single(MuseumIdentifier("shm")))
+        XCTAssertEqual(SettingsStore(defaults: defaults).widgetCompatibilityScope, .single(MuseumIdentifier("shm")))
+        defaults.set("single:removed-museum", forKey: SettingsKeys.widgetCompatibilityScope)
+        XCTAssertEqual(WidgetCompatibilityScope.read(from: defaults), .all)
+        defaults.set("invalid", forKey: SettingsKeys.widgetCompatibilityScope)
+        XCTAssertEqual(WidgetCompatibilityScope.read(from: defaults), .all)
+    }
+
     func testWidgetSettingsReaderUsesFeedCategoriesFromDefaults() {
         setFeedPreference(
             museumID: MuseumIdentifier("met"),
@@ -206,6 +290,7 @@ final class WidgetStateAndSettingsTests: XCTestCase {
         await sourceWidgetStore.replaceDisplayedArtworkHistory([
             MuseumIdentifier("met").rawValue: [WidgetDisplayedArtworkKey.make(museumID: MuseumIdentifier("met"), objectID: "seen")]
         ])
+        defaults.set("single:shm", forKey: SettingsKeys.widgetCompatibilityScope)
         defaults.set(6, forKey: SettingsKeys.widgetRefreshIntervalHours)
         defaults.set(8 * 60, forKey: SettingsKeys.widgetAutoRefreshStartMinutes)
         defaults.set(20 * 60, forKey: SettingsKeys.widgetAutoRefreshEndMinutes)
@@ -253,6 +338,8 @@ final class WidgetStateAndSettingsTests: XCTestCase {
 
         await targetStore.importConfiguration(exportedConfiguration)
 
+        XCTAssertEqual(targetStore.widgetCompatibilityScope, .single(MuseumIdentifier("shm")))
+        XCTAssertEqual(WidgetCompatibilityScope.read(from: targetDefaults), .single(MuseumIdentifier("shm")))
         XCTAssertEqual(targetStore.widgetRefreshInterval, .sixHours)
         XCTAssertEqual(targetStore.widgetAutoRefreshStartMinutes, 8 * 60)
         XCTAssertEqual(targetStore.widgetAutoRefreshEndMinutes, 20 * 60)

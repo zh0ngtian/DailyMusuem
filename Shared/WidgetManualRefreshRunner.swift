@@ -4,10 +4,21 @@ struct WidgetManualRefreshRunner {
     let logSource: String
 
     func perform(
+        compatibilityGroup: WidgetCompatibilityGroup? = nil,
         familyKey: String = "",
         instanceToken: String? = nil,
         scopeRawValue: String? = nil
     ) async {
+        if let compatibilityGroup {
+            await WidgetRefreshCoordinator.shared.refreshCurrentConfigurations(
+                matchingGroup: compatibilityGroup, logSource: logSource
+            )
+            return
+        }
+        if let instanceToken, let group = WidgetCompatibilityGroup.from(refreshKey: instanceToken) {
+            await WidgetRefreshCoordinator.shared.refreshCurrentConfigurations(matchingGroup: group, logSource: logSource)
+            return
+        }
         if !familyKey.isEmpty {
             await RequestLogger.shared.logEvent(
                 source: logSource,
