@@ -5,9 +5,8 @@
 - 进行任何功能性修改后，必须同步检查 `AGENTS.md` 是否需要修改或补充。
 - 如果本次改动影响了功能范围、交互规则、数据接入、分类映射、Widget 行为、验证方式或已知约束，必须在交付前把对应内容回填到 `AGENTS.md`。
 - 不允许代码已经修改完成，但 `AGENTS.md` 仍停留在旧行为描述。
-- 用户已授权后续每次 App/Widget 改动完成并通过必要验证后，直接发布到现有私有 Ad Hoc OTA 和 Yao App Source 双渠道，无需再次询问；每次递增版本和 Build，完成逐目标验签与 HTTPS 回验。先完成 OTA，再将同一已签名 IPA 原样同步到软件源，两边版本、Build、大小与 SHA-256 一致才算发布完成。软件源失败只重试同一 IPA，不重新签名或递增版本；纯文档或发布工具修改不重建 App。软件源具体发布流程每次读取 [SignOs PUBLISH_PROMPT.md](https://github.com/zh0ngtian/SignOs/blob/main/cloudflare/app-source/PUBLISH_PROMPT.md) 最新内容，本仓库不保留流程副本。
+- 用户已授权后续每次 App/Widget 改动完成并通过必要验证后，直接发布到现有私有 Ad Hoc OTA，无需再次询问；每次递增版本和 Build，完成逐目标验签与 HTTPS 回验。交付还必须确认对应提交的 GitHub Actions `iOS Build` 常规版与兼容版检查全部通过；详细流程见 [发布与构建检查](docs/ios-adhoc-ota.md#发布与构建检查)。纯文档、流水线或发布工具修改不递增 App 版本、不重新发布 OTA。
 - 第 3、4、6 章的详细合同分别维护在 `docs/data-ingestion-contract.md`、`docs/app-behavior-contract.md` 和 `docs/verification-and-delivery.md`；功能修改时同时检查本文件的摘要/入口与对应合同。保留单一详细解释，不复制成平行规范。
-- 软件源发布的开发者署名统一使用 GitHub 用户名 `zh0ngtian`；署名调整不更改安装包和签名身份。
 
 ## 目录
 
@@ -350,4 +349,4 @@
 - `scripts/pull_simulator_request_logs.sh` 的 `--instance-token` 为共享键，常规版是 scope，兼容版为 `compat:<组号>|<scope>`，不能隔离同组的单个实例；具体参数见验证文档。
 - 夜间真机安装修改还需阅读 [夜间安装文档](docs/ios-nightly-installer.md)，保持只构建安装、不主动启动，以及描述文件续签失败时恢复缓存。
 - 纯文档修改检查链接、代码依据和 `git diff --check`；不将未执行的模拟器、真机或线上验证写成已通过。
-- Ad Hoc / OTA 接入状态与签名前置检查见 [Ad Hoc 发布文档](docs/ios-adhoc-ota.md)。`scripts/publish_ios_widget_ota.py` 只负责 OTA；软件源发布遵循 [SignOs PUBLISH_PROMPT.md](https://github.com/zh0ngtian/SignOs/blob/main/cloudflare/app-source/PUBLISH_PROMPT.md) 最新流程，项目发布信息见 [双渠道发布](docs/ios-adhoc-ota.md#双渠道发布流程)。各版本的真机覆盖范围以 OTA 文档的实际记录为准。默认 profile 不授权项目原始身份，不能将私有兼容渠道描述为原始身份的正式 Ad Hoc 导出。不得删除 Widget、移除必要 App Group 或将主 App profile 自动套给扩展以绕过签名缺项。
+- Ad Hoc / OTA 接入状态与签名前置检查见 [Ad Hoc 发布文档](docs/ios-adhoc-ota.md)。`scripts/publish_ios_widget_ota.py` 负责 OTA 验签与发布；交付同时要求对应提交的 [GitHub iOS 构建检查](docs/verification-and-delivery.md#64-github-ios-构建检查) 通过。各版本的真机覆盖范围以 OTA 文档的实际记录为准。默认 profile 不授权项目原始身份，不能将私有兼容渠道描述为原始身份的正式 Ad Hoc 导出。不得删除 Widget、移除必要 App Group 或将主 App profile 自动套给扩展以绕过签名缺项。

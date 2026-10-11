@@ -6,7 +6,7 @@
 
 ### 6.1 默认验证策略
 
-- iOS 发布继续要求 [OTA + Yao App Source 双渠道](ios-adhoc-ota.md#双渠道发布流程)，使用同一正式签名 IPA；软件源具体发布与验收每次遵循 [SignOs PUBLISH_PROMPT.md](https://github.com/zh0ngtian/SignOs/blob/main/cloudflare/app-source/PUBLISH_PROMPT.md) 最新内容。只改发布工具时执行相应脚本检查，不要求重建 App；OTA `--plan` 只表示本地验签，不代表线上发布通过。
+- iOS 交付要求 [OTA 发布与构建检查](ios-adhoc-ota.md#发布与构建检查)：对应提交的 GitHub Actions `iOS Build` 常规版与兼容版检查全部通过，并完成 OTA 逐目标验签及 HTTPS 回验。纯文档、流水线或发布工具修改执行相应检查，不递增 App 版本、不重新发布 OTA；OTA `--plan` 只表示本地验签，不代表线上发布通过。
 
 - 后续每次修复问题或新增功能后，都需要优先使用模拟器 `iPhone 17 Pro` 作为默认构建和运行目标再交付。
 - 当前 Codex 沙箱内执行 `xcrun simctl` 或 `xcodebuild` 访问模拟器时，可能出现 `CoreSimulatorService connection became invalid`、`simdiskimaged crashed or is not responding`、`Operation not permitted`、`No available simulator runtimes` 或 `iOS 26.5 Platform Not Installed` 等假性失败；这不一定表示本机缺少 runtime 或项目构建失败。遇到这类错误时，应先用脱离沙箱的 Xcode CLI 路径复核，例如 `xcrun simctl list runtimes` 和对应 `xcodebuild ... build-for-testing`，再判断是否真的是代码或环境问题。
@@ -95,3 +95,13 @@
 - 如果这轮验证中运行了 `xcodebuild test`：
   - 需要预期模拟器可能被接管、重建或关闭。
   - 跑完后通常要重新 `boot/install/launch`，再重新做一轮桌面截图验证。
+
+### 6.4 GitHub iOS 构建检查
+
+- 工作流入口：[`.github/workflows/ios-build.yml`](../.github/workflows/ios-build.yml)，名称为 `iOS Build`，在 push、pull request 和手动 `workflow_dispatch` 时执行。使用已提交的 Xcode 工程和共享 scheme，不在 CI 中重新生成工程。
+- 使用 GitHub 的 `xcode-27` arm64 runner，固定选择 Xcode 27.0，以编译项目使用的 iOS 27 Widget API。runner 标签依据 [GitHub 官方说明](https://github.blog/changelog/2026-09-10-xcode-27-runner-image-now-runs-on-macos-27/)，工具链路径依据 [runner 软件清单](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md)；镜像变更导致路径不可用时应显式更新配置。
+- `standard` 与 `compatibility` 两项分别运行 [`scripts/check_ios_build.sh`](../scripts/check_ios_build.sh)：常规版关闭兼容标记，兼容版同时设置 `WIDGET_COMPATIBILITY` 和 `MUSEUM_WIDGET_COMPATIBILITY_BUILD=YES`；两项均编译主 App 与嵌入的 Widget Extension 的设备 Release 产物，并用 `DailyMuseumTests` scheme 编译模拟器 Debug 测试目标（`build-for-testing`，关闭 parallel testing）。
+- 所有构建关闭代码签名，并通过命令行设置 `MUSEUMMUSE_SIMPLE_AUTH_SECRET=ci-build-only-placeholder`；不需要 GitHub Secrets，不读取生产凭证，不导出或发布 IPA。构建检查不运行单元测试，也不替代模拟器/真机安装、Widget 桌面截图、系统日志或 OTA 签名验证。
+- 工作流权限仅为 `contents: read`，同一 ref 的新运行取消旧运行；矩阵一项失败仍允许另一项完成。成功或失败都上传构建日志与 `.xcresult`，保留 7 天，产物名包含构建模式和运行次数。
+- 本地复现：`bash scripts/check_ios_build.sh standard` 和 `bash scripts/check_ios_build.sh compatibility`。产物位于忽略目录 `build/ci/<variant>/`；运行前清除该模式的旧结果 bundle，保留其他验证证据。
+- 发布前确认拟发布提交已经推送，且该提交的两个 `Build (...)` 检查全部成功；记录 commit SHA 与 Actions run URL。待执行、失败、取消或只在本地构建通过都不算流水线通过。流水线配置尚未推送时，也不能宣称 GitHub 上已通过。

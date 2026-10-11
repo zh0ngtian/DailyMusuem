@@ -2,15 +2,13 @@
 
 ## 当前版本 1.1.2（2026-10-10）
 
-移除桌面小组件左上角组号，保留添加小组件和主 App 设置中的组名，以及各组独立选馆/刷新。用户已授权后续 App/Widget 改动完成并通过必要验证后直接发布 OTA 与软件源双渠道，规则维护在 [AGENTS.md](../AGENTS.md)。
+移除桌面小组件左上角组号，保留添加小组件和主 App 设置中的组名，以及各组独立选馆/刷新。用户已授权后续 App/Widget 改动完成并通过必要验证后直接发布 OTA，并要求对应提交的 GitHub 构建检查通过，规则维护在 [AGENTS.md](../AGENTS.md)。
 
 当前发布：`1.1.2 (8)`，Ad Hoc 已签名，`2704741` bytes，SHA-256 `6035209e0d7003ad56f25f788e769991c70f912bd246ec64420702cbe3fb4b70`。设备 Release 构建、主 App/Widget 逐目标验签、版本目录与固定入口 HTTPS HEAD/完整 GET/SHA-256 回验通过，已原子切换 current，未覆盖历史版本。
 
 - [固定安装页](https://192.168.123.79:8768/channels/museummuse/current/install.html)
 - [固定 IPA 下载](https://192.168.123.79:8768/channels/museummuse/current/latest.ipa)
 - manifest 指向不可变 `releases/1.1.2/latest.ipa`。
-
-2026-10-10 双渠道流程接入后，已将这一正式签名 IPA 原样补发到 [Yao App Source](https://yao-app-source.305301890.workers.dev/source.json)，没有重签或更改版本。公网完整 GET 的大小与 SHA-256 同上，公网/R2 清单字节一致，原有 Codex Mobile、SignOs 及版本历史保留。[公网 IPA](https://yao-app-source.305301890.workers.dev/files/tech.zh0ngtian.MuseumMuse-1.1.2-8-6035209e0d7003ad56f25f788e769991c70f912bd246ec64420702cbe3fb4b70.ipa)。本次环境变量将工作目录覆盖为 `~/.local/share/yao-app-source/publish/`，首次发布凭证在 `release-m3gw1ed2/`，同包重试凭证在 `release-n65mkton/`；重试前后清单 SHA-256 相同，未重复增加历史或重写清单。发布工具、profile 与 Widget 签名回归共 24 项通过；未通过 SignOs 真机重新下载或安装，本次不新增真机安装结论。
 
 模拟器验证见 [验证记录](verification-and-delivery.md#63-小组件截图闭环测试)：常规与兼容构建/安装/启动通过，兼容版小尺寸桌面确认无组号，定向刷新和相关系统日志通过。本次未安装真机、未重测整点自动刷新及全部尺寸截图。构建/签名/发布证据在 `build/verification/ios-ota-1.1.2/`，桌面与请求/系统日志证据在 `build/verification/widget-hide-group-number/`。
 
@@ -100,15 +98,14 @@ python3 -m unittest discover -s scripts/tests -p 'test_ios_adhoc_profiles.py'
 python3 -m unittest discover -s scripts/tests -p 'test_ios_widget_signing.py'
 ```
 
-签名流程：固定 SHA 的基准快照 → 安全解包和嵌套关系检查 → 临时钥匙串导入现有 P12 → 每目标校验证书/profile/设备/有效期/全部实际权限 → 扩展先签、主 App 后签 → 最终 IPA 独立验签。发布器再次按配置核对全部 target 的实际权限、安装身份、版本、运行 group 和兼容模式，然后暂存、HTTPS HEAD/完整 GET/SHA-256 回验、原子激活、固定入口回验；软件源发布另按下方外部文档执行。此 OTA 发布器不接受仅带 `signed=true` 的外部元数据。
+签名流程：固定 SHA 的基准快照 → 安全解包和嵌套关系检查 → 临时钥匙串导入现有 P12 → 每目标校验证书/profile/设备/有效期/全部实际权限 → 扩展先签、主 App 后签 → 最终 IPA 独立验签。发布器再次按配置核对全部 target 的实际权限、安装身份、版本、运行 group 和兼容模式，然后暂存、HTTPS HEAD/完整 GET/SHA-256 回验、原子激活、固定入口回验。此 OTA 发布器不接受仅带 `signed=true` 的外部元数据。
 
-## 双渠道发布流程
+## 发布与构建检查
 
-软件源发布的唯一流程入口是 [SignOs PUBLISH_PROMPT.md](https://github.com/zh0ngtian/SignOs/blob/main/cloudflare/app-source/PUBLISH_PROMPT.md)。每次发布前读取其最新内容并执行；本仓库不维护软件源发布脚本、配置副本、命令步骤或验收细节。
-
-本项目继续要求 OTA 与 Yao App Source 双渠道交付，使用同一正式签名 IPA。`scripts/publish_ios_widget_ota.py` 只负责 OTA，成功不代表软件源已发布；完成外部文档规定的软件源发布后，两渠道版本、Build、大小与 SHA-256 一致才算交付完成。
-
-项目发布信息：开发者署名 `zh0ngtian`；图标 `DailyMuseum/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png`；应用描述“博物女神：探索六大博物馆的展品，收藏喜爱的藏品，并通过桌面小组件随机欣赏。”IPA 与发布凭证取自本次 OTA 的 `channel/releases/<version>/latest.ipa` 和 `latest-ios.json`，更新说明沿用本次实际变更。
+1. 完成对应变更的本地验证和文档回填；App/Widget 功能改动递增版本与 Build。纯文档、流水线或发布工具修改不递增 App 版本、不重新发布 OTA。
+2. 将拟发布提交推送到 GitHub，确认 `iOS Build` 的 `Build (standard)` 与 `Build (compatibility)` 全部通过，并记录 commit SHA 与 Actions run URL。工作流和本地复现入口见 [GitHub iOS 构建检查](verification-and-delivery.md#64-github-ios-构建检查)。
+3. App/Widget 改动按上方命令从同一提交构建设备兼容版，使用现有私有配置逐目标签名和独立验签，然后发布 OTA。完成版本目录与固定入口 HTTPS HEAD、完整 GET、大小与 SHA-256 回验，并记录 `channel/releases/<version>/latest-ios.json` 发布凭证。
+4. 对应提交的两项构建检查与 OTA 回验都成功才算 App/Widget 交付完成。流水线只做无签名编译，实际签名、安装和 Widget 桌面验收继续走现有本地链路。
 
 ## 本次验证与限制
 

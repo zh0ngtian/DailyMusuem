@@ -11,8 +11,6 @@ import sys
 import tempfile
 from sign_ios_widget_ipa import validate_release, load_signer
 
-APP_SOURCE_GUIDE = 'https://github.com/zh0ngtian/SignOs/blob/main/cloudflare/app-source/PUBLISH_PROMPT.md'
-
 
 def load_ota(skill):
     spec = importlib.util.spec_from_file_location('ios_ota', skill / 'scripts/ios_ota.py')
@@ -56,8 +54,6 @@ def main():
             ota.verify_published(release)
             receipt = root / 'releases' / release['version'] / 'latest-ios.json'
             print('OTA verified. Receipt: ' + str(receipt), file=sys.stderr, flush=True)
-            print('OTA complete; software source publication remains required. Follow the latest guide: '
-                  + APP_SOURCE_GUIDE, file=sys.stderr, flush=True)
     print(json.dumps(release, indent=2, ensure_ascii=False))
 
 
