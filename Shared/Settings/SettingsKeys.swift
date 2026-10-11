@@ -43,19 +43,12 @@ enum SettingsKeys {
         guard let root = fileManager.containerURL(forSecurityApplicationGroupIdentifier: appGroupID) else { return nil }
         return storagePrefix.isEmpty ? root : root.appendingPathComponent("MuseumMuse", isDirectory: true)
     }
-    #if WIDGET_COMPATIBILITY
-    static let widgetCompatibilityMode = true
-    #else
-    static let widgetCompatibilityMode = false
-    #endif
     static let widgetRefreshURL = URL(string: "dailymuseum://widget/refresh")!
-    static var widgetIdleSubtitle: String {
-        widgetCompatibilityMode ? "点击刷新，在 App 中获取展品" : "长按小组件，选择「编辑小组件」以改变展品展示范围"
-    }
+    static let widgetIdleSubtitle = "点击刷新，在 App 中获取展品"
     static let widgetKind = "DailyMuseumWidget"
     static let feedPreferences = storageKey("feed.preferences.v2")
     static let feedDisplayModePrefix = storageKey("feed.displayMode.")
-    static let widgetCompatibilityScope = storageKey("widget.compatibilityScope.v1")
+    static let widgetFirstGroupScope = storageKey("widget.compatibilityScope.v1")
     static let widgetRefreshIntervalHours = storageKey("widget.refreshIntervalHours")
     static let widgetAutoRefreshStartMinutes = storageKey("widget.autoRefreshStartMinutes")
     static let widgetAutoRefreshEndMinutes = storageKey("widget.autoRefreshEndMinutes")

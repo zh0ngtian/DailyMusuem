@@ -6,7 +6,7 @@
 
 ### 6.1 默认验证策略
 
-- iOS 交付要求 [OTA 发布与构建检查](ios-adhoc-ota.md#发布与构建检查)：对应提交的 GitHub Actions `iOS Build` 常规版与兼容版检查全部通过，并完成 OTA 逐目标验签及 HTTPS 回验。纯文档、流水线或发布工具修改执行相应检查，不递增 App 版本、不重新发布 OTA；OTA `--plan` 只表示本地验签，不代表线上发布通过。
+- iOS 交付要求 [OTA 发布与构建检查](ios-adhoc-ota.md#发布与构建检查)：对应提交的 GitHub Actions `iOS Build` 的 `Build` 与 `Publish unsigned IPA` 全部通过，并完成 OTA 逐目标验签及 HTTPS 回验。纯文档、流水线或发布工具修改执行相应检查，不递增 App 版本、不重新发布 OTA；OTA `--plan` 只表示本地验签，不代表线上发布通过。
 
 - 后续每次修复问题或新增功能后，都需要优先使用模拟器 `iPhone 17 Pro` 作为默认构建和运行目标再交付。
 - 当前 Codex 沙箱内执行 `xcrun simctl` 或 `xcodebuild` 访问模拟器时，可能出现 `CoreSimulatorService connection became invalid`、`simdiskimaged crashed or is not responding`、`Operation not permitted`、`No available simulator runtimes` 或 `iOS 26.5 Platform Not Installed` 等假性失败；这不一定表示本机缺少 runtime 或项目构建失败。遇到这类错误时，应先用脱离沙箱的 Xcode CLI 路径复核，例如 `xcrun simctl list runtimes` 和对应 `xcodebuild ... build-for-testing`，再判断是否真的是代码或环境问题。
@@ -39,28 +39,30 @@
     - `xcodebuild -project DailyMuseum.xcodeproj -scheme DailyMuseum -showdestinations`
     - `xcodebuild -project DailyMuseum.xcodeproj -scheme DailyMuseum -destination 'id=00008150-000E4010362B401C' -derivedDataPath .deriveddata build`
     - `xcrun devicectl device install app --device 00008150-000E4010362B401C .deriveddata/Build/Products/Debug-iphoneos/DailyMuseum.app`
-    - `xcrun devicectl device process launch --device 00008150-000E4010362B401C tech.zh0ngtian.DailyMuseum`
+    - `xcrun devicectl device process launch --device 00008150-000E4010362B401C tech.zh0ngtian.MuseumMuse`
   - 上述命令是既有验证路径；设备在线状态、构建/安装/启动结果必须在本次交付时重新核验，不能沿用历史成功结论。
 - 仓库提供 `scripts/ios_nightly_installer.py`，每日 `00:00` 检查真机局域网开发连接、签名有效期并构建安装；不主动启动 App。修改该链路前必须阅读 [每晚自动安装到真机](ios-nightly-installer.md)，继续保持描述文件不足 `24` 小时续签、失败恢复缓存、独立 `.deriveddata-nightly` 和 `scripts/tests/test_ios_nightly_installer.py` 回归。
 
 ### 6.3 小组件截图闭环测试
 
+- 2026-10-11 统一为唯一的 10 组静态 Widget：72 项分组/状态/设置/自动刷新测试、7 项 profile 测试和 4 项签名边界测试通过；设备 Release 与模拟器构建通过。在默认 `iPhone 17 Pro` / iOS 26.5 以及 `MuseumMuse Widget Groups` / iOS 27 安装、启动并定向刷新成功，成功候选后停止继续拉取。两台模拟器的小尺寸 SpringBoard 截图显示新展品；iOS 27 第 1 组四尺寸生成成功 timeline，第 2 组保留独立内容。相关系统日志未命中 `imageTooLarge`、归档失败、`CHSErrorDomain`、`Fatal error` 或 `No AppIntent`。证据在 `build/verification/widget-groups-only/`。本轮未安装真机、未逐尺寸截图或重测整点自动调度；分组键/同馆不同组隔离及旧状态迁移由回归测试覆盖。
+
 - 2026-10-10 移除桌面组号角标：常规版在默认 `iPhone 17 Pro` / iOS 26.5 构建、安装、启动通过；兼容版在 `MuseumMuse Widget Groups` / iOS 27 构建、安装、启动通过。第 1 组定向刷新成功并停止候选推进，小尺寸桌面成功态确认无组号；现有第 1 组小、中、大、超大和第 2 组中尺寸均生成成功 timeline。相关 Widget/SpringBoard/chronod 日志未命中 `imageTooLarge`、归档失败、`CHSErrorDomain`、`Fatal error` 或 `No AppIntent`。证据在 `build/verification/widget-hide-group-number/`；随后已发布 OTA `1.1.2 (8)`，设备 Release、逐目标验签及 HTTPS 回验通过，发布证据在 `build/verification/ios-ota-1.1.2/`。本次未安装真机，未逐尺寸截图及重测自动调度。
 
-- 私有 OTA 兼容版另按 [OTA 文档](ios-adhoc-ota.md) 构建与签名；真实小组件、点击刷新打开 App、共享日志与详情链接必须实机验证。兼容版需验证 10 个 kind 的注册、四种尺寸（超大须 iOS 27）、同组跨尺寸同步和不同组独立选馆/刷新、组 1 升级迁移、选择持久化及无实例不刷新。日志以 `compat:<组号>|<scope>` 区分同馆不同组；不得要求兼容版通过桌面 AppIntent 编辑验收。用户指定模拟器时按其要求验证，实机/整点自动刷新等未覆盖项如实记录。
+- 私有 OTA 按 [OTA 文档](ios-adhoc-ota.md) 构建与签名；真实小组件、点击刷新打开 App、共享日志与详情链接必须实机验证。所有构建需验证 10 个 kind 的注册、四种尺寸（超大须 iOS 27）、同组跨尺寸同步和不同组独立选馆/刷新、组 1 升级迁移、选择持久化及无实例不刷新。日志以 `compat:<组号>|<scope>` 区分同馆不同组；选馆在 App 中验收。用户指定模拟器时按其要求验证，实机/整点自动刷新等未覆盖项如实记录。
 
 - 验证小组件问题时，默认要形成“构建 / 安装 / 启动 + 日志 + 桌面截图 + 系统日志”的闭环，不接受只看 provider 日志就下结论。
 - 模拟器推荐链路：
   - `xcodebuild -project DailyMuseum.xcodeproj -scheme DailyMuseumTests -destination 'platform=iOS Simulator,id=<SIMULATOR_ID>' -derivedDataPath .deriveddata-sim build-for-testing`
   - `xcrun simctl install <SIMULATOR_ID> .deriveddata-sim/Build/Products/Debug-iphonesimulator/DailyMuseum.app`
-  - `xcrun simctl launch <SIMULATOR_ID> tech.zh0ngtian.DailyMuseum`
+  - `xcrun simctl launch <SIMULATOR_ID> tech.zh0ngtian.MuseumMuse`
 - 仓库内现有日志脚本：
   - `scripts/pull_simulator_request_logs.sh`
   - 常用参数：
     - `--udid <SIMULATOR_ID>`：指定模拟器
     - `--clear`：清空旧日志
     - `--trigger-refresh`：触发 `dailymuseum://debug/widget-refresh`
-    - `--instance-token <TOKEN>`：按共享刷新键定向触发刷新，常规版键为 `scope`，兼容版为 `compat:<组号>|<scope>`
+    - `--instance-token <TOKEN>`：按共享刷新键定向触发刷新，键为 `compat:<组号>|<scope>`
     - `--scope-raw-value <RAW>`：按 scope 触发刷新，例如 `single:nmc`、`single:shm`
     - `--wait <SECONDS>`：刷新后等待
     - `--tail <N>`：输出最后 N 条日志
@@ -100,10 +102,10 @@
 
 - 工作流入口：[`.github/workflows/ios-build.yml`](../.github/workflows/ios-build.yml)，名称为 `iOS Build`，在 push、pull request 和手动 `workflow_dispatch` 时执行。使用已提交的 Xcode 工程和共享 scheme，不在 CI 中重新生成工程。
 - 使用 GitHub 的 `xcode-27` arm64 runner，固定选择 Xcode 27.0，以编译项目使用的 iOS 27 Widget API。runner 标签依据 [GitHub 官方说明](https://github.blog/changelog/2026-09-10-xcode-27-runner-image-now-runs-on-macos-27/)，工具链路径依据 [runner 软件清单](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md)；镜像变更导致路径不可用时应显式更新配置。
-- `standard` 与 `compatibility` 两项分别运行 [`scripts/check_ios_build.sh`](../scripts/check_ios_build.sh)：常规版关闭兼容标记，兼容版同时设置 `WIDGET_COMPATIBILITY` 和 `MUSEUM_WIDGET_COMPATIBILITY_BUILD=YES`；两项均编译主 App 与嵌入的 Widget Extension 的设备 Release 产物，并用 `DailyMuseumTests` scheme 编译模拟器 Debug 测试目标（`build-for-testing`，关闭 parallel testing）。
+- 唯一的 `Build` 任务运行 [`scripts/check_ios_build.sh`](../scripts/check_ios_build.sh)，统一使用 10 组静态 Widget，编译主 App 与嵌入的 Widget Extension 的设备 Release 产物，并用 `DailyMuseumTests` scheme 编译模拟器 Debug 测试目标（`build-for-testing`，关闭 parallel testing）。
 - 所有构建关闭代码签名，并默认通过命令行设置 `MUSEUMMUSE_SIMPLE_AUTH_SECRET=ci-build-only-placeholder`。PR 和非主分支使用占位值；主分支 push/手动构建可从同名 GitHub Actions Secret 注入现有后端鉴权值，未配置时仍使用占位值，并在 Release 说明中标明无法连接正式后端。上传真实 Secret 需用户明确授权；脚本在输出及持久化日志前隐去鉴权值。构建检查不运行单元测试，也不替代模拟器/真机安装、Widget 桌面截图、系统日志或 OTA 签名验证。
-- 构建任务权限为 `contents: read`，Release 发布任务单独授权 `contents: write`；同一 ref 的新运行取消旧运行；矩阵一项失败仍允许另一项完成。成功或失败都上传构建日志与 `.xcresult`，保留 7 天，产物名包含构建模式和运行次数。
-- 每种模式的设备产物按 `Payload/DailyMuseum.app` 封装为 `MuseumMuse-<variant>-unsigned.ipa`，保留嵌入的 Widget，并生成 `.ipa.sha256` 校验文件。所有分支成功构建均上传 IPA Actions artifact，保留 7 天；主分支 push/手动构建在两种模式均成功后，将同一批 IPA 和校验文件发布为 prerelease，标签为 `build-<完整 commit SHA>`。PR 不发布 Release；相同提交重跑复用该 Release，并更新说明和同名资产。
+- 构建任务权限为 `contents: read`，Release 发布任务单独授权 `contents: write`；同一 ref 的新运行取消旧运行。成功或失败都上传构建日志与 `.xcresult`，保留 7 天，产物名包含运行次数。
+- 设备产物按 `Payload/DailyMuseum.app` 封装为 `MuseumMuse-unsigned.ipa`，保留嵌入的 Widget，并生成 `.ipa.sha256` 校验文件。所有分支成功构建均上传 IPA Actions artifact，保留 7 天；主分支 push/手动构建在构建成功后，将这份 IPA 和校验文件发布为 prerelease，标签为 `build-<完整 commit SHA>`。PR 不发布 Release；相同提交重跑复用该 Release，并更新说明和同名资产。
 - 未签名 IPA 安装前需要自行签名；CI 不更改 App 的版本/Build，也不代替已有的私有 OTA 签名发布。Release 标题与标签以提交标识区分工具改动或重复版本构建。
-- 本地复现：`bash scripts/check_ios_build.sh standard` 和 `bash scripts/check_ios_build.sh compatibility`。产物位于忽略目录 `build/ci/<variant>/`；运行前清除该模式的旧结果 bundle，保留其他验证证据。
-- 发布前确认拟发布提交已经推送，且该提交的两个 `Build (...)` 检查及主分支的 `Publish unsigned IPA` 全部成功，并确认 Release 中的两种 IPA 和校验文件齐全；记录 commit SHA、Actions run URL 与 Release URL。待执行、失败、取消或只在本地构建通过都不算流水线通过。流水线配置尚未推送时，也不能宣称 GitHub 上已通过。
+- 本地复现：`bash scripts/check_ios_build.sh`。产物位于忽略目录 `build/ci/`；运行前清除旧结果 bundle，保留其他验证证据。
+- 发布前确认拟发布提交已经推送，且该提交的`Build` 检查及主分支的 `Publish unsigned IPA` 全部成功，并确认 Release 中唯一的 IPA 和校验文件齐全；记录 commit SHA、Actions run URL 与 Release URL。待执行、失败、取消或只在本地构建通过都不算流水线通过。流水线配置尚未推送时，也不能宣称 GitHub 上已通过。

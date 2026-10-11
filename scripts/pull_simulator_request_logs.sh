@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-BUNDLE_ID="tech.zh0ngtian.DailyMuseum"
+BUNDLE_ID="tech.zh0ngtian.MuseumMuse"
 APP_GROUP_ID="group.tech.zh0ngtian.MuseumMuse"
 DEBUG_URL_BASE="dailymuseum://debug/widget-refresh"
 CORESIM_ROOT="$HOME/Library/Developer/CoreSimulator/Devices"
@@ -36,7 +36,7 @@ Usage: scripts/pull_simulator_request_logs.sh [options]
 Options:
   --udid <simulator-udid>   Read logs from the specified simulator.
   --device-home <path>      Read logs from an explicit CoreSimulator device data path.
-  --instance-token <token>  Trigger refresh for a single shared widget group key (scope).
+  --instance-token <token>  Trigger refresh for a single shared widget group key (compat:<group>|<scope>).
   --scope-raw-value <raw>   Trigger refresh for a specific widget scope, e.g. single:met.
   --tail <count>            Show only the latest N log entries. Default: 80.
   --wait <seconds>          Wait time after --trigger-refresh. Default: 3.

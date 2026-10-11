@@ -104,9 +104,9 @@ final class SettingsStore: ObservableObject {
 
     private let defaults: UserDefaults
     private let widgetSnapshotStore: WidgetArtworkSnapshotStore
-    @Published private(set) var widgetCompatibilityScopes: [Int: WidgetMuseumScope]
-    var widgetCompatibilityScope: WidgetMuseumScope { widgetCompatibilityScopes[1] ?? .all }
-    func widgetScope(for group: WidgetCompatibilityGroup) -> WidgetMuseumScope { widgetCompatibilityScopes[group.id] ?? .all }
+    @Published private(set) var widgetGroupScopes: [Int: WidgetMuseumScope]
+    var widgetFirstGroupScope: WidgetMuseumScope { widgetGroupScopes[1] ?? .all }
+    func widgetScope(for group: WidgetGroup) -> WidgetMuseumScope { widgetGroupScopes[group.id] ?? .all }
     @Published private(set) var widgetRefreshInterval: WidgetRefreshInterval
     @Published private(set) var widgetAutoRefreshStartMinutes: Int
     @Published private(set) var widgetAutoRefreshEndMinutes: Int
@@ -119,7 +119,7 @@ final class SettingsStore: ObservableObject {
     ) {
         defaults = resolvedDefaults
         self.widgetSnapshotStore = widgetSnapshotStore
-        widgetCompatibilityScopes = Dictionary(uniqueKeysWithValues: WidgetCompatibilityGroup.all.map { ($0.id, WidgetCompatibilityScope.read(group: $0, from: resolvedDefaults)) })
+        widgetGroupScopes = Dictionary(uniqueKeysWithValues: WidgetGroup.all.map { ($0.id, WidgetGroupScope.read(group: $0, from: resolvedDefaults)) })
         widgetRefreshInterval = WidgetRefreshInterval.storedValue(in: resolvedDefaults)
         let autoRefreshWindow = WidgetAutoRefreshWindow.storedValue(in: resolvedDefaults)
         widgetAutoRefreshStartMinutes = autoRefreshWindow.startMinutes
@@ -131,18 +131,14 @@ final class SettingsStore: ObservableObject {
     func requestWidgetReload(invalidateContent: Bool = false) {
         _ = invalidateContent
         defaults.synchronize()
-        if SettingsKeys.widgetCompatibilityMode {
-            for group in WidgetCompatibilityGroup.all { WidgetCenter.shared.reloadTimelines(ofKind: group.kind) }
-        } else {
-            WidgetCenter.shared.reloadTimelines(ofKind: SettingsKeys.widgetKind)
-        }
+        for group in WidgetGroup.all { WidgetCenter.shared.reloadTimelines(ofKind: group.kind) }
     }
 
-    func saveWidgetCompatibilityScope(_ scope: WidgetMuseumScope, group: WidgetCompatibilityGroup = .first) {
+    func saveWidgetGroupScope(_ scope: WidgetMuseumScope, group: WidgetGroup = .first) {
         guard scope != widgetScope(for: group) else { return }
         defaults.set(scope.rawValue, forKey: group.preferenceKey)
         defaults.synchronize()
-        widgetCompatibilityScopes[group.id] = WidgetCompatibilityScope.read(group: group, from: defaults)
+        widgetGroupScopes[group.id] = WidgetGroupScope.read(group: group, from: defaults)
         WidgetCenter.shared.reloadTimelines(ofKind: group.kind)
     }
 
@@ -295,7 +291,7 @@ final class SettingsStore: ObservableObject {
     }
 
     private func reloadPublishedValues() {
-        widgetCompatibilityScopes = Dictionary(uniqueKeysWithValues: WidgetCompatibilityGroup.all.map { ($0.id, WidgetCompatibilityScope.read(group: $0, from: defaults)) })
+        widgetGroupScopes = Dictionary(uniqueKeysWithValues: WidgetGroup.all.map { ($0.id, WidgetGroupScope.read(group: $0, from: defaults)) })
         widgetRefreshInterval = WidgetRefreshInterval.storedValue(in: defaults)
         let autoRefreshWindow = WidgetAutoRefreshWindow.storedValue(in: defaults)
         widgetAutoRefreshStartMinutes = autoRefreshWindow.startMinutes
@@ -330,7 +326,7 @@ final class SettingsStore: ObservableObject {
 
     private static var baseExportedUserDefaultsKeys: Set<String> {
         Set([
-            SettingsKeys.widgetCompatibilityScope,
+            SettingsKeys.widgetFirstGroupScope,
             SettingsKeys.widgetRefreshIntervalHours,
             SettingsKeys.widgetAutoRefreshStartMinutes,
             SettingsKeys.widgetAutoRefreshEndMinutes,
@@ -339,7 +335,7 @@ final class SettingsStore: ObservableObject {
             SettingsKeys.museumDisplayOrder,
             SettingsKeys.favoritesArtworks,
             SettingsKeys.feedPreferences
-        ]).union(WidgetCompatibilityGroup.all.map(\.preferenceKey))
+        ]).union(WidgetGroup.all.map(\.preferenceKey))
     }
 
     private static func isExportableUserDefaultsKey(_ key: String) -> Bool {

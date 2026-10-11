@@ -4,18 +4,18 @@ struct WidgetManualRefreshRunner {
     let logSource: String
 
     func perform(
-        compatibilityGroup: WidgetCompatibilityGroup? = nil,
+        group: WidgetGroup? = nil,
         familyKey: String = "",
         instanceToken: String? = nil,
         scopeRawValue: String? = nil
     ) async {
-        if let compatibilityGroup {
+        if let group {
             await WidgetRefreshCoordinator.shared.refreshCurrentConfigurations(
-                matchingGroup: compatibilityGroup, logSource: logSource
+                matchingGroup: group, logSource: logSource
             )
             return
         }
-        if let instanceToken, let group = WidgetCompatibilityGroup.from(refreshKey: instanceToken) {
+        if let instanceToken, let group = WidgetGroup.from(refreshKey: instanceToken) {
             await WidgetRefreshCoordinator.shared.refreshCurrentConfigurations(matchingGroup: group, logSource: logSource)
             return
         }

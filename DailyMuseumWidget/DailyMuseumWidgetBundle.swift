@@ -4,20 +4,16 @@ import SwiftUI
 @main
 struct DailyMuseumWidgetBundle: WidgetBundle {
     var body: some Widget {
-        #if WIDGET_COMPATIBILITY
-            CompatibleMuseumWidget<CompatibleWidgetSlot1>()
-            CompatibleMuseumWidget<CompatibleWidgetSlot2>()
-            CompatibleMuseumWidget<CompatibleWidgetSlot3>()
-            CompatibleMuseumWidget<CompatibleWidgetSlot4>()
-            CompatibleMuseumWidget<CompatibleWidgetSlot5>()
-            CompatibleMuseumWidget<CompatibleWidgetSlot6>()
-            CompatibleMuseumWidget<CompatibleWidgetSlot7>()
-            CompatibleMuseumWidget<CompatibleWidgetSlot8>()
-            CompatibleMuseumWidget<CompatibleWidgetSlot9>()
-            CompatibleMuseumWidget<CompatibleWidgetSlot10>()
-        #else
-            DailyMuseumWidget()
-        #endif
+        MuseumWidget<WidgetSlot1>()
+        MuseumWidget<WidgetSlot2>()
+        MuseumWidget<WidgetSlot3>()
+        MuseumWidget<WidgetSlot4>()
+        MuseumWidget<WidgetSlot5>()
+        MuseumWidget<WidgetSlot6>()
+        MuseumWidget<WidgetSlot7>()
+        MuseumWidget<WidgetSlot8>()
+        MuseumWidget<WidgetSlot9>()
+        MuseumWidget<WidgetSlot10>()
     }
 }
 

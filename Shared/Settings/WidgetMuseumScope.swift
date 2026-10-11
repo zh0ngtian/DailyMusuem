@@ -29,18 +29,6 @@ extension WidgetMuseumScope {
     }
 }
 
-struct WidgetRefreshGroupKey {
-    static func make(scope: WidgetMuseumScope, family: WidgetFamily?) -> String {
-        _ = family
-        return scope.rawValue
-    }
-
-    static func make(scopeRawValue: String, familyToken: String) -> String {
-        _ = familyToken
-        return scopeRawValue
-    }
-}
-
 extension WidgetFamily {
     var debugToken: String {
         if #available(iOS 27.0, *), self == .systemExtraLargePortrait { return "extraLargePortrait" }
@@ -57,9 +45,9 @@ extension WidgetFamily {
     }
 }
 
-// Static widgets read this shared preference instead of an AppIntent parameter.
-enum WidgetCompatibilityScope {
-    static func read(group: WidgetCompatibilityGroup = .first, from defaults: UserDefaults = SettingsKeys.sharedDefaults) -> WidgetMuseumScope {
+// Each static widget group reads its selection from the shared preferences.
+enum WidgetGroupScope {
+    static func read(group: WidgetGroup = .first, from defaults: UserDefaults = SettingsKeys.sharedDefaults) -> WidgetMuseumScope {
         defaults.synchronize()
         guard let raw = defaults.string(forKey: group.preferenceKey),
               let scope = WidgetMuseumScope(rawValue: raw) else { return .all }
@@ -72,10 +60,10 @@ enum WidgetCompatibilityScope {
     }
 }
 
-struct WidgetCompatibilityGroup: Hashable, Identifiable, Sendable {
+struct WidgetGroup: Hashable, Identifiable, Sendable {
     let id: Int
-    static let first = WidgetCompatibilityGroup(id: 1)!
-    static let all = (1...10).map { WidgetCompatibilityGroup(id: $0)! }
+    static let first = WidgetGroup(id: 1)!
+    static let all = (1...10).map { WidgetGroup(id: $0)! }
 
     init?(id: Int) {
         guard (1...10).contains(id) else { return nil }
@@ -86,7 +74,7 @@ struct WidgetCompatibilityGroup: Hashable, Identifiable, Sendable {
     // Keep the installed widget and its existing preference as group 1.
     var kind: String { id == 1 ? SettingsKeys.widgetKind : "\(SettingsKeys.widgetKind).group\(id)" }
     var preferenceKey: String {
-        id == 1 ? SettingsKeys.widgetCompatibilityScope : SettingsKeys.storageKey("widget.compatibilityScope.v1.group\(id)")
+        id == 1 ? SettingsKeys.widgetFirstGroupScope : SettingsKeys.storageKey("widget.compatibilityScope.v1.group\(id)")
     }
     var refreshURL: URL {
         URL(string: "dailymuseum://widget/refresh?group=\(id)")!

@@ -11,7 +11,7 @@ MuseumMuse 是一个最低支持 iOS 18 的 SwiftUI App，提供博物馆展品�
 - 用 Xcode 打开 `DailyMuseum.xcodeproj`，主 App scheme 为 `DailyMuseum`，测试 scheme 为 `DailyMuseumTests`；默认验证模拟器为 `iPhone 17 Pro`，单元测试关闭 parallel testing。
 - `Project.yml` 是 XcodeGen 工程配置；鉴权值通过未提交的 `Config/Secrets.local.xcconfig` 注入，变量名为 `MUSEUMMUSE_SIMPLE_AUTH_SECRET`。
 - 本地 Python 环境安装 `server/requirements.txt` 后，按 [后端本地启动示例](docs/frontend-backend-separation-design.md#4-总体架构) 生成离线样本并启动 API。样本只用于功能验证，全量库需另行准备。
-- GitHub Actions `iOS Build` 在 push、PR 和手动触发时检查常规版与 OTA 兼容版的 App、Widget 和模拟器测试目标编译并打包未签名 IPA；主分支通过后自动发布到 [GitHub Releases](https://github.com/zh0ngtian/DailyMusuem/releases)。本地入口为 `bash scripts/check_ios_build.sh standard` / `compatibility`，无需签名；本地默认使用占位鉴权值。细节见 [GitHub iOS 构建检查](docs/verification-and-delivery.md#64-github-ios-构建检查)。
+- GitHub Actions `iOS Build` 在 push、PR 和手动触发时检查唯一的 10 组小组件版本的 App、Widget 和模拟器测试目标编译并打包一份未签名 IPA；主分支通过后自动发布到 [GitHub Releases](https://github.com/zh0ngtian/DailyMusuem/releases)。本地入口为 `bash scripts/check_ios_build.sh`，无需签名；本地默认使用占位鉴权值。细节见 [GitHub iOS 构建检查](docs/verification-and-delivery.md#64-github-ios-构建检查)。
 - 现有 Python 回归：`python3 -m unittest discover -s server -p 'test_*.py'` 和 `python3 -m unittest discover -s scripts/tests -p 'test_*.py'`。
 
 ## 规范与运维

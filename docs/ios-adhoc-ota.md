@@ -14,7 +14,7 @@
 
 ## 历史版本 1.1.1（2026-10-10）
 
-实现 10 组兼容小组件，每组支持小、中、大、iOS 27 竖向超大（`systemExtraLargePortrait`）。在主 App 设置 → 小组件 →“分组与展示博物馆”分别选馆；同组跨尺寸同步，组间独立，即使选同馆也不合并内容。第 1 组保留原 kind 和选馆偏好；详情合同见 [主 App 规范](app-behavior-contract.md#私有-ota-兼容小组件入口)。
+实现 10 组兼容小组件，每组支持小、中、大、iOS 27 竖向超大（`systemExtraLargePortrait`）。在主 App 设置 → 小组件 →“分组与展示博物馆”分别选馆；同组跨尺寸同步，组间独立，即使选同馆也不合并内容。第 1 组保留原 kind 和选馆偏好；详情合同见 [主 App 规范](app-behavior-contract.md#10-组小组件入口)。
 
 当时发布：`1.1.1 (7)`，Ad Hoc 已签名，`2706484` bytes，SHA-256 `d25b49b876b1c70bd14f900cfa737a0124f5b4a84dcff6245ab3b6ff9f75a877`。固定入口沿用下文，版本化包为 `releases/1.1.1/latest.ipa`。签名与 HTTPS HEAD/完整 GET/SHA-256 回验通过；1.1.0 的注册错误在模拟器发现后已撤下当前渠道，由此版本修复，不覆盖旧版本目录。
 
@@ -48,7 +48,7 @@
 
 实际提供的 profile 是包含登记设备的 **Ad Hoc** profile，并非 `ProvisionsAllDevices` 企业 profile。P12 可以同时签 App 和 Widget；当前障碍不能概括为“P12 不支持 Widget”。两次实机对照（1.0.1/1.0.2）表明，App 与扩展都能安装、共享组可用，但系统拒绝扩展连接 `com.apple.siri.VoiceShortcuts.xpc`，随后出现 `No AppIntent in timeline` 和 `CHSErrorDomain 1101`。具体授权判断尚未证实；不能仅凭这些日志归咎于全能签。
 
-用户因此选择兼容版：固定所有博物馆，暂不支持桌面选择单馆，手动刷新打开 App。它使用 `StaticConfiguration` / `TimelineProvider`，不通过 AppIntent 配置或按钮。三尺寸、原有共享状态、network-only 候选、去重历史、降采样、失败态和自动 timeline 规则继续共用原实现。正常构建仍使用完整 AppIntent 小组件。
+用户因此选择兼容版：固定所有博物馆，暂不支持桌面选择单馆，手动刷新打开 App。它使用 `StaticConfiguration` / `TimelineProvider`，不通过 AppIntent 配置或按钮。三尺寸、原有共享状态、network-only 候选、去重历史、降采样、失败态和自动 timeline 规则继续共用原实现。该段记录当时两种构建的历史状态；自 1.1.3 起统一为 10 组静态小组件。
 
 ## 签名与存储边界
 
@@ -72,14 +72,12 @@
 
 共享配置 `~/Library/Application Support/IOSAdHocOTA/signing.local.json` 只引用现有 P12/profile/password 文件，私钥、密码、配置和 IPA 不提交仓库。
 
-兼容构建必须同时指定编译条件与产物标记，并在私有配置中设置 `widgetCompatibilityMode: true`。正常构建不设置这两个参数；签名器拒绝构建标记和发布模式不一致。每次发布使用新的版本号和递增 Build，禁止覆盖历史版本。
+所有构建统一为 10 组静态 Widget，无需编译条件切换。App 与 Widget 的 `MuseumWidgetCompatibilityBuild=YES` 是保留给既有签名校验器的固定产物标记，私有配置继续设置 `widgetCompatibilityMode: true`；这两个历史字段不再选择另一套实现。每次发布使用新的版本号和递增 Build，禁止覆盖历史版本。
 
 ```sh
 xcodebuild -project DailyMuseum.xcodeproj -scheme DailyMuseum \
   -configuration Release -destination 'generic/platform=iOS' \
-  -derivedDataPath .deriveddata-ota CODE_SIGNING_ALLOWED=NO \
-  SWIFT_ACTIVE_COMPILATION_CONDITIONS=WIDGET_COMPATIBILITY \
-  MUSEUM_WIDGET_COMPATIBILITY_BUILD=YES build
+  -derivedDataPath .deriveddata-ota CODE_SIGNING_ALLOWED=NO build
 
 python3 scripts/sign_ios_widget_ipa.py \
   --config "$HOME/Library/Application Support/IOSAdHocOTA/museummuse/release.local.json" \
@@ -103,11 +101,11 @@ python3 -m unittest discover -s scripts/tests -p 'test_ios_widget_signing.py'
 ## 发布与构建检查
 
 1. 完成对应变更的本地验证和文档回填；App/Widget 功能改动递增版本与 Build。纯文档、流水线或发布工具修改不递增 App 版本、不重新发布 OTA。
-2. 将拟发布提交推送到 GitHub，确认 `iOS Build` 的 `Build (standard)` 与 `Build (compatibility)` 及 `Publish unsigned IPA` 全部通过；确认对应 GitHub Release 中常规版与兼容版的未签名 IPA、SHA-256 校验文件齐全，并记录 commit SHA、Actions run URL 和 Release URL。工作流和本地复现入口见 [GitHub iOS 构建检查](verification-and-delivery.md#64-github-ios-构建检查)。
-3. App/Widget 改动按上方命令从同一提交构建设备兼容版，使用现有私有配置逐目标签名和独立验签，然后发布 OTA。完成版本目录与固定入口 HTTPS HEAD、完整 GET、大小与 SHA-256 回验，并记录 `channel/releases/<version>/latest-ios.json` 发布凭证。
-4. 对应提交的两项构建检查、Release 上传与 OTA 回验都成功才算 App/Widget 交付完成。流水线构建并发布未签名 IPA，实际签名、安装和 Widget 桌面验收继续走现有本地链路。
+2. 将拟发布提交推送到 GitHub，确认 `iOS Build` 的 `Build` 与 `Publish unsigned IPA` 全部通过；确认对应 GitHub Release 中唯一的 `MuseumMuse-unsigned.ipa` 和 SHA-256 校验文件齐全，并记录 commit SHA、Actions run URL 和 Release URL。工作流和本地复现入口见 [GitHub iOS 构建检查](verification-and-delivery.md#64-github-ios-构建检查)。
+3. App/Widget 改动按上方命令从同一提交构建设备版本，使用现有私有配置逐目标签名和独立验签，然后发布 OTA。完成版本目录与固定入口 HTTPS HEAD、完整 GET、大小与 SHA-256 回验，并记录 `channel/releases/<version>/latest-ios.json` 发布凭证。
+4. 对应提交的构建检查、Release 上传与 OTA 回验都成功才算 App/Widget 交付完成。流水线构建并发布未签名 IPA，实际签名、安装和 Widget 桌面验收继续走现有本地链路。
 
-## 本次验证与限制
+## 首次兼容修复的验证与限制
 
 - 真机兼容 Release 与模拟器默认 Debug 均构建成功；模拟器默认 App 已安装启动，默认 AppIntent 小组件桌面仍显示成功态，01:13:15 provider 日志为 `scope=all phase=success`。
 - 3 个设置/Widget 设置读取单测通过；7 个严格 profile 测试与 4 个复杂包签名边界测试通过。

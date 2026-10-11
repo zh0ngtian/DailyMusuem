@@ -2,25 +2,14 @@
 # Compile device/simulator targets and package an unsigned IPA.
 set -euo pipefail
 
-variant="${1:-standard}"
-case "$variant" in
-  standard)
-    conditions=""
-    compatibility=NO
-    ;;
-  compatibility)
-    conditions=WIDGET_COMPATIBILITY
-    compatibility=YES
-    ;;
-  *)
-    echo "Usage: bash scripts/check_ios_build.sh [standard|compatibility]" >&2
-    exit 2
-    ;;
-esac
+if [[ $# -ne 0 ]]; then
+  echo "Usage: bash scripts/check_ios_build.sh" >&2
+  exit 2
+fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
-output="$repo_root/build/ci/$variant"
+output="$repo_root/build/ci"
 mkdir -p "$output"
 export MUSEUMMUSE_SIMPLE_AUTH_SECRET="${MUSEUMMUSE_SIMPLE_AUTH_SECRET:-ci-build-only-placeholder}"
 
@@ -41,14 +30,12 @@ common=(
   -project DailyMuseum.xcodeproj
   CODE_SIGNING_ALLOWED=NO
   "MUSEUMMUSE_SIMPLE_AUTH_SECRET=$MUSEUMMUSE_SIMPLE_AUTH_SECRET"
-  "MUSEUM_WIDGET_COMPATIBILITY_BUILD=$compatibility"
 )
 
 xcodebuild "${common[@]}" -scheme DailyMuseum \
   -configuration Release -destination 'generic/platform=iOS' \
   -derivedDataPath "$output/device-derived-data" \
   -resultBundlePath "$output/device.xcresult" \
-  "SWIFT_ACTIVE_COMPILATION_CONDITIONS=$conditions" \
   build 2>&1 | redact_logs | tee "$output/device.log"
 
 # Compile the existing tests; runtime/UI and desktop Widget verification remain local.
@@ -57,7 +44,6 @@ xcodebuild "${common[@]}" -scheme DailyMuseumTests \
   -derivedDataPath "$output/simulator-derived-data" \
   -resultBundlePath "$output/simulator.xcresult" \
   -parallel-testing-enabled NO \
-  "SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG $conditions" \
   build-for-testing 2>&1 | redact_logs | tee "$output/simulator.log"
 
 app="$output/device-derived-data/Build/Products/Release-iphoneos/DailyMuseum.app"
@@ -66,7 +52,7 @@ package_dir="$(mktemp -d "${TMPDIR:-/tmp}/museum-ipa.XXXXXX")"
 trap 'rm -rf "$package_dir"' EXIT
 mkdir "$package_dir/Payload"
 ditto "$app" "$package_dir/Payload/DailyMuseum.app"
-ipa="$output/MuseumMuse-$variant-unsigned.ipa"
+ipa="$output/MuseumMuse-unsigned.ipa"
 rm -f "$ipa"
 ditto -c -k --keepParent "$package_dir/Payload" "$ipa"
 (cd "$output" && shasum -a 256 "$(basename "$ipa")" > "$(basename "$ipa").sha256")

@@ -59,11 +59,11 @@ final class AppRouter: ObservableObject {
     @Published var path: [Route] = []
 
     func handle(url: URL) {
-        if SettingsKeys.widgetCompatibilityMode, let group = WidgetCompatibilityGroup.from(refreshURL: url) {
+        if let group = WidgetGroup.from(refreshURL: url) {
             path = []
             Task {
-                await WidgetManualRefreshRunner(logSource: "Widget 兼容刷新")
-                    .perform(compatibilityGroup: group)
+                await WidgetManualRefreshRunner(logSource: "Widget 分组刷新")
+                    .perform(group: group)
             }
             return
         }

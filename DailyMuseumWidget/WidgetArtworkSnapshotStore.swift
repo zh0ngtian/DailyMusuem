@@ -578,16 +578,11 @@ actor WidgetArtworkSnapshotStore {
     private func normalizedState(for state: InstanceState) -> InstanceState {
         var normalized = state
         normalized.familyToken = normalizedFamilyToken(state.familyToken)
-        if let group = WidgetCompatibilityGroup.from(refreshKey: state.instanceToken),
+        if let group = WidgetGroup.from(refreshKey: state.instanceToken),
            let scope = WidgetMuseumScope(rawValue: state.scopeRawValue) {
             normalized.instanceToken = group.refreshKey(scope: scope)
-        } else if SettingsKeys.widgetCompatibilityMode,
-                  let scope = WidgetMuseumScope(rawValue: state.scopeRawValue) {
-            normalized.instanceToken = WidgetCompatibilityGroup.first.refreshKey(scope: scope)
-        } else {
-            normalized.instanceToken = WidgetRefreshGroupKey.make(
-                scopeRawValue: state.scopeRawValue, familyToken: normalized.familyToken ?? ""
-            )
+        } else if let scope = WidgetMuseumScope(rawValue: state.scopeRawValue) {
+            normalized.instanceToken = WidgetGroup.first.refreshKey(scope: scope)
         }
         normalized.displayedArtworkKeys = []
         return normalized

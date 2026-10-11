@@ -68,18 +68,9 @@ struct WidgetCenterCurrentConfigurationResolver: WidgetCurrentConfigurationResol
         var targets: [WidgetRefreshTarget] = []
 
         for configuration in configurations {
-            let scope: WidgetMuseumScope
-            let refreshKey: String
-            if SettingsKeys.widgetCompatibilityMode {
-                guard let group = WidgetCompatibilityGroup.from(kind: configuration.kind) else { continue }
-                scope = WidgetCompatibilityScope.read(group: group)
-                refreshKey = group.refreshKey(scope: scope)
-            } else {
-                guard configuration.kind == SettingsKeys.widgetKind,
-                      let intent = configuration.widgetConfigurationIntent(of: DailyMuseumWidgetConfigurationIntent.self) else { continue }
-                scope = intent.museumScope.scope
-                refreshKey = WidgetRefreshGroupKey.make(scope: scope, family: configuration.family)
-            }
+            guard let group = WidgetGroup.from(kind: configuration.kind) else { continue }
+            let scope = WidgetGroupScope.read(group: group)
+            let refreshKey = group.refreshKey(scope: scope)
             targets.append(WidgetRefreshTarget(refreshKey: refreshKey, scope: scope, familyToken: configuration.family.debugToken))
         }
 
@@ -160,7 +151,7 @@ actor WidgetRefreshCoordinator {
         }
 
         if reloadTimelines {
-            widgetCenter.reloadTimelines(ofKind: WidgetCompatibilityGroup.from(refreshKey: refreshKey)?.kind ?? SettingsKeys.widgetKind)
+            widgetCenter.reloadTimelines(ofKind: WidgetGroup.from(refreshKey: refreshKey)?.kind ?? SettingsKeys.widgetKind)
         }
 
         let engine = makeEngine()
@@ -223,7 +214,7 @@ actor WidgetRefreshCoordinator {
             activeRefreshes[refreshKey] = nil
         }
         if reloadTimelines {
-            widgetCenter.reloadTimelines(ofKind: WidgetCompatibilityGroup.from(refreshKey: refreshKey)?.kind ?? SettingsKeys.widgetKind)
+            widgetCenter.reloadTimelines(ofKind: WidgetGroup.from(refreshKey: refreshKey)?.kind ?? SettingsKeys.widgetKind)
         }
     }
 
@@ -286,7 +277,7 @@ actor WidgetRefreshCoordinator {
 
     func refreshCurrentConfigurations(
         matching scopeFilter: WidgetMuseumScope? = nil,
-        matchingGroup groupFilter: WidgetCompatibilityGroup? = nil,
+        matchingGroup groupFilter: WidgetGroup? = nil,
         logSource: String = "App 快捷操作"
     ) async {
         let targets: [WidgetRefreshTarget]
@@ -294,9 +285,9 @@ actor WidgetRefreshCoordinator {
             let resolvedTargets = try await currentConfigurationResolver.refreshTargets()
             await logCurrentConfigurations(resolvedTargets, logSource: logSource)
             if let scopeFilter {
-                targets = resolvedTargets.filter { $0.scope == scopeFilter && (groupFilter == nil || WidgetCompatibilityGroup.from(refreshKey: $0.refreshKey) == groupFilter) }
+                targets = resolvedTargets.filter { $0.scope == scopeFilter && (groupFilter == nil || WidgetGroup.from(refreshKey: $0.refreshKey) == groupFilter) }
             } else {
-                targets = resolvedTargets.filter { groupFilter == nil || WidgetCompatibilityGroup.from(refreshKey: $0.refreshKey) == groupFilter }
+                targets = resolvedTargets.filter { groupFilter == nil || WidgetGroup.from(refreshKey: $0.refreshKey) == groupFilter }
             }
             await removeStaleInstances(keeping: resolvedTargets)
         } catch {

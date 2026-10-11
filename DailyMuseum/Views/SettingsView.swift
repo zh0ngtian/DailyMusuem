@@ -14,10 +14,8 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section {
-                if SettingsKeys.widgetCompatibilityMode {
-                    NavigationLink("分组与展示博物馆") {
-                        CompatibleWidgetGroupsSettingsView(settings: settings)
-                    }
+                NavigationLink("分组与展示博物馆") {
+                    WidgetGroupsSettingsView(settings: settings)
                 }
                 Picker("自动刷新", selection: widgetRefreshIntervalBinding) {
                     ForEach(WidgetRefreshInterval.allCases) { interval in
@@ -441,13 +439,13 @@ private func displayTime(_ date: Date) -> String {
     return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
 }
 
-private struct CompatibleWidgetGroupsSettingsView: View {
+private struct WidgetGroupsSettingsView: View {
     @ObservedObject var settings: SettingsStore
 
     var body: some View {
         Form {
             Section {
-                ForEach(WidgetCompatibilityGroup.all) { group in
+                ForEach(WidgetGroup.all) { group in
                     Picker(group.name, selection: scopeBinding(for: group)) {
                         Text("所有博物馆").tag(WidgetMuseumScope.all)
                         ForEach(MuseumRepository.widgetSupportedMuseums) { museum in
@@ -465,15 +463,15 @@ private struct CompatibleWidgetGroupsSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    private func scopeBinding(for group: WidgetCompatibilityGroup) -> Binding<WidgetMuseumScope> {
+    private func scopeBinding(for group: WidgetGroup) -> Binding<WidgetMuseumScope> {
         Binding {
             settings.widgetScope(for: group)
         } set: { scope in
             guard scope != settings.widgetScope(for: group) else { return }
-            settings.saveWidgetCompatibilityScope(scope, group: group)
+            settings.saveWidgetGroupScope(scope, group: group)
             Task {
                 await WidgetManualRefreshRunner(logSource: "Widget \(group.name)选馆")
-                    .perform(compatibilityGroup: group)
+                    .perform(group: group)
             }
         }
     }

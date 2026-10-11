@@ -58,11 +58,11 @@ struct DailyMuseumWidgetView: View {
             Color.black
         }
         .id(entry.renderID)
-        .widgetURL(entry.appURL ?? (SettingsKeys.widgetCompatibilityMode ? compatibilityRefreshURL : nil))
+        .widgetURL(entry.appURL ?? groupRefreshURL)
     }
 
-    private var compatibilityRefreshURL: URL {
-        (entry.compatibilityGroupID.flatMap { WidgetCompatibilityGroup(id: $0) } ?? .first).refreshURL
+    private var groupRefreshURL: URL {
+        (WidgetGroup(id: entry.groupID) ?? .first).refreshURL
     }
     private var isExtraLargePortrait: Bool {
         if #available(iOS 27.0, *) { return family == .systemExtraLargePortrait }
@@ -71,12 +71,7 @@ struct DailyMuseumWidgetView: View {
 
     private var refreshControl: some View {
         Group {
-            if SettingsKeys.widgetCompatibilityMode {
-                Link(destination: compatibilityRefreshURL) { refreshIcon }
-            } else {
-                Button(intent: RefreshWidgetIntent(refreshKey: entry.refreshKey, museumScope: configuredScope,
-                                                   widgetFamilyToken: family.debugToken)) { refreshIcon }
-            }
+            Link(destination: groupRefreshURL) { refreshIcon }
         }
         .buttonStyle(.plain)
         .frame(width: refreshControlSize, height: refreshControlSize)
@@ -119,13 +114,6 @@ struct DailyMuseumWidgetView: View {
             targetPointSize: size,
             scale: displayScale
         )
-    }
-
-    private var configuredScope: WidgetConfiguredMuseumScope {
-        guard let scope = WidgetMuseumScope(rawValue: entry.scopeRawValue) else {
-            return .all
-        }
-        return WidgetConfiguredMuseumScope(scope: scope)
     }
 
     private var displaySubtitle: String? {

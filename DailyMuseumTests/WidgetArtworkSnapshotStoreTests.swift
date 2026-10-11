@@ -22,7 +22,7 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
 
     func testRegisterAndBeginRefreshCreatePerInstanceState() async throws {
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
-        let refreshKey = WidgetRefreshGroupKey.make(scope: .single(MuseumIdentifier("met")), family: nil)
+        let refreshKey = WidgetGroup.first.refreshKey(scope: .single(MuseumIdentifier("met")))
 
         let registered = await store.registerInstance(
             instanceToken: refreshKey,
@@ -44,7 +44,7 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
 
     func testMarkSuccessStoresImageAndFailureRemovesPreviousPayload() async throws {
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
-        let refreshKey = WidgetRefreshGroupKey.make(scope: .single(MuseumIdentifier("tnm")), family: nil)
+        let refreshKey = WidgetGroup.first.refreshKey(scope: .single(MuseumIdentifier("tnm")))
         _ = await store.beginRefresh(
             instanceToken: refreshKey,
             scopeRawValue: WidgetMuseumScope.single(MuseumIdentifier("tnm")).rawValue
@@ -88,7 +88,7 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
 
     func testMarkSuccessIgnoresSupersededNonce() async throws {
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
-        let refreshKey = WidgetRefreshGroupKey.make(scope: .all, family: nil)
+        let refreshKey = WidgetGroup.first.refreshKey(scope: .all)
         _ = await store.beginRefresh(
             instanceToken: refreshKey,
             scopeRawValue: WidgetMuseumScope.all.rawValue
@@ -115,13 +115,16 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
         XCTAssertEqual(currentState?.phase, .refreshing)
     }
 
-    func testRenderStateDoesNotAdoptOtherInstanceStateForSameScope() async throws {
+    func testRenderStateDoesNotAdoptOtherGroupStateForSameMuseum() async throws {
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
         let scope = WidgetMuseumScope.single(MuseumIdentifier("met")).rawValue
 
-        _ = await store.beginRefresh(instanceToken: "success", scopeRawValue: scope)
-        _ = await store.markSuccess(
-            instanceToken: "success",
+        let firstKey = WidgetGroup.first.refreshKey(scope: WidgetMuseumScope(rawValue: scope)!)
+        let secondKey = WidgetGroup(id: 2)!.refreshKey(scope: WidgetMuseumScope(rawValue: scope)!)
+
+        _ = await store.beginRefresh(instanceToken: firstKey, scopeRawValue: scope)
+        let success = await store.markSuccess(
+            instanceToken: firstKey,
             expectedNonce: 1,
             payload: makePayload(
                 museumID: MuseumIdentifier("met"),
@@ -132,13 +135,15 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
             now: Date(timeIntervalSince1970: 200)
         )
 
+        XCTAssertEqual(success?.phase, .success)
+
         let rendered = await store.renderState(
-            for: "fresh-instance",
+            for: secondKey,
             scopeRawValue: scope,
             now: Date(timeIntervalSince1970: 300)
         )
 
-        XCTAssertEqual(rendered.instanceToken, "fresh-instance")
+        XCTAssertEqual(rendered.instanceToken, secondKey)
         XCTAssertEqual(rendered.scopeRawValue, scope)
         XCTAssertEqual(rendered.phase, .idle)
         XCTAssertNil(rendered.artwork)
@@ -147,10 +152,7 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
     func testRenderStateMigratesLegacySameFamilyStateToSharedKey() async throws {
         let scope = WidgetMuseumScope.single(MuseumIdentifier("met")).rawValue
         let familyToken = WidgetFamily.systemMedium.debugToken
-        let sharedKey = WidgetRefreshGroupKey.make(
-            scopeRawValue: scope,
-            familyToken: familyToken
-        )
+        let sharedKey = WidgetGroup.first.refreshKey(scope: WidgetMuseumScope(rawValue: scope)!)
         let directoryURL = baseURL.appendingPathComponent("WidgetInstances", isDirectory: true)
         try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
         let persistedState = """
@@ -209,11 +211,8 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
     func testRenderStateSharesAcrossDifferentFamilies() async throws {
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
         let scope = WidgetMuseumScope.single(MuseumIdentifier("met")).rawValue
-        let sharedKey = WidgetRefreshGroupKey.make(scopeRawValue: scope, familyToken: WidgetFamily.systemLarge.debugToken)
-        let mediumKey = WidgetRefreshGroupKey.make(
-            scopeRawValue: scope,
-            familyToken: WidgetFamily.systemMedium.debugToken
-        )
+        let sharedKey = WidgetGroup.first.refreshKey(scope: WidgetMuseumScope(rawValue: scope)!)
+        let mediumKey = WidgetGroup.first.refreshKey(scope: WidgetMuseumScope(rawValue: scope)!)
 
         _ = await store.beginRefresh(
             instanceToken: sharedKey,
@@ -249,7 +248,7 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
     func testRenderStateKeepsPreviousArtworkVisibleWhileRefreshIsInFlight() async throws {
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
         let scope = WidgetMuseumScope.single(MuseumIdentifier("met")).rawValue
-        let refreshKey = WidgetRefreshGroupKey.make(scopeRawValue: scope, familyToken: "")
+        let refreshKey = WidgetGroup.first.refreshKey(scope: WidgetMuseumScope(rawValue: scope)!)
 
         _ = await store.beginRefresh(
             instanceToken: refreshKey,
@@ -285,7 +284,7 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
     func testRenderStateFallsBackToIdlePlaceholderWhenRefreshStartsWithoutArtwork() async throws {
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
         let scope = WidgetMuseumScope.single(MuseumIdentifier("tnm")).rawValue
-        let refreshKey = WidgetRefreshGroupKey.make(scopeRawValue: scope, familyToken: "")
+        let refreshKey = WidgetGroup.first.refreshKey(scope: WidgetMuseumScope(rawValue: scope)!)
 
         _ = await store.beginRefresh(
             instanceToken: refreshKey,
@@ -320,10 +319,10 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
 
     func testRemoveInstancesExcludingRefreshKeysPrunesStaleStateAndImage() async throws {
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
-        let staleKey = WidgetMuseumScope.all.rawValue
-        let currentKey = WidgetMuseumScope.single(MuseumIdentifier("met")).rawValue
+        let staleKey = WidgetGroup.first.refreshKey(scope: .all)
+        let currentKey = WidgetGroup.first.refreshKey(scope: .single(MuseumIdentifier("met")))
 
-        _ = await store.beginRefresh(instanceToken: staleKey, scopeRawValue: staleKey)
+        _ = await store.beginRefresh(instanceToken: staleKey, scopeRawValue: WidgetMuseumScope.all.rawValue)
         let staleState = await store.markSuccess(
             instanceToken: staleKey,
             expectedNonce: 1,
@@ -336,7 +335,7 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
         )
         _ = await store.renderState(
             for: currentKey,
-            scopeRawValue: currentKey
+            scopeRawValue: WidgetMuseumScope.single(MuseumIdentifier("met")).rawValue
         )
 
         let imageFileName = try XCTUnwrap(staleState?.artwork?.imageFileName)
@@ -359,10 +358,7 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
     func testRenderStateKeepsLatestMeaningfulLegacyStateWhenIdleWidgetJoinsSameGroup() async throws {
         let scope = WidgetMuseumScope.single(MuseumIdentifier("met")).rawValue
         let familyToken = WidgetFamily.systemLarge.debugToken
-        let sharedKey = WidgetRefreshGroupKey.make(
-            scopeRawValue: scope,
-            familyToken: familyToken
-        )
+        let sharedKey = WidgetGroup.first.refreshKey(scope: WidgetMuseumScope(rawValue: scope)!)
         let directoryURL = baseURL.appendingPathComponent("WidgetInstances", isDirectory: true)
         try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
         let persistedState = """
@@ -427,12 +423,14 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
 
     func testScopeChangeResetsArtworkFailureAndDisplayedHistory() async throws {
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
+        let metKey = WidgetGroup.first.refreshKey(scope: .single(MuseumIdentifier("met")))
+        let tnmKey = WidgetGroup.first.refreshKey(scope: .single(MuseumIdentifier("tnm")))
         _ = await store.beginRefresh(
-            instanceToken: "instance-scope",
+            instanceToken: metKey,
             scopeRawValue: WidgetMuseumScope.single(MuseumIdentifier("met")).rawValue
         )
-        _ = await store.markSuccess(
-            instanceToken: "instance-scope",
+        let oldState = await store.markSuccess(
+            instanceToken: metKey,
             expectedNonce: 1,
             payload: makePayload(
                 museumID: MuseumIdentifier("met"),
@@ -442,8 +440,10 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
             imageData: Data("image".utf8)
         )
 
+        XCTAssertEqual(oldState?.artwork?.title, "旧展品")
+
         let refreshed = await store.beginRefresh(
-            instanceToken: "instance-scope",
+            instanceToken: tnmKey,
             scopeRawValue: WidgetMuseumScope.single(MuseumIdentifier("tnm")).rawValue
         )
 
@@ -459,6 +459,7 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
         let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 8 * 60 * 60))
         let calendar = makeCalendar(timeZone: timeZone)
         let scope = "single:nmc"
+        let refreshKey = WidgetGroup.first.refreshKey(scope: WidgetMuseumScope(rawValue: scope)!)
         let schedule = try XCTUnwrap(WidgetAutoRefreshSchedule(
             interval: .twelveHours, startMinutes: 0, endMinutes: 23 * 60,
             calendar: calendar, timeZone: timeZone
@@ -466,14 +467,14 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
         let initialDate = date(hour: 0, minute: 0, calendar: calendar)
         let overdueDate = date(hour: 12, minute: 0, calendar: calendar)
         _ = await store.resolveAutomaticRefresh(
-            for: scope, scopeRawValue: scope, familyToken: "small", schedule: schedule, now: initialDate
+            for: refreshKey, scopeRawValue: scope, familyToken: "small", schedule: schedule, now: initialDate
         )
         let now = try XCTUnwrap(calendar.date(
             byAdding: .day, value: 5, to: date(hour: 12, minute: 21, calendar: calendar)
         ))
         let expectedNext = try XCTUnwrap(calendar.date(byAdding: .day, value: 6, to: initialDate))
         let due = await store.resolveAutomaticRefresh(
-            for: scope, scopeRawValue: scope, familyToken: "small", schedule: schedule, now: now
+            for: refreshKey, scopeRawValue: scope, familyToken: "small", schedule: schedule, now: now
         )
         XCTAssertTrue(due.shouldRefresh)
         XCTAssertEqual(due.scheduledAt, overdueDate)
@@ -481,22 +482,22 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
 
         // The future slot must already be on disk before the network refresh starts.
         let restarted = WidgetArtworkSnapshotStore(baseURL: baseURL)
-        let persisted = await restarted.state(for: scope)
+        let persisted = await restarted.state(for: refreshKey)
         XCTAssertEqual(persisted?.nextAutomaticRefreshAt, expectedNext.timeIntervalSince1970)
-        let refreshing = await restarted.beginRefresh(instanceToken: scope, scopeRawValue: scope, now: now)
+        let refreshing = await restarted.beginRefresh(instanceToken: refreshKey, scopeRawValue: scope, now: now)
         _ = await restarted.markFailure(
-            instanceToken: scope, expectedNonce: refreshing.nonce, message: "网络不可用", now: now
+            instanceToken: refreshKey, expectedNonce: refreshing.nonce, message: "网络不可用", now: now
         )
         let reloaded = WidgetArtworkSnapshotStore(baseURL: baseURL)
         let repeated = await reloaded.resolveAutomaticRefresh(
-            for: scope, scopeRawValue: scope, familyToken: "large", schedule: schedule,
+            for: refreshKey, scopeRawValue: scope, familyToken: "large", schedule: schedule,
             now: now.addingTimeInterval(60)
         )
         XCTAssertFalse(repeated.shouldRefresh)
         XCTAssertEqual(repeated.nextAutomaticRefreshAt, expectedNext)
 
         let nextDay = await reloaded.resolveAutomaticRefresh(
-            for: scope, scopeRawValue: scope, schedule: schedule, now: expectedNext
+            for: refreshKey, scopeRawValue: scope, schedule: schedule, now: expectedNext
         )
         XCTAssertTrue(nextDay.shouldRefresh)
         XCTAssertEqual(nextDay.scheduledAt, expectedNext)
@@ -506,7 +507,7 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
         let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
         let calendar = makeCalendar(timeZone: timeZone)
-        let refreshKey = WidgetRefreshGroupKey.make(scope: .single(MuseumIdentifier("met")), family: nil)
+        let refreshKey = WidgetGroup.first.refreshKey(scope: .single(MuseumIdentifier("met")))
         let schedule = try XCTUnwrap(
             WidgetAutoRefreshSchedule(
                 interval: .threeHours,
@@ -548,7 +549,7 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
         let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
         let calendar = makeCalendar(timeZone: timeZone)
-        let refreshKey = WidgetRefreshGroupKey.make(scope: .single(MuseumIdentifier("met")), family: nil)
+        let refreshKey = WidgetGroup.first.refreshKey(scope: .single(MuseumIdentifier("met")))
         let schedule = try XCTUnwrap(
             WidgetAutoRefreshSchedule(
                 interval: .threeHours,
@@ -624,7 +625,7 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
         )
 
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
-        let refreshKey = WidgetRefreshGroupKey.make(scopeRawValue: WidgetMuseumScope.single(MuseumIdentifier("met")).rawValue, familyToken: "")
+        let refreshKey = WidgetGroup.first.refreshKey(scope: WidgetMuseumScope(rawValue: WidgetMuseumScope.single(MuseumIdentifier("met")).rawValue)!)
         let state = await store.state(for: refreshKey)
 
         XCTAssertEqual(state?.instanceToken, refreshKey)
@@ -634,7 +635,7 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
 
     func testDisplayedHistoryPersistsAfterWidgetInstanceStateIsRemoved() async throws {
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
-        let refreshKey = WidgetRefreshGroupKey.make(scope: .single(MuseumIdentifier("met")), family: nil)
+        let refreshKey = WidgetGroup.first.refreshKey(scope: .single(MuseumIdentifier("met")))
         _ = await store.beginRefresh(
             instanceToken: refreshKey,
             scopeRawValue: WidgetMuseumScope.single(MuseumIdentifier("met")).rawValue
@@ -661,7 +662,7 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
 
     func testMarkSuccessDownsamplesStoredImageBeforeWritingToAppGroup() async throws {
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
-        let refreshKey = WidgetRefreshGroupKey.make(scope: .single(MuseumIdentifier("nnm")), family: nil)
+        let refreshKey = WidgetGroup.first.refreshKey(scope: .single(MuseumIdentifier("nnm")))
         let sourceData = makeJPEGData(size: CGSize(width: 2400, height: 1600))
         let sourceDimensions = try XCTUnwrap(WidgetArtworkSnapshotStore.imageDimensions(from: sourceData))
 
@@ -727,7 +728,7 @@ final class WidgetArtworkSnapshotStoreTests: XCTestCase {
 
     func testRenderStateMigratesLegacyOversizedStoredImage() async throws {
         let store = WidgetArtworkSnapshotStore(baseURL: baseURL)
-        let refreshKey = WidgetRefreshGroupKey.make(scope: .all, family: nil)
+        let refreshKey = WidgetGroup.first.refreshKey(scope: .all)
 
         _ = await store.beginRefresh(
             instanceToken: refreshKey,

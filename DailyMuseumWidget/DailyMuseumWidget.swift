@@ -1,4 +1,3 @@
-import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -14,73 +13,42 @@ struct WidgetArtworkEntry: TimelineEntry {
     let imageFileName: String?
     let appURL: URL?
     let failureMessage: String?
-    var compatibilityGroupID: Int? = nil
+    let groupID: Int
 }
 
-struct DailyMuseumWidget: Widget {
-    static let kind = SettingsKeys.widgetKind
-    let kind: String = DailyMuseumWidget.kind
-
+struct MuseumWidget<Slot: WidgetSlot>: Widget {
+    private var group: WidgetGroup { WidgetGroup(id: Slot.id)! }
     var body: some WidgetConfiguration {
-        AppIntentConfiguration(
-            kind: kind,
-            intent: DailyMuseumWidgetConfigurationIntent.self,
-            provider: DailyMuseumWidgetProvider()
-        ) { entry in
-            DailyMuseumWidgetView(entry: entry)
-        }
-        .configurationDisplayName("MuseumMuse")
-        .description("自动或手动刷新展示一件展品")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
-        .contentMarginsDisabled()
-    }
-}
-
-struct CompatibleMuseumWidget<Slot: CompatibleWidgetSlot>: Widget {
-    private var group: WidgetCompatibilityGroup { WidgetCompatibilityGroup(id: Slot.id)! }
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: group.kind, provider: CompatibleMuseumWidgetProvider(group: group)) {
+        StaticConfiguration(kind: group.kind, provider: MuseumWidgetProvider(group: group)) {
             DailyMuseumWidgetView(entry: $0)
         }
         .configurationDisplayName(Text(verbatim: "博物女神 · \(group.name)"))
         .description("在 App 中为本组选馆，同组尺寸同步，点击刷新打开 App")
-        .supportedFamilies(WidgetCompatibilityGroup.supportedFamilies)
+        .supportedFamilies(WidgetGroup.supportedFamilies)
         .contentMarginsDisabled()
     }
 }
 
-struct DailyMuseumWidgetProvider: AppIntentTimelineProvider {
-    private let content = WidgetArtworkTimelineContent()
-    func placeholder(in context: Context) -> WidgetArtworkEntry { content.placeholder() }
-    func snapshot(for configuration: DailyMuseumWidgetConfigurationIntent, in context: Context) async -> WidgetArtworkEntry {
-        await content.entry(scope: configuration.museumScope.scope, date: .now, family: context.family,
-                            persistRenderState: false, logRender: false)
-    }
-    func timeline(for configuration: DailyMuseumWidgetConfigurationIntent, in context: Context) async -> Timeline<WidgetArtworkEntry> {
-        await content.timeline(scope: configuration.museumScope.scope, family: context.family, isPreview: context.isPreview)
-    }
-}
-
-struct CompatibleMuseumWidgetProvider: TimelineProvider {
-    let group: WidgetCompatibilityGroup
+struct MuseumWidgetProvider: TimelineProvider {
+    let group: WidgetGroup
     private let content = WidgetArtworkTimelineContent()
     func placeholder(in context: Context) -> WidgetArtworkEntry { content.placeholder(group: group) }
     func getSnapshot(in context: Context, completion: @escaping (WidgetArtworkEntry) -> Void) {
         Task {
-            completion(await content.entry(scope: WidgetCompatibilityScope.read(group: group), date: .now, family: context.family, group: group,
+            completion(await content.entry(scope: WidgetGroupScope.read(group: group), date: .now, family: context.family, group: group,
                                            persistRenderState: false, logRender: false))
         }
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<WidgetArtworkEntry>) -> Void) {
         Task {
-            completion(await content.timeline(scope: WidgetCompatibilityScope.read(group: group), family: context.family, isPreview: context.isPreview, group: group))
+            completion(await content.timeline(scope: WidgetGroupScope.read(group: group), family: context.family, isPreview: context.isPreview, group: group))
         }
     }
 }
 
 private struct WidgetArtworkTimelineContent {
     private let settingsReader = WidgetSettingsReader()
-    func placeholder(group: WidgetCompatibilityGroup? = nil) -> WidgetArtworkEntry {
+    func placeholder(group: WidgetGroup) -> WidgetArtworkEntry {
         WidgetArtworkEntry(
             date: .now,
             renderID: "placeholder",
@@ -93,12 +61,12 @@ private struct WidgetArtworkTimelineContent {
             imageFileName: nil,
             appURL: nil,
             failureMessage: nil,
-            compatibilityGroupID: group?.id
+            groupID: group.id
         )
     }
 
-    func timeline(scope: WidgetMuseumScope, family: WidgetFamily, isPreview: Bool, group: WidgetCompatibilityGroup? = nil) async -> Timeline<WidgetArtworkEntry> {
-        let refreshKey = group?.refreshKey(scope: scope) ?? WidgetRefreshGroupKey.make(scope: scope, family: family)
+    func timeline(scope: WidgetMuseumScope, family: WidgetFamily, isPreview: Bool, group: WidgetGroup) async -> Timeline<WidgetArtworkEntry> {
+        let refreshKey = group.refreshKey(scope: scope)
         let store = WidgetArtworkSnapshotStore.shared
         let now = Date()
         let canPersistTimeline = await shouldPersistTimeline(
@@ -160,11 +128,11 @@ private struct WidgetArtworkTimelineContent {
         scope: WidgetMuseumScope,
         date: Date,
         family: WidgetFamily?,
-        group: WidgetCompatibilityGroup? = nil,
+        group: WidgetGroup,
         persistRenderState: Bool,
         logRender: Bool
     ) async -> WidgetArtworkEntry {
-        let refreshKey = group?.refreshKey(scope: scope) ?? WidgetRefreshGroupKey.make(scope: scope, family: family)
+        let refreshKey = group.refreshKey(scope: scope)
         let store = WidgetArtworkSnapshotStore.shared
         let state: WidgetArtworkSnapshotStore.InstanceState?
         if persistRenderState {
@@ -205,7 +173,7 @@ private struct WidgetArtworkTimelineContent {
                     imageFileName: artwork.imageFileName,
                     appURL: artwork.appURL,
                     failureMessage: nil,
-                    compatibilityGroupID: group?.id
+                    groupID: group.id
                 )
             }
         case .failure:
@@ -221,7 +189,7 @@ private struct WidgetArtworkTimelineContent {
                 imageFileName: nil,
                 appURL: nil,
                 failureMessage: state?.failureMessage,
-                compatibilityGroupID: group?.id
+                groupID: group.id
             )
         case .idle, .refreshing:
             break
@@ -239,7 +207,7 @@ private struct WidgetArtworkTimelineContent {
             imageFileName: nil,
             appURL: nil,
             failureMessage: nil,
-            compatibilityGroupID: group?.id
+            groupID: group.id
         )
     }
 
@@ -279,14 +247,14 @@ private extension WidgetMuseumScope {
     }
 }
 
-protocol CompatibleWidgetSlot { static var id: Int { get } }
-enum CompatibleWidgetSlot1: CompatibleWidgetSlot { static let id = 1 }
-enum CompatibleWidgetSlot2: CompatibleWidgetSlot { static let id = 2 }
-enum CompatibleWidgetSlot3: CompatibleWidgetSlot { static let id = 3 }
-enum CompatibleWidgetSlot4: CompatibleWidgetSlot { static let id = 4 }
-enum CompatibleWidgetSlot5: CompatibleWidgetSlot { static let id = 5 }
-enum CompatibleWidgetSlot6: CompatibleWidgetSlot { static let id = 6 }
-enum CompatibleWidgetSlot7: CompatibleWidgetSlot { static let id = 7 }
-enum CompatibleWidgetSlot8: CompatibleWidgetSlot { static let id = 8 }
-enum CompatibleWidgetSlot9: CompatibleWidgetSlot { static let id = 9 }
-enum CompatibleWidgetSlot10: CompatibleWidgetSlot { static let id = 10 }
+protocol WidgetSlot { static var id: Int { get } }
+enum WidgetSlot1: WidgetSlot { static let id = 1 }
+enum WidgetSlot2: WidgetSlot { static let id = 2 }
+enum WidgetSlot3: WidgetSlot { static let id = 3 }
+enum WidgetSlot4: WidgetSlot { static let id = 4 }
+enum WidgetSlot5: WidgetSlot { static let id = 5 }
+enum WidgetSlot6: WidgetSlot { static let id = 6 }
+enum WidgetSlot7: WidgetSlot { static let id = 7 }
+enum WidgetSlot8: WidgetSlot { static let id = 8 }
+enum WidgetSlot9: WidgetSlot { static let id = 9 }
+enum WidgetSlot10: WidgetSlot { static let id = 10 }
