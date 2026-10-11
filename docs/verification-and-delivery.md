@@ -45,7 +45,7 @@
 
 ### 6.3 小组件截图闭环测试
 
-- 2026-10-11 统一为唯一的 10 组静态 Widget：72 项分组/状态/设置/自动刷新测试、7 项 profile 测试和 4 项签名边界测试通过；设备 Release 与模拟器构建通过。在默认 `iPhone 17 Pro` / iOS 26.5 以及 `MuseumMuse Widget Groups` / iOS 27 安装、启动并定向刷新成功，成功候选后停止继续拉取。两台模拟器的小尺寸 SpringBoard 截图显示新展品；iOS 27 第 1 组四尺寸生成成功 timeline，第 2 组保留独立内容。相关系统日志未命中 `imageTooLarge`、归档失败、`CHSErrorDomain`、`Fatal error` 或 `No AppIntent`。证据在 `build/verification/widget-groups-only/`。本轮未安装真机、未逐尺寸截图或重测整点自动调度；分组键/同馆不同组隔离及旧状态迁移由回归测试覆盖。
+- 2026-10-11 统一为唯一的 10 组静态 Widget：72 项分组/状态/设置/自动刷新测试、7 项 profile 测试和 4 项签名边界测试通过；设备 Release 与模拟器构建通过。在默认 `iPhone 17 Pro` / iOS 26.5 以及 `MuseumMuse Widget Groups` / iOS 27 安装、启动并定向刷新成功，成功候选后停止继续拉取。两台模拟器的小尺寸 SpringBoard 截图显示新展品；iOS 27 第 1 组四尺寸生成成功 timeline，第 2 组保留独立内容；实际点击桌面刷新打开 App 并完成指定组刷新，十组设置页保留既有选馆。相关系统日志未命中 `imageTooLarge`、归档失败、`CHSErrorDomain`、`Fatal error` 或 `No AppIntent`。证据在 `build/verification/widget-groups-only/`。本轮未安装真机、未逐尺寸截图或重测整点自动调度；分组键/同馆不同组隔离及旧状态迁移由回归测试覆盖。
 
 - 2026-10-10 移除桌面组号角标：常规版在默认 `iPhone 17 Pro` / iOS 26.5 构建、安装、启动通过；兼容版在 `MuseumMuse Widget Groups` / iOS 27 构建、安装、启动通过。第 1 组定向刷新成功并停止候选推进，小尺寸桌面成功态确认无组号；现有第 1 组小、中、大、超大和第 2 组中尺寸均生成成功 timeline。相关 Widget/SpringBoard/chronod 日志未命中 `imageTooLarge`、归档失败、`CHSErrorDomain`、`Fatal error` 或 `No AppIntent`。证据在 `build/verification/widget-hide-group-number/`；随后已发布 OTA `1.1.2 (8)`，设备 Release、逐目标验签及 HTTPS 回验通过，发布证据在 `build/verification/ios-ota-1.1.2/`。本次未安装真机，未逐尺寸截图及重测自动调度。
 

@@ -1,10 +1,24 @@
 # MuseumMuse Ad Hoc / OTA
 
-## 当前版本 1.1.2（2026-10-10）
+## 当前版本 1.1.3（2026-10-11）
+
+统一为唯一的 10 组静态小组件，删除常规 AppIntent 配置、按钮刷新与编译切换逻辑。所有构建在 App 中为各组选馆、通过链接手动刷新；同组跨尺寸共享，各组独立。GitHub Actions 只构建并发布一份 `MuseumMuse-unsigned.ipa` 和校验文件。
+
+当前发布：`1.1.3 (9)`，Ad Hoc 已签名，`2644885` bytes，SHA-256 `d27f78b326f7957b672ef9dd23240298da2b9dfdc8b16cb4b8d8f4ad83d27191`。主 App 与 Widget 逐目标独立验签、升级身份检查、版本目录及固定入口 HTTPS HEAD/完整 GET/大小/SHA-256 回验通过，已原子切换 current，保留历史版本。
+
+- [固定安装页](https://192.168.123.79:8768/channels/museummuse/current/install.html)
+- [固定 IPA 下载](https://192.168.123.79:8768/channels/museummuse/current/latest.ipa)
+- manifest 指向不可变 `releases/1.1.3/latest.ipa`。
+
+[构建记录](https://github.com/zh0ngtian/DailyMusuem/actions/runs/38136958110) 的 `Build` 和 `Publish unsigned IPA` 通过，[对应 Release](https://github.com/zh0ngtian/DailyMusuem/releases/tag/build-b2ccbcddc4947bb62f7859e783b4f6a05a84928c) 提供单份未签名 IPA。该发布对应功能提交 `b2ccbcddc4947bb62f7859e783b4f6a05a84928c`；后续纯记录提交不重发 OTA。
+
+72 项 Widget 回归与 11 项签名相关测试通过；默认 iOS 26.5 与补充 iOS 27 模拟器安装、启动、桌面小尺寸成功态通过。iOS 27 实际点击刷新打开 App 并完成对应组刷新，十组设置页保留原选馆，其他组保持独立；四尺寸 timeline 与系统日志检查通过。本轮未安装真机、未逐尺寸截图或重测整点自动刷新。构建/请求/桌面证据在 `build/verification/widget-groups-only/`，签名及发布证据在 `build/verification/ios-ota-1.1.3/`。
+
+## 历史版本 1.1.2（2026-10-10）
 
 移除桌面小组件左上角组号，保留添加小组件和主 App 设置中的组名，以及各组独立选馆/刷新。用户已授权后续 App/Widget 改动完成并通过必要验证后直接发布 OTA，并要求对应提交的 GitHub 构建检查通过，规则维护在 [AGENTS.md](../AGENTS.md)。
 
-当前发布：`1.1.2 (8)`，Ad Hoc 已签名，`2704741` bytes，SHA-256 `6035209e0d7003ad56f25f788e769991c70f912bd246ec64420702cbe3fb4b70`。设备 Release 构建、主 App/Widget 逐目标验签、版本目录与固定入口 HTTPS HEAD/完整 GET/SHA-256 回验通过，已原子切换 current，未覆盖历史版本。
+该次发布：`1.1.2 (8)`，Ad Hoc 已签名，`2704741` bytes，SHA-256 `6035209e0d7003ad56f25f788e769991c70f912bd246ec64420702cbe3fb4b70`。设备 Release 构建、主 App/Widget 逐目标验签、版本目录与固定入口 HTTPS HEAD/完整 GET/SHA-256 回验通过，已原子切换 current，未覆盖历史版本。
 
 - [固定安装页](https://192.168.123.79:8768/channels/museummuse/current/install.html)
 - [固定 IPA 下载](https://192.168.123.79:8768/channels/museummuse/current/latest.ipa)
