@@ -5,7 +5,7 @@
 - 进行任何功能性修改后，必须同步检查 `AGENTS.md` 是否需要修改或补充。
 - 如果本次改动影响了功能范围、交互规则、数据接入、分类映射、Widget 行为、验证方式或已知约束，必须在交付前把对应内容回填到 `AGENTS.md`。
 - 不允许代码已经修改完成，但 `AGENTS.md` 仍停留在旧行为描述。
-- 用户已授权后续每次 App/Widget 改动完成并通过必要验证后，直接发布到现有私有 Ad Hoc OTA，无需再次询问；每次递增版本和 Build，完成逐目标验签与 HTTPS 回验。交付还必须确认对应提交的 GitHub Actions `iOS Build` 常规版与兼容版检查全部通过；详细流程见 [发布与构建检查](docs/ios-adhoc-ota.md#发布与构建检查)。纯文档、流水线或发布工具修改不递增 App 版本、不重新发布 OTA。
+- 用户已授权后续每次 App/Widget 改动完成并通过必要验证后，直接发布到现有私有 Ad Hoc OTA，无需再次询问；每次递增版本和 Build，完成逐目标验签与 HTTPS 回验。交付还必须确认对应提交的 GitHub Actions `iOS Build` 常规版与兼容版检查全部通过，并确认主分支对应 Release 已提供两种未签名 IPA 和 SHA-256 校验文件；详细流程见 [发布与构建检查](docs/ios-adhoc-ota.md#发布与构建检查)。纯文档、流水线或发布工具修改不递增 App 版本、不重新发布 OTA。
 - 第 3、4、6 章的详细合同分别维护在 `docs/data-ingestion-contract.md`、`docs/app-behavior-contract.md` 和 `docs/verification-and-delivery.md`；功能修改时同时检查本文件的摘要/入口与对应合同。保留单一详细解释，不复制成平行规范。
 
 ## 目录

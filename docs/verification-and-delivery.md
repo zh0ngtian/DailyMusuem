@@ -101,7 +101,9 @@
 - 工作流入口：[`.github/workflows/ios-build.yml`](../.github/workflows/ios-build.yml)，名称为 `iOS Build`，在 push、pull request 和手动 `workflow_dispatch` 时执行。使用已提交的 Xcode 工程和共享 scheme，不在 CI 中重新生成工程。
 - 使用 GitHub 的 `xcode-27` arm64 runner，固定选择 Xcode 27.0，以编译项目使用的 iOS 27 Widget API。runner 标签依据 [GitHub 官方说明](https://github.blog/changelog/2026-09-10-xcode-27-runner-image-now-runs-on-macos-27/)，工具链路径依据 [runner 软件清单](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md)；镜像变更导致路径不可用时应显式更新配置。
 - `standard` 与 `compatibility` 两项分别运行 [`scripts/check_ios_build.sh`](../scripts/check_ios_build.sh)：常规版关闭兼容标记，兼容版同时设置 `WIDGET_COMPATIBILITY` 和 `MUSEUM_WIDGET_COMPATIBILITY_BUILD=YES`；两项均编译主 App 与嵌入的 Widget Extension 的设备 Release 产物，并用 `DailyMuseumTests` scheme 编译模拟器 Debug 测试目标（`build-for-testing`，关闭 parallel testing）。
-- 所有构建关闭代码签名，并通过命令行设置 `MUSEUMMUSE_SIMPLE_AUTH_SECRET=ci-build-only-placeholder`；不需要 GitHub Secrets，不读取生产凭证，不导出或发布 IPA。构建检查不运行单元测试，也不替代模拟器/真机安装、Widget 桌面截图、系统日志或 OTA 签名验证。
-- 工作流权限仅为 `contents: read`，同一 ref 的新运行取消旧运行；矩阵一项失败仍允许另一项完成。成功或失败都上传构建日志与 `.xcresult`，保留 7 天，产物名包含构建模式和运行次数。
+- 所有构建关闭代码签名，并通过命令行设置 `MUSEUMMUSE_SIMPLE_AUTH_SECRET=ci-build-only-placeholder`。PR 和非主分支使用占位值；主分支 push/手动构建可从同名 GitHub Actions Secret 注入现有后端鉴权值，未配置时仍使用占位值，并在 Release 说明中标明无法连接正式后端。上传真实 Secret 需用户明确授权；脚本在输出及持久化日志前隐去鉴权值。构建检查不运行单元测试，也不替代模拟器/真机安装、Widget 桌面截图、系统日志或 OTA 签名验证。
+- 构建任务权限为 `contents: read`，Release 发布任务单独授权 `contents: write`；同一 ref 的新运行取消旧运行；矩阵一项失败仍允许另一项完成。成功或失败都上传构建日志与 `.xcresult`，保留 7 天，产物名包含构建模式和运行次数。
+- 每种模式的设备产物按 `Payload/DailyMuseum.app` 封装为 `MuseumMuse-<variant>-unsigned.ipa`，保留嵌入的 Widget，并生成 `.ipa.sha256` 校验文件。所有分支成功构建均上传 IPA Actions artifact，保留 7 天；主分支 push/手动构建在两种模式均成功后，将同一批 IPA 和校验文件发布为 prerelease，标签为 `build-<完整 commit SHA>`。PR 不发布 Release；相同提交重跑复用该 Release，并更新说明和同名资产。
+- 未签名 IPA 安装前需要自行签名；CI 不更改 App 的版本/Build，也不代替已有的私有 OTA 签名发布。Release 标题与标签以提交标识区分工具改动或重复版本构建。
 - 本地复现：`bash scripts/check_ios_build.sh standard` 和 `bash scripts/check_ios_build.sh compatibility`。产物位于忽略目录 `build/ci/<variant>/`；运行前清除该模式的旧结果 bundle，保留其他验证证据。
-- 发布前确认拟发布提交已经推送，且该提交的两个 `Build (...)` 检查全部成功；记录 commit SHA 与 Actions run URL。待执行、失败、取消或只在本地构建通过都不算流水线通过。流水线配置尚未推送时，也不能宣称 GitHub 上已通过。
+- 发布前确认拟发布提交已经推送，且该提交的两个 `Build (...)` 检查及主分支的 `Publish unsigned IPA` 全部成功，并确认 Release 中的两种 IPA 和校验文件齐全；记录 commit SHA、Actions run URL 与 Release URL。待执行、失败、取消或只在本地构建通过都不算流水线通过。流水线配置尚未推送时，也不能宣称 GitHub 上已通过。

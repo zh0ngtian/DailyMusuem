@@ -103,9 +103,9 @@ python3 -m unittest discover -s scripts/tests -p 'test_ios_widget_signing.py'
 ## 发布与构建检查
 
 1. 完成对应变更的本地验证和文档回填；App/Widget 功能改动递增版本与 Build。纯文档、流水线或发布工具修改不递增 App 版本、不重新发布 OTA。
-2. 将拟发布提交推送到 GitHub，确认 `iOS Build` 的 `Build (standard)` 与 `Build (compatibility)` 全部通过，并记录 commit SHA 与 Actions run URL。工作流和本地复现入口见 [GitHub iOS 构建检查](verification-and-delivery.md#64-github-ios-构建检查)。
+2. 将拟发布提交推送到 GitHub，确认 `iOS Build` 的 `Build (standard)` 与 `Build (compatibility)` 及 `Publish unsigned IPA` 全部通过；确认对应 GitHub Release 中常规版与兼容版的未签名 IPA、SHA-256 校验文件齐全，并记录 commit SHA、Actions run URL 和 Release URL。工作流和本地复现入口见 [GitHub iOS 构建检查](verification-and-delivery.md#64-github-ios-构建检查)。
 3. App/Widget 改动按上方命令从同一提交构建设备兼容版，使用现有私有配置逐目标签名和独立验签，然后发布 OTA。完成版本目录与固定入口 HTTPS HEAD、完整 GET、大小与 SHA-256 回验，并记录 `channel/releases/<version>/latest-ios.json` 发布凭证。
-4. 对应提交的两项构建检查与 OTA 回验都成功才算 App/Widget 交付完成。流水线只做无签名编译，实际签名、安装和 Widget 桌面验收继续走现有本地链路。
+4. 对应提交的两项构建检查与 OTA 回验都成功才算 App/Widget 交付完成。流水线构建并发布未签名 IPA，实际签名、安装和 Widget 桌面验收继续走现有本地链路。
 
 ## 本次验证与限制
 
