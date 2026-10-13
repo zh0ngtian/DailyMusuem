@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from .auth import (
@@ -29,10 +31,22 @@ def parse_csv(raw_value: str | None) -> list[str]:
     return [part.strip() for part in raw_value.split(",") if part.strip()]
 
 
-@router.get("/health")
+@router.get("/health", response_model_exclude_none=True)
 async def health() -> HealthDTO:
     readable = database.health()
-    return HealthDTO(ok=readable, databaseReadable=readable, dataVersion=database.data_version())
+    # The coordinator packages a marker alongside the immutable SQLite. Older
+    # deployments have no marker and preserve their existing response shape.
+    marker = None
+    marker_path = database.db_path.with_name("release-marker.json")
+    if marker_path.exists():
+        try:
+            payload = json.loads(marker_path.read_text(encoding="utf-8"))
+            required = {"sourceCommit", "batchId", "dataVersion", "sqliteSha256", "manifestSha256"}
+            if isinstance(payload, dict) and required <= payload.keys() and all(isinstance(payload[key], str) for key in required):
+                marker = {key: payload[key] for key in required}
+        except (OSError, ValueError):
+            pass
+    return HealthDTO(ok=readable, databaseReadable=readable, dataVersion=database.data_version(), releaseMarker=marker)
 
 
 @router.post("/v1/auth/challenge")

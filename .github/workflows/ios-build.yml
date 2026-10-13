@@ -2,15 +2,34 @@ name: iOS Build
 
 on:
   push:
+    branches:
+      - '**'
+    paths:
+      - 'DailyMuseum/**'
+      - 'DailyMuseumWidget/**'
+      - 'Shared/**'
+      - 'DailyMuseumTests/**'
+      - 'DailyMuseum.xcodeproj/**'
+      - 'Config/**'
+      - 'Project.yml'
   pull_request:
+    paths:
+      - 'DailyMuseum/**'
+      - 'DailyMuseumWidget/**'
+      - 'Shared/**'
+      - 'DailyMuseumTests/**'
+      - 'DailyMuseum.xcodeproj/**'
+      - 'Config/**'
+      - 'Project.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.ref == 'refs/heads/main' && 'museummuse-production-build' || format('museummuse-development-build-{0}', github.ref) }}
+  cancel-in-progress: false
+  queue: max
 
 jobs:
   build:
@@ -23,66 +42,21 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-      - name: Build App, Widget and simulator test targets
+          fetch-depth: 0
+          submodules: recursive
+      - name: Verify frozen batch
+        id: batch
+        run: python3 scripts/verify_release_batch.py --sha "$GITHUB_SHA" --allow-development --github-output "$GITHUB_OUTPUT"
+      - name: Build unsigned iOS Release
+        if: steps.batch.outputs.build_required == 'true'
         env:
-          MUSEUMMUSE_SIMPLE_AUTH_SECRET: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && secrets.MUSEUMMUSE_SIMPLE_AUTH_SECRET || '' }}
+          MUSEUMMUSE_SIMPLE_AUTH_SECRET: ci-build-only-placeholder
         run: bash scripts/check_ios_build.sh
-      - name: Upload unsigned IPA
+      - name: Upload failed build logs
+        if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: ios-unsigned-${{ github.run_attempt }}
-          path: |
-            build/ci/*.ipa
-            build/ci/*.sha256
-          if-no-files-found: error
-          retention-days: 7
-      - name: Upload build diagnostics
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: ios-build-${{ github.run_attempt }}
-          path: |
-            build/ci/*.log
-            build/ci/*.xcresult
+          name: ios-build-failure-${{ github.run_attempt }}
+          path: build/ci/*.log
           if-no-files-found: warn
           retention-days: 7
-
-  release:
-    name: Publish unsigned IPA
-    needs: build
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    env:
-      GH_TOKEN: ${{ github.token }}
-      GH_REPO: ${{ github.repository }}
-      BUILD_SHA: ${{ github.sha }}
-      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-      AUTH_CONFIGURED: ${{ secrets.MUSEUMMUSE_SIMPLE_AUTH_SECRET != '' }}
-    steps:
-      - name: Download unsigned packages
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: ios-unsigned-${{ github.run_attempt }}
-          path: packages
-      - name: Verify and publish release
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd packages
-          sha256sum -c MuseumMuse-unsigned.ipa.sha256
-          tag="build-${BUILD_SHA}"
-          printf '未签名 iOS 构建产物，安装前需要自行签名。\n\n仅提供 10 组静态小组件版本，各组在 App 中独立选馆与刷新。\n\nCommit: `%s`\n\n[构建记录](%s)\n' "$BUILD_SHA" "$RUN_URL" > release-notes.md
-          if [[ "$AUTH_CONFIGURED" != true ]]; then
-            printf '\n当前未配置后端鉴权 Secret，IPA 使用 CI 占位鉴权值，无法连接正式后端。\n' >> release-notes.md
-          fi
-          if ! gh release view "$tag" >/dev/null 2>&1; then
-            gh release create "$tag" --target "$BUILD_SHA" --prerelease \
-              --title "MuseumMuse unsigned build ${BUILD_SHA:0:7}" \
-              --notes-file release-notes.md
-          else
-            gh release edit "$tag" --notes-file release-notes.md
-          fi
-          gh release upload "$tag" ./*.ipa ./*.sha256 --clobber

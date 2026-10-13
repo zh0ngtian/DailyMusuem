@@ -6,9 +6,11 @@
 
 ### 6.1 默认验证策略
 
-- iOS 交付要求 [OTA 发布与构建检查](ios-adhoc-ota.md#发布与构建检查)：对应提交的 GitHub Actions `iOS Build` 的 `Build` 与 `Publish unsigned IPA` 全部通过，并完成 OTA 逐目标验签及 HTTPS 回验。纯文档、流水线或发布工具修改执行相应检查，不递增 App 版本、不重新发布 OTA；OTA `--plan` 只表示本地验签，不代表线上发布通过。
+- iOS 交付要求 [OTA 发布与构建检查](ios-adhoc-ota.md#发布与构建检查)：发布批次最终提交的日常 GitHub Actions `iOS Build` 的 `Build` 通过，并确认指向同一提交的 `vX.Y.Z` 标签独立 `iOS Release` 中 `Build` 与 `Publish unsigned IPA` 全部通过，并完成 OTA 逐目标验签及 HTTPS 回验。批次共用版本、Build 与发布凭证，项目补充见第 6.5 节。纯文档、流水线或发布工具修改执行相应检查，不递增 App 版本、不重新发布 OTA；OTA `--plan` 只表示本地验签，不代表线上发布通过。
 
-- 后续每次修复问题或新增功能后，都需要优先使用模拟器 `iPhone 17 Pro` 作为默认构建和运行目标再交付。
+- 后续改动不涉及客户端时，不触发本地 iOS 构建、测试目标编译或 GitHub Actions `iOS Build`，只执行与改动相称的服务端、数据、脚本或文档验证，也不要求该提交提供未签名 IPA Release 或发布 OTA。
+- 客户端范围包括主 App、Widget、Shared、客户端测试、资源和工程 / 编译配置。纯后端、schema、metadata、crawler、部署包、文档、运维或发布工具改动，不因现有 iOS 交付条款而要求客户端构建；同时包含客户端改动时，继续执行对应 iOS 验证与发布流程。
+- 涉及客户端的修复或新增功能，需要优先使用模拟器 `iPhone 17 Pro` 作为默认构建和运行目标再交付。
 - 当前 Codex 沙箱内执行 `xcrun simctl` 或 `xcodebuild` 访问模拟器时，可能出现 `CoreSimulatorService connection became invalid`、`simdiskimaged crashed or is not responding`、`Operation not permitted`、`No available simulator runtimes` 或 `iOS 26.5 Platform Not Installed` 等假性失败；这不一定表示本机缺少 runtime 或项目构建失败。遇到这类错误时，应先用脱离沙箱的 Xcode CLI 路径复核，例如 `xcrun simctl list runtimes` 和对应 `xcodebuild ... build-for-testing`，再判断是否真的是代码或环境问题。
 - 运行 iOS 单元测试时，当前默认关闭 parallel testing：
   - `DailyMuseumTests` scheme 不应使用克隆模拟器并行执行
@@ -100,12 +102,39 @@
 
 ### 6.4 GitHub iOS 构建检查
 
-- 工作流入口：[`.github/workflows/ios-build.yml`](../.github/workflows/ios-build.yml)，名称为 `iOS Build`，在 push、pull request 和手动 `workflow_dispatch` 时执行。使用已提交的 Xcode 工程和共享 scheme，不在 CI 中重新生成工程。
-- 使用 GitHub 的 `xcode-27` arm64 runner，固定选择 Xcode 27.0，以编译项目使用的 iOS 27 Widget API。runner 标签依据 [GitHub 官方说明](https://github.blog/changelog/2026-09-10-xcode-27-runner-image-now-runs-on-macos-27/)，工具链路径依据 [runner 软件清单](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md)；镜像变更导致路径不可用时应显式更新配置。
-- 唯一的 `Build` 任务运行 [`scripts/check_ios_build.sh`](../scripts/check_ios_build.sh)，统一使用 10 组静态 Widget，编译主 App 与嵌入的 Widget Extension 的设备 Release 产物，并用 `DailyMuseumTests` scheme 编译模拟器 Debug 测试目标（`build-for-testing`，关闭 parallel testing）。
-- 所有构建关闭代码签名，并默认通过命令行设置 `MUSEUMMUSE_SIMPLE_AUTH_SECRET=ci-build-only-placeholder`。PR 和非主分支使用占位值；主分支 push/手动构建可从同名 GitHub Actions Secret 注入现有后端鉴权值，未配置时仍使用占位值，并在 Release 说明中标明无法连接正式后端。上传真实 Secret 需用户明确授权；脚本在输出及持久化日志前隐去鉴权值。构建检查不运行单元测试，也不替代模拟器/真机安装、Widget 桌面截图、系统日志或 OTA 签名验证。
-- 构建任务权限为 `contents: read`，Release 发布任务单独授权 `contents: write`；同一 ref 的新运行取消旧运行。成功或失败都上传构建日志与 `.xcresult`，保留 7 天，产物名包含运行次数。
-- 设备产物按 `Payload/DailyMuseum.app` 封装为 `MuseumMuse-unsigned.ipa`，保留嵌入的 Widget，并生成 `.ipa.sha256` 校验文件。所有分支成功构建均上传 IPA Actions artifact，保留 7 天；主分支 push/手动构建在构建成功后，将这份 IPA 和校验文件发布为 prerelease，标签为 `build-<完整 commit SHA>`。PR 不发布 Release；相同提交重跑复用该 Release，并更新说明和同名资产。
-- 未签名 IPA 安装前需要自行签名；CI 不更改 App 的版本/Build，也不代替已有的私有 OTA 签名发布。Release 标题与标签以提交标识区分工具改动或重复版本构建。
-- 本地复现：`bash scripts/check_ios_build.sh`。产物位于忽略目录 `build/ci/`；运行前清除旧结果 bundle，保留其他验证证据。
-- 发布前确认拟发布提交已经推送，且该提交的`Build` 检查及主分支的 `Publish unsigned IPA` 全部成功，并确认 Release 中唯一的 IPA 和校验文件齐全；记录 commit SHA、Actions run URL 与 Release URL。待执行、失败、取消或只在本地构建通过都不算流水线通过。流水线配置尚未推送时，也不能宣称 GitHub 上已通过。
+#### 日常 push / PR：只检查构建
+
+- 工作流入口：[`.github/workflows/ios-build.yml`](../.github/workflows/ios-build.yml)，名称为 `iOS Build`。分支 push / pull request 仅在变更命中 `DailyMuseum/**`、`DailyMuseumWidget/**`、`Shared/**`、`DailyMuseumTests/**`、`DailyMuseum.xcodeproj/**`、`Config/**` 或 `Project.yml` 时自动执行；纯后端、数据、文档、运维、流水线或发布工具改动不自动触发。分支 push 显式使用 `branches: ['**']`，避免标签 push 同时触发日常构建与发布构建。保留 `workflow_dispatch` 供明确要求手动构建时使用，不为非客户端改动主动补触发。
+- 使用已提交的 Xcode 工程和共享 scheme，不在 CI 中重新生成工程；检出代码和递归子模块。继续使用 `xcode-27` arm64 runner，固定 `DEVELOPER_DIR=/Applications/Xcode_27.0.app/Contents/Developer`。runner / 工具链原有依据见 [GitHub runner 说明](https://github.blog/changelog/2026-09-10-xcode-27-runner-image-now-runs-on-macos-27/) 与 [软件清单](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md)；镜像变动时显式更新配置。
+- 唯一的 `Build` 任务运行 [`scripts/check_ios_build.sh`](../scripts/check_ios_build.sh)：检查 Xcode 和 iOS SDK，随后仅调用一次 `xcodebuild ... -scheme DailyMuseum -configuration Release -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build`，编译 App 和嵌入的 10 组静态 Widget。使用占位鉴权值，无需正式后端 Secret、证书或 provisioning profile。
+- **CI 成功只表示编译、链接通过。** 不运行 Swift / Python 回归、模拟器测试目标编译、模拟器启动 / 安装 / 运行，不进行 IPA 打包、版本检查、校验和、元数据或产物上传；成功时不上传诊断。失败时仅上传 `build/ci/*.log`，保留 7 天。日志在输出前隐去鉴权值，`pipefail` 保证构建失败不会被日志管道吞掉。
+- 功能按改动范围在本地验证，继续遵守第 6.1–6.3 节；构建检查不能替代安装、Widget 桌面截图、系统日志或 OTA 签名验证。本次用户报告的模拟器回归耗时为 8 分 16 秒，精简主要省去这一段，依赖下载和 Release 编译仍需时间；新流程总耗时尚未实测。
+- 本地复现：`bash scripts/check_ios_build.sh`，设备构建和日志位于忽略目录 `build/ci/`；不产生 IPA。任务仅有 `contents: read`。主分支使用稳定 `museummuse-production-build` group，开发/PR使用独立的ref group；均 `cancel-in-progress: false`、`queue: max`。冻结批次检查精确引入提交和task ancestry；工具/后端批次跳过客户端编译，且不会仅因manifest变化自动触发此流程。
+
+#### 标签发布：保留 IPA 和 Release 附件
+
+- 独立入口：[`.github/workflows/ios-release.yml`](../.github/workflows/ios-release.yml)，名称为 `iOS Release`，只由 `v*` 标签 push 触发，不受客户端 paths 过滤影响。正式标签格式为 `vX.Y.Z`，须与 App / Widget 的 `CFBundleShortVersionString` 一致；两目标 Build 必须一致且为正整数。
+- `Build` 先复用设备 Release 构建，再运行 [`scripts/package_ios_release.sh`](../scripts/package_ios_release.sh)，检查标签、App / Widget 版本和可执行文件，保留嵌入 Widget，封装 `Payload/DailyMuseum.app`，校验 ZIP 完整性及包内版本，生成唯一的 `MuseumMuse-unsigned.ipa`、`.ipa.sha256` 和 `MuseumMuse-unsigned.json`。元数据记录版本、Build、commit、bundle IDs、10 组标记、大小、SHA-256 和鉴权配置状态。
+- 标签构建可从同名 GitHub Actions Secret 注入 `MUSEUMMUSE_SIMPLE_AUTH_SECRET`，未配置时仍用占位值，并在 Release 说明中标明不能连接正式后端。无需私有签名材料；上传真实 Secret 仍需用户明确授权。构建脚本在输出及持久化日志前隐去鉴权值。
+- 成功后上传发布包 Actions artifact，保留 7 天；`Publish unsigned IPA` 下载并重新核对 SHA-256，使用已存在的版本标签创建或更新 GitHub Release，上传 IPA、校验文件和元数据。日常主分支 push / 手动构建不再创建 `build-<SHA>` prerelease，历史 Release 不删除。发布器将三附件绑定批次/任务/冻结SHA/版本/runId；相同附件真实下载核对后一致则幂等复用，缺失才补上传，不一致即保留原资产并失败，不用 `--clobber` 覆盖。
+- 构建任务权限为 `contents: read`，发布任务单独授权 `contents: write`；concurrency为稳定 `museummuse-production-release` group，`cancel-in-progress: false`、`queue: max`；不同标签在同一客户端发布环境排队，不替换已有pending。发布流程不跑回归；仅失败时上传日志。未签名 IPA 安装前需自行签名，流水线不修改版本 / Build，也不替代私有 OTA 发布。
+- 本地复现打包：先运行构建脚本，再执行 `RELEASE_TAG=vX.Y.Z bash scripts/package_ios_release.sh`；仅打包现有产物，不再次编译。
+- App/Widget 发布交付前确认批次最终提交已推送，日常 `Build` 与指向该提交的版本标签 `Build` / `Publish unsigned IPA` 都成功，标签 Release 的 IPA、校验文件和元数据齐全；记录最终 commit SHA、两个 Actions run URL 与 Release URL，每个任务再核对自身改动已包含并读取该批共享凭证。待执行、失败、取消、本地成功或未推送配置不能宣称 GitHub 已通过。
+
+#### 手动按需回归
+
+- 独立入口：[`.github/workflows/ios-regression.yml`](../.github/workflows/ios-regression.yml)，名称为 `iOS Regression`，仅 `workflow_dispatch`，没有 push / PR / 标签触发。
+- 在 Actions → Run workflow 选择 ref 和模拟器 destination（默认 `platform=iOS Simulator,name=iPhone 17 Pro,OS=latest`，按 runner 可用设备调整）。安装 `server/requirements.txt` 后执行服务端和脚本 Python `unittest`，再以 `DailyMuseumTests` scheme 执行 Swift 模拟器 `xcodebuild test`，关闭 parallel testing。运行时由 Xcode 管理模拟器和测试安装 / 启动，无需私有签名材料。
+- 保留回归日志和 `.xcresult`，无论成功失败上传并保留 7 天；不打包 IPA、不发布 Release。依赖本机私有材料或已安装 skill 的 Python 测试可能跳过，必须查看测试摘要；手动自动化回归不能替代 Widget 桌面截图、真机权限和线上验证。
+
+### 6.5 多任务发布协调
+
+通用合批、互斥、冻结与恢复原则仅维护在 canonical 全局 `AGENTS.md`。本项目已复用现有 ReleaseCoordinator 0.1.3，共享服务配置、适配器、任务登记/验证/ready、共同receipt核对和实际验收集中维护在 [协调器接入](release-coordinator-integration.md)，不在本节复制操作合同。
+
+客户端目标为 `tech.zh0ngtian.MuseumMuse` / production，保持主App+Widget、main、原版本/Build规则、日常 `iOS Build`、标签 `iOS Release`、私有签名和既有OTA。后端目标为 `museummuse-api` / production，保持全量SQLite、Python/腾讯SCF、COS版本化对象和原线上验收；两者分开协调，只有promote阶段写同一main时共用短锁。涉及两侧的任务分别登记子任务和依赖，等待各自必要验收，不借用另一目标的成功结果。
+
+客户端各任务验证记录保存 `baseSha` 与真实证据，冻结提交包含所有任务SHA；功能批次仍执行第6.1–6.3节完整要求，client-local和Widget桌面证据不能用CI代替。正式CI的稳定作用域group关闭抢占并使用 `queue: max`，全历史校验批次引入提交/版本/任务祖先，三附件和私有签名包绑定同一冻结来源。纯文档、纯工具和纯后端批次不编译客户端、不递增App版本、不触发IPA Release或OTA。
+
+SCF新包的marker和真实代码包checksum必须与冻结来源、SQLite/manifest及线上health相符；只读probe通过不能代替新包部署。2026-10-13已通过适配器与恢复替身、现役GitHub/OTA与六馆API只读核验；SCF新增marker包尚未发布，受原云凭证失效与全量输入缺失阻挡。用户登录启动和系统开机启动、多机SSH授权、已实现机制和真实新版本验收需分别报告。详细证据与待办见接入文档。
+
+阶段结果和共同发布凭证保存在现有协调器状态目录，逐任务核对receipt后才交付；failed历史保留，修复流程按canonical全局与接入CLI办理。发布排队语义依据 [GitHub concurrency 文档](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)，CI排队不替代提交合批。
