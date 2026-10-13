@@ -8,7 +8,7 @@
 - 用户已授权后续 App/Widget 改动通过必要验证后，由统一协调入口发布到现有私有 Ad Hoc OTA，无需再次询问；按发布批次统一递增版本和 Build，完成逐目标验签与 HTTPS 回验。交付还必须确认该批最终提交的日常 GitHub Actions `iOS Build` 的 `Build` 通过，并通过指向同一提交的 `vX.Y.Z` 标签独立 `iOS Release` 确认 `Build` 与 `Publish unsigned IPA` 全部通过，标签 Release 提供一份 10 组小组件未签名 IPA、SHA-256 校验文件和元数据；详细流程见 [发布与构建检查](docs/ios-adhoc-ota.md#发布与构建检查)。纯文档、流水线或发布工具修改不递增 App 版本、不重新发布 OTA。
 - 第 3、4、6 章的详细合同分别维护在 `docs/data-ingestion-contract.md`、`docs/app-behavior-contract.md` 和 `docs/verification-and-delivery.md`；功能修改时同时检查本文件的摘要/入口与对应合同。保留单一详细解释，不复制成平行规范。
 - 后续改动不涉及客户端时，不触发客户端构建（包括本地 iOS 构建 / 测试目标编译及 GitHub Actions `iOS Build`），只执行与改动相称的验证。客户端范围包括主 App、Widget、Shared、客户端测试、资源和工程 / 编译配置；纯后端、数据、文档、运维或发布工具改动不要求客户端构建、未签名 IPA Release 或 OTA 发布。详细验证与 CI 触发范围见 [验证与交付](docs/verification-and-delivery.md#61-默认验证策略)。
-- 通用多任务协调、合批窗口、冻结、互斥和恢复原则以当前生效的 canonical 全局 `AGENTS.md` 为准，本项目不复制正文。本项目的客户端 OTA / GitHub Release 与腾讯云 SCF 分属不同发布目标，项目补充、适配器和共享凭证要求统一见 [多任务发布协调](docs/verification-and-delivery.md#65-多任务发布协调)。已复用本机 ReleaseCoordinator 0.1.3 的共享服务，客户端与 SCF 分别登记 `museummuse-ios-production` / `museummuse-scf-production`；适配器入口、配置、登记/ready/共同 receipt 核对及真实验收限制见 [协调器接入](docs/release-coordinator-integration.md)。现有服务为登录启动；SCF 新包部署仍需有效原凭证和全量输入，不能把替身测试当作真实部署完成。
+- 通用多任务协调、合批窗口、冻结、互斥和恢复原则以当前生效的 canonical 全局 `AGENTS.md` 为准，本项目不复制正文。本项目的客户端 OTA / GitHub Release 与腾讯云 SCF 分属不同发布目标，项目补充、适配器和共享凭证要求统一见 [多任务发布协调](docs/verification-and-delivery.md#65-多任务发布协调)。已复用本机 ReleaseCoordinator 0.1.3 的共享服务，客户端与 SCF 分别登记 `museummuse-ios-production` / `museummuse-scf-production`；适配器入口、配置、登记/ready/共同 receipt 核对及真实验收限制见 [协调器接入](docs/release-coordinator-integration.md)。现有服务为登录启动；SCF 部署须使用有效原凭证和已验证完整输入，云端下载ZIP自身checksum及与上传包逐文件来源均需核对；替身测试、只读probe或更新已提交不等于部署完成。
 
 ## 目录
 

@@ -9,10 +9,11 @@ import hashlib
 import io
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import shutil
 import socket
+import stat
 import sqlite3
 import subprocess
 import sys
@@ -34,6 +35,48 @@ def digest(path):
         for block in iter(lambda: stream.read(1024 * 1024), b''):
             h.update(block)
     return h.hexdigest()
+
+
+
+def archive_contents(source):
+    """Identity of every runtime file, independent of ZIP ordering/compression metadata."""
+    entries = []
+    seen = set()
+    try:
+        with zipfile.ZipFile(io.BytesIO(source) if isinstance(source, bytes) else source) as archive:
+            for item in archive.infolist():
+                name = item.filename
+                trimmed = name.rstrip('/')
+                if (not trimmed or name.startswith('/') or '\\' in name
+                        or any(part in ('', '.', '..') for part in trimmed.split('/'))
+                        or trimmed in seen or PurePosixPath(trimmed).is_absolute()):
+                    raise RuntimeError('Unsafe or duplicate deployed code archive entry')
+                seen.add(trimmed)
+                mode = item.external_attr >> 16
+                kind = stat.S_IFMT(mode)
+                if item.is_dir():
+                    if kind not in (0, stat.S_IFDIR):
+                        raise RuntimeError('Non-directory archive entry type')
+                    continue
+                if kind not in (0, stat.S_IFREG):
+                    raise RuntimeError('Symlink or special deployed code archive entry')
+                checksum = hashlib.sha256()
+                count = 0
+                with archive.open(item) as stream:
+                    for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                        count += len(chunk)
+                        checksum.update(chunk)
+                if count != item.file_size:
+                    raise RuntimeError('Code archive entry size differs')
+                entries.append({'path': trimmed, 'bytes': count, 'mode': mode & 0o777,
+                                'sha256': checksum.hexdigest()})
+    except (OSError, zipfile.BadZipFile, RuntimeError) as error:
+        raise RuntimeError('Cannot prove deployed code archive contents: ' + str(error)) from error
+    if not entries:
+        raise RuntimeError('Deployed code archive has no files')
+    entries.sort(key=lambda entry: entry['path'])
+    encoded = json.dumps(entries, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()
+    return {'codeContentsSha256': hashlib.sha256(encoded).hexdigest(), 'codeFileCount': len(entries)}
 
 
 def atomic_json(path, value):
@@ -410,7 +453,7 @@ class SCFAdapter:
             code = stream.read()
         checksum = hashlib.sha256(code).hexdigest()
         advertised = address.get('CodeSha256')
-        if advertised and advertised not in (checksum, base64.b64encode(hashlib.sha256(code).digest()).decode()):
+        if not advertised or advertised not in (checksum, base64.b64encode(hashlib.sha256(code).digest()).decode()):
             raise RuntimeError('SCF code download checksum differs from cloud metadata')
         with zipfile.ZipFile(io.BytesIO(code)) as archive:
             marker = json.loads(archive.read(MARKER_PATH)) if MARKER_PATH in archive.namelist() else {}
@@ -418,7 +461,7 @@ class SCFAdapter:
                 for key, name in [('sqliteSha256', 'data/museummuse.sqlite'), ('manifestSha256', 'data/manifest.json')]:
                     if hashlib.sha256(archive.read(name)).hexdigest() != marker.get(key):
                         raise RuntimeError('SCF packaged input differs from release marker')
-        return dict(remote, marker=marker, zipSha256=checksum)
+        return dict(remote, marker=marker, zipSha256=checksum, **archive_contents(code))
 
     def deploy_check(self):
         package = self.load().get('package')
@@ -428,14 +471,18 @@ class SCFAdapter:
         if remote['marker'].get('sourceCommit') != self.context['frozen']['sha']:
             return self.response(False, {'status': remote.get('status'), 'sourceCommit': remote['marker'].get('sourceCommit')})
         self.validate_marker(remote['marker'])
-        if remote['zipSha256'] != package['sha256']:
-            raise RuntimeError('Cloud function zip differs from exact frozen package')
+        package = self.package_check()['result']
+        contents = archive_contents(Path(package['path']))
+        if (remote.get('codeContentsSha256') != contents['codeContentsSha256']
+                or remote.get('codeFileCount') != contents['codeFileCount']):
+            raise RuntimeError('Cloud function file contents differ from exact frozen package')
         if remote.get('status') != 'Active':
             return self.response(False, {'status': remote.get('status')})
         health = self.health()
         if health.get('releaseMarker') != remote['marker'] or health['dataVersion'] != self.load()['prepare']['dataVersion']:
             return self.response(False, {'status': 'waiting-for-health-marker'})
-        return self.response(True, {'sourceCommit': self.context['frozen']['sha'], 'zipSha256': remote['zipSha256'],
+        return self.response(True, {'sourceCommit': self.context['frozen']['sha'], 'uploadedZipSha256': package['sha256'],
+                                    'deployedZipSha256': remote['zipSha256'], **contents,
                                     'releaseMarker': remote['marker'], 'status': 'Active', 'configurationVerified': True,
                                     'updateRequestId': self.load().get('deployIntent', {}).get('requestId'),
                                     'reconciledRequestId': remote.get('requestId')})

@@ -56,12 +56,13 @@ git push origin HEAD
 
 ```sh
 python3 -B -m unittest discover -s scripts/tests -p 'test_*release*.py'
+python3 -B -m unittest discover -s scripts/tests -p 'test_scf_archive_verification.py'
 # 后端与包输入验证使用配置中现有Python验证环境。
 build/release-coordinator-venv/bin/python -B -m unittest discover -s server -p 'test_*.py'
 git diff --check
 ```
 
-上面测试只证明机制和服务端代码。客户端功能改动仍做原有模拟器/必要真机验收；后端正式输入仍须所有 crawler target 的 `completion=complete`、SQLite完整性、本地 simple-auth API 和对应服务端检查，不用样本或预算 smoke run代替全量。`ready` 是自动发布授权；队列、冻结、恢复请求都不算交付。最终读取 `status --task` 对应成功 batch 的 `data.receipt`（`recovered` 时核对 `recovered_by`），确认自己的任务 SHA/实际改动在 frozen SHA 中、所有必要阶段已验证。共同凭证也保存在状态目录 `receipts/<batchId>.json`；参与任务不分别签名或发包。
+上面测试只证明机制和服务端代码。客户端功能改动仍做原有模拟器/必要真机验收；后端正式输入可从现役SCF下载包按云端checksum恢复原SQLite/manifest，保留恢复证明和原代码包；仍须所有 crawler target 的 `completion=complete`、SQLite完整性、本地 simple-auth API 和对应服务端检查，不用样本或预算 smoke run代替全量。`ready` 是自动发布授权；队列、冻结、恢复请求都不算交付。最终读取 `status --task` 对应成功 batch 的 `data.receipt`（`recovered` 时核对 `recovered_by`），确认自己的任务 SHA/实际改动在 frozen SHA 中、所有必要阶段已验证。共同凭证也保存在状态目录 `receipts/<batchId>.json`；参与任务不分别签名或发包。
 
 失败恢复的具体 CLI 是 `register --project <项目ID> --task <修复ID> --repairs-batch <最新失败叶节点ID>`，再 push 修复SHA并 ready。不要对 failed 调用 resume、编辑冻结工作树或移动标签；正确恢复状态按 canonical 全局规则判断。诊断、旧批次工作树、历史产物和 receipt 保留。
 
@@ -73,12 +74,15 @@ git diff --check
 
 每阶段先读取真实状态再执行缺失动作；progress保存 CI run ID/attempt 或部署RequestId。GitHub SHA/run/三附件元数据与校验和绑定冻结批次，已有附件一致就复用，缺失才补，不同则保留并失败。私有设备构建隔离批次目录，用编译输入、完成日志及真实两目标核对来源；已完工但响应丢失时补凭证，已验签IPA不再签。最终签名包两目标保存 `MuseumReleaseSourceCommit` / `MuseumReleaseBatchID`，发布器独立验签并把包内已核对字段写入 OTA receipt，保留原末端锁和 staged/current HTTPS完整回验。已暂存版本只验收并激活，不重新发包。
 
-后端包内 `data/release-marker.json` 保存冻结SHA、批次、SQLite/manifest校验和与dataVersion，`/health` 可选返回同一 `releaseMarker`，旧部署无文件时原字段不变。check从腾讯云下载实际代码包核对marker与checksum，再确认Active、线上health/dataVersion/marker和原runtime权限合同。COS既有对象不可覆盖且需完整读取核对。未知更新响应只等来源收敛，不重复UpdateFunctionCode。最终 `probe_backend_release.py` 验证原六馆metadata/列表/详情、无签名拒绝和同一headers二次nonce401。
+后端包内 `data/release-marker.json` 保存冻结SHA、批次、SQLite/manifest校验和与dataVersion，`/health` 可选返回同一 `releaseMarker`，旧部署无文件时原字段不变。check从腾讯云下载实际代码包，用GetFunctionAddress的CodeSha256核对下载ZIP自身，再与已验证上传包比较每个文件的路径、内容SHA、大小和权限；不要求两个ZIP容器的压缩字节完全相同。共同凭证分别记录uploadedZipSha256、deployedZipSha256、codeContentsSha256与文件数；marker、数据校验和及Active/health/runtime权限仍须一致，任一文件新增、缺失、改内容或改权限均拒绝。COS既有对象不可覆盖且需完整读取核对。未知更新响应只等来源收敛，不重复UpdateFunctionCode。最终 `probe_backend_release.py` 验证原六馆metadata/列表/详情、无签名拒绝和同一headers二次nonce401。
 
 ## 2026-10-13 实际验收与限制
 
 - 机制验收：90项相关适配器、冻结CI、发布幂等和隔离协调测试通过；包括双scope并发、90/180秒截止、冻结后新任务、实际SIGKILL后的租约接管、响应丢失、单渠道失败、最新失败叶节点修复及同一 recovered receipt。另58项server、7项profile和4项原Widget签名边界测试通过。外部渠道副作用采用可控替身，不能据此宣称真实新版本已发布。
 - 现役客户端真实只读验收：`1.1.3 (9)`，主App/Widget独立验签、版本目录与固定入口HTTPS完整下载/校验和通过。GitHub历史 `build-b2ccbcddc4947bb62f7859e783b4f6a05a84928c` 的IPA/checksum真实核对通过；该历史Release缺metadata，显式记作历史基线，不能当作此次冻结提交的产物。新客户端功能批次仍必须满足三附件/双CI的完整合同。
 - 现役后端真实只读验收：六馆metadata/列表/详情、health、无签名拒绝与同headers nonce401通过，线上 `dataVersion=2026-06-20T12:07:22Z`，没有 `releaseMarker`。新增marker代码尚未部署；不能把旧线上接口成功描述为新适配器部署验收。
-- 待用户处理：现有tccli返回 `AuthFailure.TokenFailure`，原全量 `server/data/museummuse-live-all.sqlite` / manifest在本机原路径缺失；请在系统终端刷新原凭证并定位原发布输入，不在聊天提供密钥。本轮 `museummuse-scf-marker-20261013` 已登记 `blocked`，没有 ready、云打包或更新。SSH监听可达，但账户登录授权未通过；真多机SSH使用未验收。
+- 认证及输入阻挡已解除：用户在系统终端更新原腾讯云凭证；从现役SCF代码包恢复原SQLite/manifest，云端ZIP、132247552字节SQLite的SHA及全部七个正式crawler target completion均通过，本地真实prepare通过。数据版本不变，不重新抓源。SSH监听可达，但非交互账户授权仍未通过；真多机SSH使用未验收。
+- 原SCF批次 `6869ca52-bc4e-402d-8694-667ce36ba6c7` 已冻结并实际更新函数，health已返回来源标记。因严格比较上传/下载ZIP容器hash失败，历史批次保持failed；实际核对两份包的673个文件内容、集合和权限一致。登记 `museummuse-scf-code-zip-repair-20261013 --repairs-batch` 关联修复，只修复该最新失败叶节点，用新版本化COS对象与新的冻结提交完成子批次；最终状态与共同receipt以服务结果为准，不原地恢复或补造成功。
 - 本轮不涉及客户端功能，不递增App版本、不触发客户端构建、标签Release或OTA发包，也不重复安装协调器。服务状态、当前基线验收和测试日志保存在项目 `build/verification/release-coordinator-20261013/`；本次工具批次的最终提交与共同receipt以服务实际结果为准。
+
+2026-10-13 容器来源修复回归：原90项机制回归及新增5项SCF ZIP来源测试通过；正例允许压缩/顺序变化，反例拒绝代码或输入变化、文件增删、执行权限变化、重复/不安全路径和符号链接。原failed批次记录不变，新的关联子批次沿用原数据版本并使用新的不可变COS对象。

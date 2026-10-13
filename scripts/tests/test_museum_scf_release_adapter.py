@@ -142,13 +142,20 @@ class SCFAdapterTests(unittest.TestCase):
 
     def test_lost_deploy_response_reconciles_without_resubmission(self):
         adapter = self.adapter()
-        inputs = self.seed(adapter)
+        sqlite, manifest = b'known-sqlite', b'known-manifest'
+        inputs = {'sqliteSha256': hashlib.sha256(sqlite).hexdigest(), 'manifestSha256': hashlib.sha256(manifest).hexdigest()}
         marker = dict(inputs, sourceCommit='a' * 40, batchId='batch-1', dataVersion='existing')
-        state = adapter.load()
-        state['package'] = {'path': 'unused', 'sha256': 'e' * 64, 'marker': marker}
-        state['deployIntent'] = {'sourceCommit': 'a' * 40, 'objectKey': 'deployments/museummuse/batch-1/api.zip'}
-        adapter.save(state)
-        adapter.remote_deployment = lambda: {'status': 'Active', 'marker': marker, 'zipSha256': 'e' * 64, 'requestId': 'read-request'}
+        package = adapter.directory / 'api.zip'
+        with zipfile.ZipFile(package, 'w') as archive:
+            archive.writestr('data/museummuse.sqlite', sqlite)
+            archive.writestr('data/manifest.json', manifest)
+            archive.writestr('data/release-marker.json', json.dumps(marker))
+        checksum = self.module.digest(package)
+        adapter.save({'prepare': {'mode': 'backend', 'dataVersion': 'existing', 'inputFingerprint': inputs},
+                      'package': {'path': str(package), 'sha256': checksum, 'marker': marker},
+                      'deployIntent': {'sourceCommit': 'a' * 40, 'objectKey': 'deployments/museummuse/batch-1/api.zip'}})
+        adapter.remote_deployment = lambda: {'status': 'Active', 'marker': marker, 'zipSha256': checksum,
+                                            'requestId': 'read-request', **self.module.archive_contents(package)}
         adapter.health = lambda: {'ok': True, 'databaseReadable': True, 'dataVersion': 'existing', 'releaseMarker': marker}
         self.assertTrue(adapter.run('deploy')['done'])
         self.assertFalse(any('UpdateFunctionCode' in c for c in self.calls))
