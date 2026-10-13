@@ -113,6 +113,7 @@ class HealthDTO(BaseModel):
     ok: bool
     databaseReadable: bool
     dataVersion: str
+    releaseMarker: dict[str, str] | None = None
 
 
 class WidgetCandidateDTO(BaseModel):

@@ -2,6 +2,8 @@
 
 `scripts/ios_nightly_installer.py` 是一个 macOS 状态栏程序。它每天本地时间 `00:00` 检查目标 iPhone；只有设备通过局域网连接、已经配对、开启开发者模式且开发者服务可用时，才会编译并安装 `DailyMuseum.app`。安装完成后不会启动 App。
 
+这是开发真机安装链路，不分配正式版本、不推进 main、不发布 GitHub Release 或私有 OTA，也不作为正式发布批次的完成凭证。其 `install.lock` / `menubar.lock` 仅协调本机安装任务；正式发布入口、适配器与真实验收见 [多任务发布协调](verification-and-delivery.md#65-多任务发布协调)。本次规则更新不触发夜间或即时安装。
+
 构建前会检查 Xcode 缓存中主 App 与 Widget 的开发描述文件。若最新可用描述文件将在 `24` 小时内到期，程序会先把对应缓存安全暂存，再通过 `xcodebuild -allowProvisioningUpdates` 强制生成新描述文件。构建失败时会恢复旧缓存，构建成功后会删除暂存副本，避免免费开发者描述文件在每日任务刚执行后随即到期。
 
 ## 前置条件

@@ -5,8 +5,10 @@
 - 进行任何功能性修改后，必须同步检查 `AGENTS.md` 是否需要修改或补充。
 - 如果本次改动影响了功能范围、交互规则、数据接入、分类映射、Widget 行为、验证方式或已知约束，必须在交付前把对应内容回填到 `AGENTS.md`。
 - 不允许代码已经修改完成，但 `AGENTS.md` 仍停留在旧行为描述。
-- 用户已授权后续每次 App/Widget 改动完成并通过必要验证后，直接发布到现有私有 Ad Hoc OTA，无需再次询问；每次递增版本和 Build，完成逐目标验签与 HTTPS 回验。交付还必须确认对应提交的 GitHub Actions `iOS Build` 的 `Build` 与 `Publish unsigned IPA` 全部通过，并确认主分支对应 Release 已提供一份 10 组小组件未签名 IPA 和 SHA-256 校验文件；详细流程见 [发布与构建检查](docs/ios-adhoc-ota.md#发布与构建检查)。纯文档、流水线或发布工具修改不递增 App 版本、不重新发布 OTA。
+- 用户已授权后续 App/Widget 改动通过必要验证后，由统一协调入口发布到现有私有 Ad Hoc OTA，无需再次询问；按发布批次统一递增版本和 Build，完成逐目标验签与 HTTPS 回验。交付还必须确认该批最终提交的日常 GitHub Actions `iOS Build` 的 `Build` 通过，并通过指向同一提交的 `vX.Y.Z` 标签独立 `iOS Release` 确认 `Build` 与 `Publish unsigned IPA` 全部通过，标签 Release 提供一份 10 组小组件未签名 IPA、SHA-256 校验文件和元数据；详细流程见 [发布与构建检查](docs/ios-adhoc-ota.md#发布与构建检查)。纯文档、流水线或发布工具修改不递增 App 版本、不重新发布 OTA。
 - 第 3、4、6 章的详细合同分别维护在 `docs/data-ingestion-contract.md`、`docs/app-behavior-contract.md` 和 `docs/verification-and-delivery.md`；功能修改时同时检查本文件的摘要/入口与对应合同。保留单一详细解释，不复制成平行规范。
+- 后续改动不涉及客户端时，不触发客户端构建（包括本地 iOS 构建 / 测试目标编译及 GitHub Actions `iOS Build`），只执行与改动相称的验证。客户端范围包括主 App、Widget、Shared、客户端测试、资源和工程 / 编译配置；纯后端、数据、文档、运维或发布工具改动不要求客户端构建、未签名 IPA Release 或 OTA 发布。详细验证与 CI 触发范围见 [验证与交付](docs/verification-and-delivery.md#61-默认验证策略)。
+- 通用多任务协调、合批窗口、冻结、互斥和恢复原则以当前生效的 canonical 全局 `AGENTS.md` 为准，本项目不复制正文。本项目的客户端 OTA / GitHub Release 与腾讯云 SCF 分属不同发布目标，项目补充、适配器和共享凭证要求统一见 [多任务发布协调](docs/verification-and-delivery.md#65-多任务发布协调)。已复用本机 ReleaseCoordinator 0.1.3 的共享服务，客户端与 SCF 分别登记 `museummuse-ios-production` / `museummuse-scf-production`；适配器入口、配置、登记/ready/共同 receipt 核对及真实验收限制见 [协调器接入](docs/release-coordinator-integration.md)。现有服务为登录启动；SCF 新包部署仍需有效原凭证和全量输入，不能把替身测试当作真实部署完成。
 
 ## 目录
 
@@ -144,7 +146,7 @@
 - 页面设置统一存入 App Group `feed.preferences.v2`；source 过滤在后端处理。Met 使用 `met_all` / `met_on_view`，奈良使用 `official` / `colbase`。
 - 国博源站请求必须串行并遵守 API 总量预算，不能只靠 QPS；默认列表 `limit=100`、最多 `20` 次，详情 `share_link` 和全量抓取有额外显式开关，必须先读第 3.1.4 节。
 - 真实 crawl 必须显式 `--allow-network` 并选择正数 `--max-details` 或 `--full`；全量完成以所有正式 target 的 `status completion=complete` 为准，样本不算。
-- 服务端/schema/metadata/部署变更先通过本地 SQLite、simple auth Python API、iOS 测试/构建和必要模拟器验证，再更新腾讯云 SCF。
+- 服务端/schema/metadata/部署变更先通过本地 SQLite、simple auth Python API 和对应服务端验证，再更新腾讯云 SCF；只有同时涉及客户端改动时，才追加 iOS 测试/构建和必要模拟器验证。
 - 正式 URL 的客户端配置为 `https://museum-api.zh0ngtian.tech`；本地覆盖用 `MUSEUMMUSE_BACKEND_BASE_URL`，双方使用同一个 `MUSEUMMUSE_SIMPLE_AUTH_SECRET`。真实 secret 只放未提交的 `Config/Secrets.local.xcconfig` 或环境变量。
 - SCF 只读 SQLite 随代码包发布，COS nonce 原子写入保持最小权限；不得覆盖版本化发布对象或删除迁移基线。部署与签名回归入口见 [SCF 运维文档](server/tencent_scf/README.md)。
 - Cloudflare Worker / D1 已退役，`server/worker` 仅作历史参考，禁止直接部署；App Attest 生产校验尚未完成，不能把 simple HMAC 描述成正式 App Attest。
@@ -340,7 +342,7 @@
 
 完整流程见 [验证与交付](docs/verification-and-delivery.md)。修复问题或新增功能交付前必须阅读，Widget 变更必须执行其中第 6.3 节。
 
-- 默认使用本机 `iPhone 17 Pro` 模拟器构建、安装、启动、截图；单元测试关闭 parallel testing，避免 clone simulator 问题。
+- 涉及客户端改动时，默认使用本机 `iPhone 17 Pro` 模拟器构建、安装、启动、截图；单元测试关闭 parallel testing，避免 clone simulator 问题。不涉及客户端时不触发客户端构建。
 - 保留交互现场时用 `xcodebuild build` / `build-for-testing` + `simctl install` + `simctl launch`；确需单测才用 `xcodebuild test`，之后可能需要重新启动模拟器。
 - 沙箱内 CoreSimulator / runtime / destination 异常先按权限流程用沙箱外 Xcode CLI 复核，不直接认定代码失败。
 - AI 快捷指令实际拉起、联网/相册权限等模拟器不能稳定覆盖的场景，再用 `Yao iPhone 17 Pro` 真机补验。
@@ -348,4 +350,5 @@
 - `scripts/pull_simulator_request_logs.sh` 的 `--instance-token` 为共享键，统一为 `compat:<组号>|<scope>`，不能隔离同组的单个实例；具体参数见验证文档。
 - 夜间真机安装修改还需阅读 [夜间安装文档](docs/ios-nightly-installer.md)，保持只构建安装、不主动启动，以及描述文件续签失败时恢复缓存。
 - 纯文档修改检查链接、代码依据和 `git diff --check`；不将未执行的模拟器、真机或线上验证写成已通过。
+- 日常 push / PR CI 只执行一次 `generic/platform=iOS` 无签名 Release 构建；CI 成功只表示编译、链接通过，功能按改动范围在本地验证。Swift / Python 和模拟器回归仅手动按需运行 `iOS Regression`；IPA 打包、版本检查、校验和、元数据及附件上传只在 `vX.Y.Z` 标签的 `iOS Release` 执行，日常构建只在失败时上传日志。
 - Ad Hoc / OTA 接入状态与签名前置检查见 [Ad Hoc 发布文档](docs/ios-adhoc-ota.md)。`scripts/publish_ios_widget_ota.py` 负责 OTA 验签与发布；交付同时要求对应提交的 [GitHub iOS 构建检查](docs/verification-and-delivery.md#64-github-ios-构建检查) 通过。各版本的真机覆盖范围以 OTA 文档的实际记录为准。默认 profile 不授权项目原始身份，不能将私有兼容渠道描述为原始身份的正式 Ad Hoc 导出。不得删除 Widget、移除必要 App Group 或将主 App profile 自动套给扩展以绕过签名缺项。

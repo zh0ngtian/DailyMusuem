@@ -2,7 +2,7 @@
 
 ## 当前版本 1.1.3（2026-10-11）
 
-统一为唯一的 10 组静态小组件，删除常规 AppIntent 配置、按钮刷新与编译切换逻辑。所有构建在 App 中为各组选馆、通过链接手动刷新；同组跨尺寸共享，各组独立。GitHub Actions 只构建并发布一份 `MuseumMuse-unsigned.ipa` 和校验文件。
+统一为唯一的 10 组静态小组件，删除常规 AppIntent 配置、按钮刷新与编译切换逻辑。所有构建在 App 中为各组选馆、通过链接手动刷新；同组跨尺寸共享，各组独立。该版本的 GitHub Actions 构建并发布一份 `MuseumMuse-unsigned.ipa` 和校验文件。
 
 当前发布：`1.1.3 (9)`，Ad Hoc 已签名，`2644885` bytes，SHA-256 `d27f78b326f7957b672ef9dd23240298da2b9dfdc8b16cb4b8d8f4ad83d27191`。主 App 与 Widget 逐目标独立验签、升级身份检查、版本目录及固定入口 HTTPS HEAD/完整 GET/大小/SHA-256 回验通过，已原子切换 current，保留历史版本。
 
@@ -77,6 +77,8 @@
 
 ## 私有状态与重复发布
 
+本节目录、锁与命令是现有执行环节。已复用ReleaseCoordinator共享服务；目标、凭证和适配器统一见 [多任务发布协调](verification-and-delivery.md#65-多任务发布协调)。OTA 发布器已有的 `.museum-release.lock` 是本机末端发布锁，仍作为末端锁，完整阶段由现有服务的作用域租约协调，多机器只用同一发布主机SSH入口。
+
 仓库外状态目录为 `~/Library/Application Support/IOSAdHocOTA/museummuse/`：
 
 - `release.local.json`：显式目标/profile/entitlements 映射、基准 SHA、发布模式及 TLS/渠道路径。
@@ -86,38 +88,30 @@
 
 共享配置 `~/Library/Application Support/IOSAdHocOTA/signing.local.json` 只引用现有 P12/profile/password 文件，私钥、密码、配置和 IPA 不提交仓库。
 
-所有构建统一为 10 组静态 Widget，无需编译条件切换。App 与 Widget 的 `MuseumWidgetCompatibilityBuild=YES` 是保留给既有签名校验器的固定产物标记，私有配置继续设置 `widgetCompatibilityMode: true`；这两个历史字段不再选择另一套实现。每次发布使用新的版本号和递增 Build，禁止覆盖历史版本。
+所有构建统一为 10 组静态 Widget，无需编译条件切换。App 与 Widget 的 `MuseumWidgetCompatibilityBuild=YES` 是保留给既有签名校验器的固定产物标记，私有配置继续设置 `widgetCompatibilityMode: true`；这两个历史字段不再选择另一套实现。每个发布批次统一使用新的版本号和递增 Build，参与任务共用该版本，禁止覆盖历史版本。
+
+各任务按 [协调器接入](release-coordinator-integration.md#登记验证和交付) 登记、本地验证、push固定SHA后ready。正式构建/签名/发布由 `scripts/museum_release_adapter.py` 的对应阶段执行；开发任务不分别运行这些发布步骤。设备构建继续使用原Xcode Release，批次私有目录记录冻结来源；已有完整产物经核对后复用。
+
+`sign_ios_widget_ipa.py` 仍按原身份逐目标签名和独立验签；适配器在签名前为两目标Info写入已冻结 `MuseumReleaseSourceCommit` / `MuseumReleaseBatchID`。`publish_ios_widget_ota.py` 正式发布必须同时传 `--source-commit` 和 `--batch-id`，读取最终签名包的两目标字段核对，验证后写入OTA receipt。参数和额外字段不改变签名身份、profile、共享组或渠道。仅本地预检 `--plan` 可不传来源参数，不代表发布成功。
+
+签名与权限边界的本地回归：
 
 ```sh
-xcodebuild -project DailyMuseum.xcodeproj -scheme DailyMuseum \
-  -configuration Release -destination 'generic/platform=iOS' \
-  -derivedDataPath .deriveddata-ota CODE_SIGNING_ALLOWED=NO build
-
-python3 scripts/sign_ios_widget_ipa.py \
-  --config "$HOME/Library/Application Support/IOSAdHocOTA/museummuse/release.local.json" \
-  --app .deriveddata-ota/Build/Products/Release-iphoneos/DailyMuseum.app \
-  --output /tmp/MuseumMuse-new.ipa
-
-python3 scripts/publish_ios_widget_ota.py \
-  --config "$HOME/Library/Application Support/IOSAdHocOTA/museummuse/release.local.json" \
-  --ipa /tmp/MuseumMuse-new.ipa --notes '本版具体变更' --plan
-
-python3 scripts/publish_ios_widget_ota.py \
-  --config "$HOME/Library/Application Support/IOSAdHocOTA/museummuse/release.local.json" \
-  --ipa /tmp/MuseumMuse-new.ipa --notes '本版具体变更'
-
-python3 -m unittest discover -s scripts/tests -p 'test_ios_adhoc_profiles.py'
-python3 -m unittest discover -s scripts/tests -p 'test_ios_widget_signing.py'
+python3 -B -m unittest discover -s scripts/tests -p 'test_ios_adhoc_profiles.py'
+python3 -B -m unittest discover -s scripts/tests -p 'test_ios_widget_signing.py'
+python3 -B -m unittest discover -s scripts/tests -p 'test_widget_ota_release_source.py'
 ```
 
 签名流程：固定 SHA 的基准快照 → 安全解包和嵌套关系检查 → 临时钥匙串导入现有 P12 → 每目标校验证书/profile/设备/有效期/全部实际权限 → 扩展先签、主 App 后签 → 最终 IPA 独立验签。发布器再次按配置核对全部 target 的实际权限、安装身份、版本、运行 group 和兼容模式，然后暂存、HTTPS HEAD/完整 GET/SHA-256 回验、原子激活、固定入口回验。此 OTA 发布器不接受仅带 `signed=true` 的外部元数据。
 
 ## 发布与构建检查
 
-1. 完成对应变更的本地验证和文档回填；App/Widget 功能改动递增版本与 Build。纯文档、流水线或发布工具修改不递增 App 版本、不重新发布 OTA。
-2. 将拟发布提交推送到 GitHub，确认 `iOS Build` 的 `Build` 与 `Publish unsigned IPA` 全部通过；确认对应 GitHub Release 中唯一的 `MuseumMuse-unsigned.ipa` 和 SHA-256 校验文件齐全，并记录 commit SHA、Actions run URL 和 Release URL。工作流和本地复现入口见 [GitHub iOS 构建检查](verification-and-delivery.md#64-github-ios-构建检查)。
-3. App/Widget 改动按上方命令从同一提交构建设备版本，使用现有私有配置逐目标签名和独立验签，然后发布 OTA。完成版本目录与固定入口 HTTPS HEAD、完整 GET、大小与 SHA-256 回验，并记录 `channel/releases/<version>/latest-ios.json` 发布凭证。
-4. 对应提交的构建检查、Release 上传与 OTA 回验都成功才算 App/Widget 交付完成。流水线构建并发布未签名 IPA，实际签名、安装和 Widget 桌面验收继续走现有本地链路。
+1. 各任务完成对应变更的本地验证和文档回填，登记确定的提交 SHA 与结果；由统一协调入口按 canonical 全局合批规则整合，按影响完成必要检查，统一递增版本与 Build 并冻结批次。项目协调要求与未落地部分见 [多任务发布协调](verification-and-delivery.md#65-多任务发布协调)。不涉及客户端的改动不触发客户端构建、不要求未签名 IPA Release、不递增 App 版本、不重新发布 OTA，只执行对应验证；客户端范围见 [默认验证策略](verification-and-delivery.md#61-默认验证策略)。
+2. 协调入口将批次最终提交推进 main 并推送 GitHub，确认该提交日常 `iOS Build` 的 `Build` 通过；推送指向同一 SHA 且匹配 App / Widget 版本的 `vX.Y.Z` 标签，统一触发一轮独立 `iOS Release` 的 `Build` 与 `Publish unsigned IPA`。确认两任务通过，标签 GitHub Release 中唯一的 `MuseumMuse-unsigned.ipa`、SHA-256 校验文件和元数据齐全，核对标签、run 的提交与产物 metadata commit 一致，在共享凭证记录最终 SHA、两个 Actions run URL 和 Release URL。日常 CI 成功只表示编译、链接通过，功能按改动范围在本地验证；主分支 push 不再自动生成 Release。工作流和本地复现入口见 [GitHub iOS 构建检查](verification-and-delivery.md#64-github-ios-构建检查)。
+3. 协调入口按现有构建入口从该冻结提交统一构建设备版本，使用现有私有配置逐目标签名和独立验签，然后发布 OTA；登记本地构建来源与产物校验和，不复用其他 SHA 的成功构建。完成版本目录与固定入口 HTTPS HEAD、完整 GET、大小与 SHA-256 回验，把 `channel/releases/<version>/latest-ios.json`、验签和回验记录关联到同一批次共享凭证。新OTA JSON记录已从最终两目标验证的sourceCommit/batchId，并在共同receipt关联CI；历史JSON缺这些字段时明确作为历史基线，不补造来源。
+4. 批次最终提交的构建检查、Release 上传与 OTA 回验，以及改动范围所需本地 / Widget 验收都成功后，每个任务核对自己的改动包含于最终提交，并读取同一发布凭证，才算 App/Widget 交付完成。标签发布流水线构建并发布未签名 IPA，实际签名、安装和 Widget 桌面验收继续走现有本地链路；进入队列或加入批次不算交付。
+
+冻结后到达的任务和失败恢复遵守 canonical 全局规则；不得追加到在建批次、抢占发布或重复签名发包。现有 OTA 版本目录仍不可覆盖；GitHub Release附件先真实下载核对，一致幂等、缺失补传，不一致保留并失败。历史版本、产物、凭证与实际验收范围继续保留。
 
 ## 首次兼容修复的验证与限制
 
