@@ -11,7 +11,7 @@ MuseumMuse 的正式后端运行在腾讯云广州地域的 HTTP 类型 SCF：
 
 ## Build
 
-多任务部署沿用 canonical 全局合批规则；本服务正式环境是独立发布目标，项目补充及适配器入口见 [多任务发布协调](../../docs/verification-and-delivery.md#65-多任务发布协调)。由该服务的统一协调入口冻结最终提交与 SQLite / manifest 校验和后统一打包、上传、更新和验收；各任务只登记确定的 SHA 与本地验证。已登记 `museummuse-scf-production` 并使用 `scripts/museum_scf_release_adapter.py`，配置、阶段与验收见 [协调器接入](../../docs/release-coordinator-integration.md)。本轮新包仍受现有云凭证失效和原全量输入缺失阻挡，尚未部署；现役接口只读验收不能替代新包验收。纯后端批次不递增 App 版本、不触发 iOS 构建或 OTA。
+多任务部署沿用 canonical 全局合批规则；本服务正式环境是独立发布目标，项目补充及适配器入口见 [多任务发布协调](../../docs/verification-and-delivery.md#65-多任务发布协调)。由该服务的统一协调入口冻结最终提交与 SQLite / manifest 校验和后统一打包、上传、更新和验收；各任务只登记确定的 SHA 与本地验证。已登记 `museummuse-scf-production` 并使用 `scripts/museum_scf_release_adapter.py`，配置、阶段与验收见 [协调器接入](../../docs/release-coordinator-integration.md)。原凭证和全量输入已恢复并验证，新包通过协调批次执行；真实部署结果和失败关联修复记录见接入文档，不能把只读probe或已提交更新当作最终验收。纯后端批次不递增 App 版本、不触发 iOS 构建或 OTA。
 
 先对待发布 SQLite 执行完整性、crawler status 和本地 API 测试，再构建代码包：
 
@@ -36,7 +36,7 @@ SCF 必须保留以下配置：
 
 函数通过运行角色临时凭证向 `auth-nonces/` 原子写入 nonce marker。角色仅允许该 prefix 的 `cos:PutObject`，不要扩大为整个 COS bucket 的读写权限。
 
-SQLite 随代码包部署且运行时只读。更新数据时必须构建新 zip、上传到 COS 的新版本化 `deployments/` key，再通过 SCF `UpdateFunctionCode` 发布。不要覆盖既有部署对象。适配器在包内添加 `data/release-marker.json`，记录冻结SHA/批次/SQLite与manifest校验和/dataVersion；`/health` 有该文件时可选返回 `releaseMarker`，没有时保持旧字段。部署check通过GetFunctionAddress下载实际代码包，核对marker、完整ZIP校验和、Active状态和线上health来源，不能只信UpdateFunctionCode已提交。
+SQLite 随代码包部署且运行时只读。更新数据时必须构建新 zip、上传到 COS 的新版本化 `deployments/` key，再通过 SCF `UpdateFunctionCode` 发布。不要覆盖既有部署对象。适配器在包内添加 `data/release-marker.json`，记录冻结SHA/批次/SQLite与manifest校验和/dataVersion；`/health` 有该文件时可选返回 `releaseMarker`，没有时保持旧字段。部署check通过GetFunctionAddress下载实际代码包，核对云端自身ZIP校验和、与冻结上传包逐文件内容/集合/权限完全相同、marker、Active状态和线上health来源，不能只信UpdateFunctionCode已提交。
 
 ## Verification
 

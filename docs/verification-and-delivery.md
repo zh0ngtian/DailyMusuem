@@ -135,6 +135,6 @@
 
 客户端各任务验证记录保存 `baseSha` 与真实证据，冻结提交包含所有任务SHA；功能批次仍执行第6.1–6.3节完整要求，client-local和Widget桌面证据不能用CI代替。正式CI的稳定作用域group关闭抢占并使用 `queue: max`，全历史校验批次引入提交/版本/任务祖先，三附件和私有签名包绑定同一冻结来源。纯文档、纯工具和纯后端批次不编译客户端、不递增App版本、不触发IPA Release或OTA。
 
-SCF新包的marker和真实代码包checksum必须与冻结来源、SQLite/manifest及线上health相符；只读probe通过不能代替新包部署。2026-10-13已通过适配器与恢复替身、现役GitHub/OTA与六馆API只读核验；SCF新增marker包尚未发布，受原云凭证失效与全量输入缺失阻挡。用户登录启动和系统开机启动、多机SSH授权、已实现机制和真实新版本验收需分别报告。详细证据与待办见接入文档。
+SCF新包的marker和真实代码包checksum必须与冻结来源、SQLite/manifest及线上health相符；只读probe通过不能代替新包部署。2026-10-13已通过适配器与恢复替身、现役GitHub/OTA与六馆API只读核验；原云凭证与全量输入已恢复；SCF批次与关联修复的实际状态及共同receipt见接入文档，不把已生效但验收failed的批次标为成功。用户登录启动和系统开机启动、多机SSH授权、已实现机制和真实新版本验收需分别报告。详细证据与待办见接入文档。
 
 阶段结果和共同发布凭证保存在现有协调器状态目录，逐任务核对receipt后才交付；failed历史保留，修复流程按canonical全局与接入CLI办理。发布排队语义依据 [GitHub concurrency 文档](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)，CI排队不替代提交合批。
