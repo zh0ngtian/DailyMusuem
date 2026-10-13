@@ -11,7 +11,7 @@ MuseumMuse 的正式后端运行在腾讯云广州地域的 HTTP 类型 SCF：
 
 ## Build
 
-多任务部署沿用 canonical 全局合批规则；本服务正式环境是独立发布目标，项目补充及适配器入口见 [多任务发布协调](../../docs/verification-and-delivery.md#65-多任务发布协调)。由该服务的统一协调入口冻结最终提交与 SQLite / manifest 校验和后统一打包、上传、更新和验收；各任务只登记确定的 SHA 与本地验证。已登记 `museummuse-scf-production` 并使用 `scripts/museum_scf_release_adapter.py`，配置、阶段与验收见 [协调器接入](../../docs/release-coordinator-integration.md)。原凭证和全量输入已恢复并验证，新包通过协调批次执行；真实部署结果和失败关联修复记录见接入文档，不能把只读probe或已提交更新当作最终验收。纯后端批次不递增 App 版本、不触发 iOS 构建或 OTA。
+多任务部署沿用 canonical 全局合批规则；本服务正式环境是独立发布目标，项目补充及适配器入口见 [多任务发布协调](../../docs/verification-and-delivery.md#65-多任务发布协调)。由该服务的统一协调入口冻结最终提交与 SQLite / manifest 校验和后统一打包、上传、更新和验收；各任务只登记确定的 SHA 与本地验证。已登记 `museummuse-scf-production` 并使用 `scripts/museum_scf_release_adapter.py`，配置、阶段与验收见 [协调器接入](../../docs/release-coordinator-integration.md)。原凭证和全量输入已恢复并验证，新包已由成功关联修复批次完成真实部署与验收；冻结来源、RequestId、原failed记录与共同receipt见接入文档，不能把只读probe或已提交更新当作最终验收。纯后端批次不递增 App 版本、不触发 iOS 构建或 OTA。
 
 先对待发布 SQLite 执行完整性、crawler status 和本地 API 测试，再构建代码包：
 
