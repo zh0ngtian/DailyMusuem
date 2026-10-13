@@ -83,6 +83,9 @@ def probe_release(base_url, secret, expected_marker=None, data_version=None, req
         if detail.get('objectID') != rows[0]['objectID'] or detail.get('museumID') != museum['museumID']:
             raise RuntimeError('Museum detail reference differs: ' + mid)
         checked.append(museum['museumID'])
+    candidate = get('/v1/widget/candidate?scope=all')['data'].get('artwork')
+    if not isinstance(candidate, dict) or candidate.get('museumID') not in FORMAL_MUSEUMS or not candidate.get('objectID'):
+        raise RuntimeError('Widget candidate required channel failed')
     url = base + '/v1/museums/metadata'
     headers = signed_headers('GET', url, secret)
     first, _ = request(url, headers)
@@ -91,7 +94,7 @@ def probe_release(base_url, secret, expected_marker=None, data_version=None, req
         raise RuntimeError('Nonce replay required channel failed')
     return {'passed': True, 'baseURL': base, 'dataVersion': health['dataVersion'],
             'releaseMarker': health.get('releaseMarker', {}), 'museumsVerified': sorted(checked),
-            'checks': ['health', 'unsigned-rejection', 'metadata-six-museums', 'museum-list', 'six-museum-list-detail', 'nonce-replay-401'],
+            'checks': ['health', 'unsigned-rejection', 'metadata-six-museums', 'museum-list', 'six-museum-list-detail', 'widget-candidate', 'nonce-replay-401'],
             'nonceReplayStatus': second}
 
 

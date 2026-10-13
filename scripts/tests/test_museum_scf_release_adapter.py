@@ -304,6 +304,8 @@ class SCFAdapterTests(unittest.TestCase):
                 return 200, {'data': {'museums': [{'museumID': m, 'defaultSourceKey': 'source'} for m in probe.FORMAL_MUSEUMS]}}
             if url.endswith('/v1/museums'):
                 return 200, {'data': [{'museumID': m} for m in probe.FORMAL_MUSEUMS]}
+            if '/v1/widget/candidate?' in url:
+                return 200, {'data': {'artwork': {'museumID': 'nmc', 'objectID': 'candidate'}}}
             museum = url.split('/museums/')[1].split('/')[0]
             item = {'museumID': museum, 'objectID': 'object'}
             if 'limit=1' in url:
@@ -311,6 +313,7 @@ class SCFAdapterTests(unittest.TestCase):
             return 200, {'data': item}
         result = probe.probe_release('https://backend.example', 'test-only', data_version='existing', request=request)
         self.assertTrue(result['passed'])
+        self.assertIn('widget-candidate', result['checks'])
         self.assertIs(replay_headers[-1], replay_headers[-2])
 
     def test_changed_frozen_workspace_is_rejected(self):
