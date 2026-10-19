@@ -5,6 +5,7 @@
 - 进行任何功能性修改后，必须同步检查 `AGENTS.md` 是否需要修改或补充。
 - 如果本次改动影响了功能范围、交互规则、数据接入、分类映射、Widget 行为、验证方式或已知约束，必须在交付前把对应内容回填到 `AGENTS.md`。
 - 不允许代码已经修改完成，但 `AGENTS.md` 仍停留在旧行为描述。
+- 后续向软件源发布更新时，更新日志必须使用中文，清楚说明该版本实际交付的更新内容，并保存到 `Config/ReleaseNotes/<版本>.md` 供 OTA 和 GitHub Release 共用；具体要求见 [软件源更新日志](docs/ios-adhoc-ota.md#软件源更新日志)。
 - 用户已授权后续 App/Widget 改动通过必要验证后，由统一协调入口发布到现有私有 Ad Hoc OTA，无需再次询问；按发布批次统一递增版本和 Build，完成逐目标验签与 HTTPS 回验。交付还必须确认该批最终提交的日常 GitHub Actions `iOS Build` 的 `Build` 通过，并通过指向同一提交的 `vX.Y.Z` 标签独立 `iOS Release` 确认 `Build` 与 `Publish unsigned IPA` 全部通过，标签 Release 提供一份 10 组小组件未签名 IPA、SHA-256 校验文件和元数据；详细流程见 [发布与构建检查](docs/ios-adhoc-ota.md#发布与构建检查)。纯文档、流水线或发布工具修改不递增 App 版本、不重新发布 OTA。
 - 第 3、4、6 章的详细合同分别维护在 `docs/data-ingestion-contract.md`、`docs/app-behavior-contract.md` 和 `docs/verification-and-delivery.md`；功能修改时同时检查本文件的摘要/入口与对应合同。保留单一详细解释，不复制成平行规范。
 - 后续改动不涉及客户端时，不触发客户端构建（包括本地 iOS 构建 / 测试目标编译及 GitHub Actions `iOS Build`），只执行与改动相称的验证。客户端范围包括主 App、Widget、Shared、客户端测试、资源和工程 / 编译配置；纯后端、数据、文档、运维或发布工具改动不要求客户端构建、未签名 IPA Release 或 OTA 发布。详细验证与 CI 触发范围见 [验证与交付](docs/verification-and-delivery.md#61-默认验证策略)。

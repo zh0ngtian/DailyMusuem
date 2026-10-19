@@ -86,15 +86,17 @@ def validate_package(packages, tag, batch, run_id):
     return metadata
 
 
-def publish_release(packages, tag, batch, run_url, run_id, github):
+def publish_release(packages, tag, batch, run_url, run_id, github, release_notes):
     packages = Path(packages)
     metadata = validate_package(packages, tag, batch, run_id)
+    if not re.search(r'[\u4e00-\u9fff]', release_notes):
+        raise ValueError('Release notes must describe the delivered changes in Chinese')
     sha = batch['frozenSHA']
     if github.resolve_tag(tag) != sha:
         raise ValueError('Remote tag does not resolve to the frozen commit')
     existing = github.release_assets(tag)
     if existing is None:
-        notes = (f'未签名 iOS Release 产物，安装前需要自行签名。\n\n'
+        notes = (release_notes.strip() + '\n\n' + f'未签名 iOS Release 产物，安装前需要自行签名。\n\n'
                  f'仅提供 10 组静态小组件版本，各组在 App 中独立选馆与刷新。\n\n'
                  f'Batch: `{batch["batchId"]}`\n\nCommit: `{sha}`\n\n[构建记录]({run_url})\n')
         if not metadata['authConfigured']:
@@ -140,7 +142,8 @@ def main():
         if not args.repo or not args.tag or not args.run_id:
             raise ValueError('Repository, release tag, and GitHub run ID are required')
         batch = verify_batch(Path.cwd(), args.sha, require_client=True, release_tag=args.tag)
-        result = publish_release(args.packages, args.tag, batch, args.run_url, args.run_id, Github(args.repo))
+        release_notes = (Path(__file__).resolve().parents[1] / 'Config/ReleaseNotes' / (batch['prepared']['version'] + '.md')).read_text()
+        result = publish_release(args.packages, args.tag, batch, args.run_url, args.run_id, Github(args.repo), release_notes)
         print(json.dumps(result, sort_keys=True))
     except (ValueError, OSError, KeyError, TypeError) as error:
         print(f'Immutable GitHub Release publication failed: {error}', file=sys.stderr)

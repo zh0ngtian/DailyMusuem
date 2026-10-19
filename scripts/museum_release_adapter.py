@@ -115,6 +115,12 @@ class Adapter:
     def ota_config(self):
         return json.loads(Path(self.options['ota_config']).read_text())
 
+    def release_notes(self, version):
+        notes = (self.workspace / 'Config/ReleaseNotes' / (version + '.md')).read_text().strip()
+        if not re.search(r'[\u4e00-\u9fff]', notes):
+            raise ValueError('Release notes must describe the delivered changes in Chinese')
+        return notes
+
     def changed_paths(self):
         changed = set()
         for task in self.context['tasks']:
@@ -193,6 +199,7 @@ class Adapter:
         mode = 'client' if any(p.startswith(CLIENT_PATHS) or p in CLIENT_FILES for p in paths) else 'tooling'
         reserved = self.reserve(mode)
         if mode == 'client':
+            self.release_notes(reserved['version'])
             for name in ('Project.yml', 'DailyMuseum.xcodeproj/project.pbxproj'):
                 path = self.workspace / name
                 text = path.read_text()
@@ -510,7 +517,7 @@ class Adapter:
             raise ValueError('Signed artifact is not verified')
         config, _ = self.batch_signing_config()
         self.command([sys.executable, str(self.workspace / 'scripts/publish_ios_widget_ota.py'), '--config', str(config),
-                      '--ipa', str(self.root / 'MuseumMuse-signed.ipa'), '--notes', '发布批次 ' + self.context['id'],
+                      '--ipa', str(self.root / 'MuseumMuse-signed.ipa'), '--notes', self.release_notes(self.context['frozen']['version']),
                       '--source-commit', self.context['frozen']['sha'], '--batch-id', self.context['id']])
         return self.check_ota()
 
