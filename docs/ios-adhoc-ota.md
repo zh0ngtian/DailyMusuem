@@ -1,6 +1,20 @@
 # MuseumMuse Ad Hoc / OTA
 
-## 当前版本 1.1.3（2026-10-11）
+## 当前版本 1.1.4（2026-10-20）
+
+按用户要求基于当前代码重新打包为 `1.1.4 (10)`；保留现有六馆主 App 和 10 组静态小组件，本次没有新增客户端功能。中文更新说明保存在 `Config/ReleaseNotes/1.1.4.md`，OTA 与 GitHub Release 共用。
+
+冻结来源为 `c4ad5b388bed05d0fc4dedae76b3e159ca35751f`，发布批次为 `1aa7d660-64a6-43e3-8189-be1e49a13641`。[日常 iOS Build](https://github.com/zh0ngtian/DailyMusuem/actions/runs/39280976507) 的 `Build`、[标签 iOS Release](https://github.com/zh0ngtian/DailyMusuem/actions/runs/39284302632) 的 `Build` 和 `Publish unsigned IPA` 全部通过。[v1.1.4 Release](https://github.com/zh0ngtian/DailyMusuem/releases/tag/v1.1.4) 提供未签名 IPA、SHA-256 校验文件和元数据。三个附件已真实下载核对，包内 App / Widget 均为 `1.1.4 (10)`，来源、批次及校验和一致，鉴权已配置。未签名 IPA 为 `2603064` bytes，SHA-256 `3c49d9de3e1c76e65968f18e0014ccb244aa5e9301a0103a02ee3df8c81810f3`。
+
+当前 OTA 已原子切换为 `1.1.4 (10)`。Ad Hoc 已签名 IPA 为 `2645304` bytes，SHA-256 `7d004791939699f14f4c9a53092af848f7100d5ebec885c2a7ae5e43dcc7af42`。主 App / Widget 逐目标独立验签、升级身份、包内冻结来源与批次，以及版本目录和固定入口 HTTPS HEAD / 完整 GET / SHA-256 回验全部通过，旧版本保留。已核对安装页与 GitHub Release 均使用本版本中文更新说明。
+
+- [固定安装页](https://192.168.123.79:8768/channels/museummuse/current/install.html)
+- [固定 IPA 下载](https://192.168.123.79:8768/channels/museummuse/current/latest.ipa)
+- manifest 指向不可变 `releases/1.1.4/latest.ipa`。
+
+本地 93 项发布机制测试、7 项 profile 测试和 4 项 Widget 签名边界测试通过。默认 `iPhone 17 Pro` / iOS 27 完成构建、安装、启动与首页截图；冻结版本的 App / Widget 版本号也已核对，冻结发布清单验证通过。本次未做真机覆盖安装、小组件桌面或整点自动刷新回归；客户端功能代码与上一版一致。证据保存在 `build/verification/release-1.1.4/`，其中 `receipt.json` 是已核对的共同发布凭证副本；原凭证为现有协调器状态目录的 `receipts/1aa7d660-64a6-43e3-8189-be1e49a13641.json`。本轮文档记录单独收尾，不重建或重发客户端。
+
+## 历史版本 1.1.3（2026-10-11）
 
 统一为唯一的 10 组静态小组件，删除常规 AppIntent 配置、按钮刷新与编译切换逻辑。所有构建在 App 中为各组选馆、通过链接手动刷新；同组跨尺寸共享，各组独立。该版本的 GitHub Actions 构建并发布一份 `MuseumMuse-unsigned.ipa` 和校验文件。
 
