@@ -34,6 +34,9 @@ class MuseumClientAdapterTests(unittest.TestCase):
         self.directory = self.root / 'museum-releases' / 'batch-test'
         self.directory.mkdir(parents=True)
         self.version_files('1.1.3', 9)
+        notes = self.workspace / 'Config/ReleaseNotes/1.1.4.md'
+        notes.parent.mkdir(parents=True)
+        notes.write_text('本版本修复小组件刷新问题\n')
         manifest = self.workspace / '.release-batch.json'
         manifest.write_text('{"batchId":"batch-test"}\n')
         self.config = {'skillDir': str(self.root / 'fake-skill'), 'localRoot': str(self.root / 'ota'), 'baseURL': 'https://unused.example.invalid',
@@ -419,6 +422,23 @@ class MuseumClientAdapterTests(unittest.TestCase):
         self.assertTrue(response['done'])
         self.assertEqual(response['result']['sourceCommit'], SHA)
         self.assertFalse(any('publish_ios_widget_ota.py' in ' '.join(call) for call in self.command_calls))
+
+    def test_ota_publisher_receives_versioned_chinese_release_notes(self):
+        self.live = None
+        adapter = self.adapter()
+        with patch.object(adapter, 'check_sign', return_value={'done': True}), \
+             patch.object(adapter, 'check_ota', return_value={'done': True}), \
+             patch.object(adapter, 'command', return_value='') as publish:
+            adapter.run_ota()
+        args = publish.call_args.args[0]
+        self.assertTrue(any('publish_ios_widget_ota.py' in arg for arg in args))
+        self.assertEqual(args[args.index('--notes') + 1], '本版本修复小组件刷新问题')
+
+    def test_missing_release_notes_stops_prepare_before_version_changes(self):
+        (self.workspace / 'Config/ReleaseNotes/1.1.4.md').unlink()
+        with self.assertRaises(FileNotFoundError):
+            self.adapter().prepare()
+        self.assertIn('MARKETING_VERSION: 1.1.3', (self.workspace / 'Project.yml').read_text())
 
     def test_live_ota_same_bytes_with_foreign_current_batch_is_not_activated(self):
         receipt = {'batchId': 'batch-test', 'sourceCommit': SHA, 'version': '1.1.4',

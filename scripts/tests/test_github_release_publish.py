@@ -20,6 +20,7 @@ class FakeGithub:
         return None if self.assets is None else list(self.assets)
     def create(self, tag, sha, notes):
         self.created = True
+        self.notes = notes
         self.assets = {}
     def download(self, tag, names, destination):
         self.download_dirs.append(destination)
@@ -55,13 +56,22 @@ class GithubReleaseTests(unittest.TestCase):
         self.assets = {p.name: p.read_bytes() for p in self.packages.iterdir()}
 
     def publish(self, github):
-        return self.module.publish_release(self.packages, 'v1.2.0', self.batch, 'https://example.com/run/123', '123', github)
+        return self.module.publish_release(self.packages, 'v1.2.0', self.batch, 'https://example.com/run/123', '123', github,
+                                           '本版本修复小组件刷新问题')
 
     def test_creates_and_uploads_one_package_set(self):
         github = FakeGithub(self.sha)
         self.publish(github)
         self.assertTrue(github.created)
+        self.assertIn('本版本修复小组件刷新问题', github.notes)
         self.assertCountEqual(github.uploaded, self.assets)
+
+    def test_missing_chinese_notes_prevents_external_publication(self):
+        github = FakeGithub(self.sha)
+        with self.assertRaisesRegex(ValueError, 'Chinese'):
+            self.module.publish_release(self.packages, 'v1.2.0', self.batch, 'https://example.com/run/123', '123', github, '')
+        self.assertFalse(github.created)
+        self.assertEqual(github.uploaded, [])
 
     def test_existing_identical_assets_are_idempotent_and_downloaded_fresh(self):
         github = FakeGithub(self.sha, dict(self.assets))
