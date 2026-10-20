@@ -2,6 +2,8 @@
 
 操作合同已读取 [release-coordinator README](https://github.com/zh0ngtian/release-coordinator/blob/main/README.md) 和 [USAGE](https://github.com/zh0ngtian/release-coordinator/blob/main/USAGE.md)。通用合批与恢复原则维护在使用者的 canonical 全局 `AGENTS.md`；本文只描述本项目配置、适配器和验收。
 
+本接入仅用于用户明确要求的发布。默认代码交付按 [默认验证策略](verification-and-delivery.md#61-默认验证策略) 验证、合入 `main`，按主分支是否推进决定合入后回归，再提交和推送；不登记发布任务、不提交 `ready`，不要求发布 receipt。以下 CLI 与适配器合同均以已有明确发布请求为前提。
+
 ## 本机部署与启动
 
 2026-10-13 已复用本机现有 `releasectl` 0.1.3：`~/.local/bin/releasectl`，状态目录 `~/Library/Application Support/ReleaseCoordinator/`，同一个 `service.sock` 与 SQLite 注册表。未安装第二份服务或数据库。`installation.json` 的 `startup=login`，`launchctl print gui/501/local.release-coordinator` 确认现有 LaunchAgent 正在运行，带 `RunAtLoad` / `KeepAlive`；health 返回同一运行进程。
@@ -34,7 +36,7 @@ launchctl print "gui/$(id -u)/local.release-coordinator"
 
 ## 登记、验证和交付
 
-在发布主机执行，任务 ID 必须明确区分客户端/后端子任务：
+仅在用户明确要求发布后，在发布主机执行；任务 ID 必须明确区分客户端/后端子任务：
 
 ```sh
 release_cli="$HOME/.local/bin/releasectl"
@@ -70,7 +72,7 @@ git diff --check
 
 `prepare` 在批次私有目录以原子保留文件登记一次版本/数据输入，进程中断重试沿用同一保留。客户端功能批次统一递增 patch 和 Build，同步工程、Project.yml 与 App/Widget Info.plist；工具批次保留版本，不编译或发布客户端。整合后重跑对应机制检查，客户端还构建默认模拟器并要求任务功能/Widget验收证据。后端原子复制与校验全量 SQLite/manifest，继续使用 manifest dataVersion，不递增 App版本。
 
-冻结 manifest `.release-batch.json` 不包含其自身SHA，CI与适配器从精确引入该文件的 Git提交获得最终SHA。主分支客户端检查与标签发布分别使用稳定 `museummuse-production-build` / `museummuse-production-release` concurrency，`cancel-in-progress: false`、`queue: max`；开发/PR 用另一组。全历史checkout核对任务祖先、版本和已通过检查。保留客户端paths，纯工具/纯后端不会因manifest改动触发 iOS Build。
+冻结 manifest `.release-batch.json` 不包含其自身SHA，发布校验与适配器从精确引入该文件的 Git提交获得最终SHA。日常 `iOS Build` 允许普通分支（含 `main`）提交不带新的冻结清单；正式发布仍须全历史 checkout 核对冻结来源、任务祖先、版本和已通过检查。主分支客户端检查与标签发布分别使用稳定 `museummuse-production-build` / `museummuse-production-release` concurrency，`cancel-in-progress: false`、`queue: max`；开发/PR 用另一组。保留客户端paths，纯工具/纯后端不会因manifest改动触发 iOS Build。
 
 每阶段先读取真实状态再执行缺失动作；progress保存 CI run ID/attempt 或部署RequestId。GitHub SHA/run/三附件元数据与校验和绑定冻结批次，已有附件一致就复用，缺失才补，不同则保留并失败。私有设备构建隔离批次目录，用编译输入、完成日志及真实两目标核对来源；已完工但响应丢失时补凭证，已验签IPA不再签。最终签名包两目标保存 `MuseumReleaseSourceCommit` / `MuseumReleaseBatchID`，发布器独立验签并把包内已核对字段写入 OTA receipt，保留原末端锁和 staged/current HTTPS完整回验。已暂存版本只验收并激活，不重新发包。
 

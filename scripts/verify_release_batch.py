@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bind production CI to the commit that introduced its frozen batch manifest."""
+"""Check ordinary build context or bind a release to its frozen batch commit."""
 import argparse
 import json
 import os
@@ -57,7 +57,14 @@ def is_development(repo):
     return git(repo, 'branch', '--show-current') not in ('', 'main')
 
 
-def verify_batch(repo, sha=None, *, require_client=False, allow_development=False, release_tag=None):
+def is_branch_build(repo):
+    ref = os.environ.get('GITHUB_REF')
+    if ref:
+        return ref.startswith(('refs/heads/', 'refs/pull/'))
+    return bool(git(repo, 'branch', '--show-current'))
+
+
+def verify_batch(repo, sha=None, *, require_client=False, allow_development=False, allow_unfrozen=False, release_tag=None):
     repo = Path(repo)
     head = git(repo, 'rev-parse', 'HEAD')
     sha = sha or os.environ.get('BUILD_SHA') or os.environ.get('GITHUB_SHA') or head
@@ -65,8 +72,10 @@ def verify_batch(repo, sha=None, *, require_client=False, allow_development=Fals
         raise ValueError('Build SHA must be the full checked-out HEAD SHA')
     manifest_path = repo / MANIFEST
     introduced = git(repo, 'log', '-1', '--format=%H', '--', MANIFEST)
-    if allow_development and not require_client and is_development(repo) and (not manifest_path.exists() or introduced != head):
-        return {'schemaVersion': 1, 'batchId': '', 'mode': 'development', 'frozenSHA': head, 'buildRequired': True, 'tasks': []}
+    ordinary_build = (allow_unfrozen and is_branch_build(repo)) or (allow_development and is_development(repo))
+    if ordinary_build and not require_client and not release_tag and (not manifest_path.exists() or introduced != head):
+        return {'schemaVersion': 1, 'batchId': '', 'mode': 'unreleased' if allow_unfrozen else 'development',
+                'frozenSHA': head, 'buildRequired': True, 'tasks': []}
     if not manifest_path.is_file():
         raise ValueError('Production CI requires a frozen .release-batch.json')
     if git(repo, 'rev-parse', '--is-shallow-repository') != 'false':
@@ -152,12 +161,14 @@ def main():
     parser.add_argument('--sha')
     parser.add_argument('--require-client', action='store_true')
     parser.add_argument('--allow-development', action='store_true')
+    parser.add_argument('--allow-unfrozen', action='store_true', help='Allow ordinary branch builds, including main, without a new release batch')
     parser.add_argument('--release-tag', default=os.environ.get('RELEASE_TAG'))
     parser.add_argument('--github-output', type=Path)
     args = parser.parse_args()
     try:
         batch = verify_batch(Path.cwd(), args.sha, require_client=args.require_client,
-                             allow_development=args.allow_development, release_tag=args.release_tag)
+                             allow_development=args.allow_development, allow_unfrozen=args.allow_unfrozen,
+                             release_tag=args.release_tag)
         if args.github_output:
             with args.github_output.open('a') as stream:
                 stream.write(f'build_required={str(batch["buildRequired"]).lower()}\nbatch_id={batch["batchId"]}\nmode={batch["mode"]}\nfrozen_sha={batch["frozenSHA"]}\n')

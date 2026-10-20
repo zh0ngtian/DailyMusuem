@@ -41,8 +41,10 @@ class ReleaseBatchTests(unittest.TestCase):
         self.git('commit', '-m', 'freeze')
         return self.git('rev-parse', 'HEAD')
 
-    def verify(self, *args):
+    def verify(self, *args, ref=None):
         env = {k: v for k, v in os.environ.items() if k not in ('BUILD_SHA', 'GITHUB_SHA', 'GITHUB_REF', 'RELEASE_TAG')}
+        if ref:
+            env['GITHUB_REF'] = ref
         return subprocess.run([sys.executable, str(SCRIPT), *args], cwd=self.repo, env=env, text=True, capture_output=True)
 
     def test_frozen_client_passes_and_writes_github_outputs(self):
@@ -109,6 +111,38 @@ class ReleaseBatchTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(json.loads(result.stdout)['buildRequired'])
         self.assertNotEqual(self.verify().returncode, 0)
+
+    def test_ordinary_main_build_does_not_require_a_new_release_batch(self):
+        for historical_batch in (False, True):
+            with self.subTest(historical_batch=historical_batch):
+                if historical_batch:
+                    self.freeze()
+                    (self.repo / 'notes.md').write_text('ordinary follow-up')
+                    self.git('add', '.')
+                    self.git('commit', '-m', 'follow-up')
+                result = self.verify('--allow-unfrozen', ref='refs/heads/main')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                context = json.loads(result.stdout)
+                self.assertEqual(context['frozenSHA'], self.git('rev-parse', 'HEAD'))
+                self.assertTrue(context['buildRequired'])
+                self.assertEqual(context['mode'], 'unreleased')
+                self.assertEqual(context['batchId'], '')
+                self.assertEqual(context['tasks'], [])
+                self.assertNotEqual(self.verify('--allow-unfrozen', '--require-client').returncode, 0)
+                self.assertNotEqual(self.verify('--allow-unfrozen', '--release-tag', 'v1.2.0').returncode, 0)
+
+    def test_ordinary_build_option_does_not_relax_tag_or_detached_release_checks(self):
+        self.git('checkout', '--detach')
+        self.assertNotEqual(self.verify('--allow-unfrozen').returncode, 0)
+        self.assertNotEqual(self.verify('--allow-unfrozen', ref='refs/tags/v1.2.0').returncode, 0)
+        result = self.verify('--allow-unfrozen', ref='refs/heads/main')
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_ordinary_build_option_still_checks_current_frozen_manifest(self):
+        self.manifest['tasks'][0]['validation']['checks'][0]['status'] = 'failed'
+        self.freeze()
+        result = self.verify('--allow-unfrozen', ref='refs/heads/main')
+        self.assertNotEqual(result.returncode, 0)
 
     def test_rejects_sha_mismatch_failed_checks_wrong_target_and_version(self):
         for mutate in (
@@ -197,7 +231,6 @@ class ReleaseBatchTests(unittest.TestCase):
         (self.repo / '.gitignore').write_text('build/\n__pycache__/\n')
         self.git('add', '.')
         self.git('commit', '-m', 'build tools')
-        self.git('checkout', '-b', 'codex/build-test')
         binaries = tempfile.TemporaryDirectory()
         self.addCleanup(binaries.cleanup)
         bin_dir = Path(binaries.name)
@@ -219,6 +252,10 @@ class ReleaseBatchTests(unittest.TestCase):
         self.assertEqual(source['sourceTree'], self.git('rev-parse', 'HEAD^{tree}'))
         self.assertTrue(source['authConfigured'])
         self.assertEqual(source['runId'], '123')
+        self.assertEqual(source['batchId'], '')
+        result = subprocess.run(command, cwd=self.repo, env={**env, 'REQUIRE_RELEASE_BATCH_CLIENT': 'true'}, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0, 'Release builds must still require a frozen client batch')
+        self.assertFalse(source_path.exists())
         result = subprocess.run(command, cwd=self.repo, env={**env, 'FAKE_BUILD_FAIL': '1'}, capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse(source_path.exists(), 'Failed compiler must remove stale success provenance')

@@ -6,10 +6,16 @@
 
 ### 6.1 默认验证策略
 
-- iOS 交付要求 [OTA 发布与构建检查](ios-adhoc-ota.md#发布与构建检查)：发布批次最终提交的日常 GitHub Actions `iOS Build` 的 `Build` 通过，并确认指向同一提交的 `vX.Y.Z` 标签独立 `iOS Release` 中 `Build` 与 `Publish unsigned IPA` 全部通过，并完成 OTA 逐目标验签及 HTTPS 回验。批次共用版本、Build 与发布凭证，项目补充见第 6.5 节。纯文档、流水线或发布工具修改执行相应检查，不递增 App 版本、不重新发布 OTA；OTA `--plan` 只表示本地验签，不代表线上发布通过。
+- 默认完成标准是改动通过验证、合入主分支 `main`，并提交和推送最终代码。每次任务按以下顺序交付：
+  1. 开始修改前获取最新主分支，记录其完整 SHA 为 `mainStartSha`；同时记录开发起点 `baseSha`，两者分别用于判断主分支是否推进和界定本次改动范围。
+  2. 完成改动、对应范围的本地验证和文档回填；验证通过后，再获取最新主分支，记录合入前的 `mainBeforeMergeSha`，将本次改动合入该主分支。
+  3. 若 `mainBeforeMergeSha == mainStartSha`，说明修改期间主分支没有新提交，可复用本次验证结果，不重复回归；若不相等，则对合入后的代码按改动范围再做回归，通过后才能完成最终提交和推送。冲突解决或合入时额外修改了代码，也必须验证这些修改。
+  4. 推送前再次确认远端主分支；若其又有新提交，继续整合并回归，不覆盖他人提交。记录起点、合入前主分支 SHA、最终提交与验证结果，并说明执行或跳过合入后回归的依据。直接在 `main` 上工作的任务同样遵守此比较规则。
+- 默认不发布：日常交付不递增 App 版本 / Build，不创建发布标签或 GitHub Release，不发布 OTA、不部署 SCF，也不登记发布任务或提交协调器 `ready`。2026-10-20 起，此规则取代此前后续改动自动发布 OTA 的授权；只有用户明确要求发布时才启用第 6.5 节及对应发布流程。
+- 涉及客户端时，仍须确认最终提交的日常 GitHub Actions `iOS Build` 的 `Build` 通过；普通主分支提交不要求发布冻结清单。只有明确要求 App/Widget 发布时，才执行 [OTA 发布与构建检查](ios-adhoc-ota.md#发布与构建检查)：统一版本 / Build、同一提交的 `vX.Y.Z` 标签 `iOS Release` 的 `Build` / `Publish unsigned IPA`、OTA 逐目标验签及 HTTPS 回验。OTA `--plan` 只表示本地验签，不代表线上发布通过。
 
 - 后续改动不涉及客户端时，不触发本地 iOS 构建、测试目标编译或 GitHub Actions `iOS Build`，只执行与改动相称的服务端、数据、脚本或文档验证，也不要求该提交提供未签名 IPA Release 或发布 OTA。
-- 客户端范围包括主 App、Widget、Shared、客户端测试、资源和工程 / 编译配置。纯后端、schema、metadata、crawler、部署包、文档、运维或发布工具改动，不因现有 iOS 交付条款而要求客户端构建；同时包含客户端改动时，继续执行对应 iOS 验证与发布流程。
+- 客户端范围包括主 App、Widget、Shared、客户端测试、资源和工程 / 编译配置。纯后端、schema、metadata、crawler、部署包、文档、运维或发布工具改动，不因现有 iOS 交付条款而要求客户端构建；同时包含客户端改动时，继续执行对应 iOS 验证，发布仍以用户明确要求为前提。
 - 涉及客户端的修复或新增功能，需要优先使用模拟器 `iPhone 17 Pro` 作为默认构建和运行目标再交付。
 - 当前 Codex 沙箱内执行 `xcrun simctl` 或 `xcodebuild` 访问模拟器时，可能出现 `CoreSimulatorService connection became invalid`、`simdiskimaged crashed or is not responding`、`Operation not permitted`、`No available simulator runtimes` 或 `iOS 26.5 Platform Not Installed` 等假性失败；这不一定表示本机缺少 runtime 或项目构建失败。遇到这类错误时，应先用脱离沙箱的 Xcode CLI 路径复核，例如 `xcrun simctl list runtimes` 和对应 `xcodebuild ... build-for-testing`，再判断是否真的是代码或环境问题。
 - 运行 iOS 单元测试时，当前默认关闭 parallel testing：
@@ -109,7 +115,7 @@
 - 唯一的 `Build` 任务运行 [`scripts/check_ios_build.sh`](../scripts/check_ios_build.sh)：检查 Xcode 和 iOS SDK，随后仅调用一次 `xcodebuild ... -scheme DailyMuseum -configuration Release -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build`，编译 App 和嵌入的 10 组静态 Widget。使用占位鉴权值，无需正式后端 Secret、证书或 provisioning profile。
 - **CI 成功只表示编译、链接通过。** 不运行 Swift / Python 回归、模拟器测试目标编译、模拟器启动 / 安装 / 运行，不进行 IPA 打包、版本检查、校验和、元数据或产物上传；成功时不上传诊断。失败时仅上传 `build/ci/*.log`，保留 7 天。日志在输出前隐去鉴权值，`pipefail` 保证构建失败不会被日志管道吞掉。
 - 功能按改动范围在本地验证，继续遵守第 6.1–6.3 节；构建检查不能替代安装、Widget 桌面截图、系统日志或 OTA 签名验证。本次用户报告的模拟器回归耗时为 8 分 16 秒，精简主要省去这一段，依赖下载和 Release 编译仍需时间；新流程总耗时尚未实测。
-- 本地复现：`bash scripts/check_ios_build.sh`，设备构建和日志位于忽略目录 `build/ci/`；不产生 IPA。任务仅有 `contents: read`。主分支使用稳定 `museummuse-production-build` group，开发/PR使用独立的ref group；均 `cancel-in-progress: false`、`queue: max`。冻结批次检查精确引入提交和task ancestry；工具/后端批次跳过客户端编译，且不会仅因manifest变化自动触发此流程。
+- 本地复现：`bash scripts/check_ios_build.sh`，设备构建和日志位于忽略目录 `build/ci/`；不产生 IPA。任务仅有 `contents: read`。主分支使用稳定 `museummuse-production-build` group，开发/PR使用独立的ref group；均 `cancel-in-progress: false`、`queue: max`。普通分支提交（含 `main`）可在没有新发布冻结清单时构建，并记录实际提交与源码树；正式冻结批次仍检查精确引入提交和任务祖先，工具/后端批次跳过客户端编译，且不会仅因 manifest 变化自动触发此流程。日常构建上下文不构成发布凭证，标签发布仍强制校验客户端冻结批次。
 
 #### 标签发布：保留 IPA 和 Release 附件
 
@@ -130,6 +136,8 @@
 ### 6.5 多任务发布协调
 
 通用合批、互斥、冻结与恢复原则仅维护在 canonical 全局 `AGENTS.md`。本项目已复用现有 ReleaseCoordinator 0.1.3，共享服务配置、适配器、任务登记/验证/ready、共同receipt核对和实际验收集中维护在 [协调器接入](release-coordinator-integration.md)，不在本节复制操作合同。
+
+本节仅在用户明确要求发布时启用。默认代码交付按第 6.1 节完成，不进入发布队列、不提交 `ready`，也不以发布 receipt 作为日常交付的完成条件。
 
 客户端目标为 `tech.zh0ngtian.MuseumMuse` / production，保持主App+Widget、main、原版本/Build规则、日常 `iOS Build`、标签 `iOS Release`、私有签名和既有OTA。后端目标为 `museummuse-api` / production，保持全量SQLite、Python/腾讯SCF、COS版本化对象和原线上验收；两者分开协调，只有promote阶段写同一main时共用短锁。涉及两侧的任务分别登记子任务和依赖，等待各自必要验收，不借用另一目标的成功结果。
 

@@ -8,6 +8,8 @@ MuseumMuse 是一个最低支持 iOS 18 的 SwiftUI App，提供博物馆展品�
 
 ## 开发入口
 
+默认交付为验证通过后合入 `main`；若修改期间主分支有新提交，合入后再按改动范围回归，否则复用已通过的验证，再提交并推送代码。默认不递增版本 / Build、不发布 OTA 或 GitHub Release、不部署 SCF；仅在用户明确要求发布时启用发布协调器。起点记录与比较规则见 [默认验证策略](docs/verification-and-delivery.md#61-默认验证策略)。
+
 - 用 Xcode 打开 `DailyMuseum.xcodeproj`，主 App scheme 为 `DailyMuseum`，测试 scheme 为 `DailyMuseumTests`；默认验证模拟器为 `iPhone 17 Pro`，单元测试关闭 parallel testing。
 - `Project.yml` 是 XcodeGen 工程配置；鉴权值通过未提交的 `Config/Secrets.local.xcconfig` 注入，变量名为 `MUSEUMMUSE_SIMPLE_AUTH_SECRET`。
 - 本地 Python 环境安装 `server/requirements.txt` 后，按 [后端本地启动示例](docs/frontend-backend-separation-design.md#4-总体架构) 生成离线样本并启动 API。样本只用于功能验证，全量库需另行准备。
@@ -18,7 +20,7 @@ MuseumMuse 是一个最低支持 iOS 18 的 SwiftUI App，提供博物馆展品�
 
 ## 规范与运维
 
-多任务开发与发布采用 canonical 全局 `AGENTS.md` 的合批规则；本项目发布目标、验证与共享凭证见 [多任务发布协调](docs/verification-and-delivery.md#65-多任务发布协调)。已复用本机现有 ReleaseCoordinator 0.1.3，客户端与 SCF 分别配置作用域；配置、CLI、登录启动和真实验收限制见 [协调器接入](docs/release-coordinator-integration.md)。
+用户明确要求发布时，多任务发布采用 canonical 全局 `AGENTS.md` 的合批规则；本项目发布目标、验证与共享凭证见 [多任务发布协调](docs/verification-and-delivery.md#65-多任务发布协调)。已复用本机现有 ReleaseCoordinator 0.1.3，客户端与 SCF 分别配置作用域；配置、CLI、登录启动和真实验收限制见 [协调器接入](docs/release-coordinator-integration.md)。
 
 | 文档 | 用途 |
 | --- | --- |

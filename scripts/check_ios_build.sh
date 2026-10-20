@@ -23,7 +23,7 @@ import json, os, pathlib, sys
 from scripts.verify_release_batch import git, require_clean_tree, verify_batch
 repo = pathlib.Path.cwd()
 batch = verify_batch(repo, require_client=os.environ.get('REQUIRE_RELEASE_BATCH_CLIENT') == 'true',
-                     allow_development=os.environ.get('REQUIRE_RELEASE_BATCH_CLIENT') != 'true')
+                     allow_unfrozen=os.environ.get('REQUIRE_RELEASE_BATCH_CLIENT') != 'true')
 if not batch['buildRequired']:
     sys.exit('This frozen batch does not require an App build')
 require_clean_tree(repo)
