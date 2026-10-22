@@ -95,7 +95,27 @@ PYTHON
 
 签名接口通过仍不代表客户端图片或 Widget 已显示；发布 marker、包内 SQLite/manifest 和 [客户端交付验证](../../docs/verification-and-delivery.md) 要分别核验。该批次的最终 SHA、zip / SQLite / manifest 校验和、版本化 COS 对象、SCF 更新结果及本节线上验收应汇入同一共享凭证，每个任务核对自身改动已包含后才能完成。接管前先核对实际对象、函数 marker 与线上 dataVersion，避免重复部署；保留历史对象、凭证及验收记录。
 
-自定义域名由 DNSPod `museum-api` CNAME 指向 `1259375612.ap-guangzhou.tencentscf.com`，SCF 将 `/*` 路由到 `default/museummuse-api:$LATEST`。HTTPS 证书 ID 为 `ZSoYf0pa`，有效期截至 `2026-10-22 22:59:59`；到期前必须申请新证书并更新 SCF 域名绑定。
+## HTTPS 证书
+
+自定义域名由 DNSPod `museum-api` CNAME 指向 `1259375612.ap-guangzhou.tencentscf.com`，SCF 将 `/*` 路由到 `default/museummuse-api:$LATEST`，协议为 `HTTPS`。
+
+- 当前绑定证书：`bmNTCVJS`，TrustAsia C1 DV Free，RSA 2048，DNSPod 自动 DNS 验证。
+- 当前有效期：`2026-10-22 23:00:00` 至 `2027-01-20 22:59:59`，均为北京时间。续签后必须以实际签发时间和线上证书为准。
+- 原证书 `ZSoYf0pa` 于 `2026-10-22 22:59:59` 到期，保留历史记录；2026-10-23 已申请新证书并更新 SCF 绑定。
+
+续签使用本机已有腾讯云凭证，先确认 `tccli ssl DescribeCertificates --SearchKey museum-api.zh0ngtian.tech` 中是否已有可用或待签发证书，避免重复申请。免费证书申请参数通过 `tccli ssl ApplyCertificate help --detail` 核对；当前同类免费证书使用 `DNS_AUTO`、`PackageType=83`、`ValidityPeriod=3`、RSA 2048。`OldCertificateId` 仅适用于到期前 30 天内且尚未过期的旧证书；旧证书已过期时，重新申请同域名证书。
+
+申请后确认 DNSPod 的 `_dnsauth.museum-api` TXT 验证记录已生效，使用 `CompleteCertificate` 触发验证，并等待 `DescribeCertificate` 返回 `Status=1`（已颁发）。更新绑定前保存 `GetCustomDomain` 的域名配置，确认现有证书和路由未被其他任务修改；仅通过 [UpdateCustomDomain](https://cloud.tencent.com/document/api/583/111922) 更新 `CertConfig.CertificateId` 并保留当前协议。更新后重新读取配置，确认新证书 ID 生效，协议、路由、WAF 和标签均与更新前一致。证书维护无需更新 SCF 代码包、客户端 URL 或 App 版本。
+
+验收必须使用开启证书校验的 HTTPS：检查线上证书的域名、有效期和证书链，确认 `/health` 返回 `ok=true` / `databaseReadable=true`，再运行签名业务回归；不能用跳过 TLS 校验的请求作为恢复证据。
+
+```bash
+python3 -B scripts/probe_backend_release.py \
+  --base-url https://museum-api.zh0ngtian.tech \
+  --repository .
+```
+
+2026-10-23 申请 RequestId 为 `572fe4ad-7e8b-4368-9e48-7a491838aa31`，SCF 绑定更新 RequestId 为 `22a6e556-7381-43cd-ae8e-1d3e10a09073`。线上新证书 SHA-256 指纹为 `60:22:94:99:DC:51:F7:3D:47:20:2D:2B:3F:DA:C2:25:BE:A6:C8:B6:FE:29:6A:90:90:2D:04:97:C7:75:E0:E2`。域名及证书链校验、health、六馆 metadata / 列表 / 详情、Widget 候选、无签名拒绝和 nonce 重放 `401` 均通过；线上 dataVersion 与原部署 releaseMarker 一致。本次配置快照、签发状态与验收证据保存在本机忽略目录 `build/verification/tls-renewal-20261023/`。
 
 ## Backup and retired Cloudflare resources
 

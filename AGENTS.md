@@ -149,7 +149,7 @@
 - 国博源站请求必须串行并遵守 API 总量预算，不能只靠 QPS；默认列表 `limit=100`、最多 `20` 次，详情 `share_link` 和全量抓取有额外显式开关，必须先读第 3.1.4 节。
 - 真实 crawl 必须显式 `--allow-network` 并选择正数 `--max-details` 或 `--full`；全量完成以所有正式 target 的 `status completion=complete` 为准，样本不算。
 - 服务端/schema/metadata/部署变更先通过本地 SQLite、simple auth Python API 和对应服务端验证，再按默认流程合入主分支并提交；仅在用户明确要求部署时更新腾讯云 SCF。只有同时涉及客户端改动时，才追加 iOS 测试/构建和必要模拟器验证。
-- 正式 URL 的客户端配置为 `https://museum-api.zh0ngtian.tech`；本地覆盖用 `MUSEUMMUSE_BACKEND_BASE_URL`，双方使用同一个 `MUSEUMMUSE_SIMPLE_AUTH_SECRET`。真实 secret 只放未提交的 `Config/Secrets.local.xcconfig` 或环境变量。
+- 正式 URL 的客户端配置为 `https://museum-api.zh0ngtian.tech`；证书有效期、续签与 SCF 域名绑定操作统一见 [HTTPS 证书](server/tencent_scf/README.md#https-证书)。本地覆盖用 `MUSEUMMUSE_BACKEND_BASE_URL`，双方使用同一个 `MUSEUMMUSE_SIMPLE_AUTH_SECRET`。真实 secret 只放未提交的 `Config/Secrets.local.xcconfig` 或环境变量。
 - SCF 只读 SQLite 随代码包发布，COS nonce 原子写入保持最小权限；不得覆盖版本化发布对象或删除迁移基线。部署与签名回归入口见 [SCF 运维文档](server/tencent_scf/README.md)。
 - Cloudflare Worker / D1 已退役，`server/worker` 仅作历史参考，禁止直接部署；App Attest 生产校验尚未完成，不能把 simple HMAC 描述成正式 App Attest。
 
