@@ -12,7 +12,8 @@
   3. 若 `mainBeforeMergeSha == mainStartSha`，说明修改期间主分支没有新提交，可复用本次验证结果，不重复回归；若不相等，则对合入后的代码按改动范围再做回归，通过后才能完成最终提交和推送。冲突解决或合入时额外修改了代码，也必须验证这些修改。
   4. 推送前再次确认远端主分支；若其又有新提交，继续整合并回归，不覆盖他人提交。记录起点、合入前主分支 SHA、最终提交与验证结果，并说明执行或跳过合入后回归的依据。直接在 `main` 上工作的任务同样遵守此比较规则。
 - 默认不发布：日常交付不递增 App 版本 / Build，不创建发布标签或 GitHub Release，不发布 OTA、不部署 SCF，也不登记发布任务或提交协调器 `ready`。2026-10-20 起，此规则取代此前后续改动自动发布 OTA 的授权；只有用户明确要求发布时才启用第 6.5 节及对应发布流程。
-- 涉及客户端时，仍须确认最终提交的日常 GitHub Actions `iOS Build` 的 `Build` 通过；普通主分支提交不要求发布冻结清单。只有明确要求 App/Widget 发布时，才执行 [OTA 发布与构建检查](ios-adhoc-ota.md#发布与构建检查)：统一版本 / Build、同一提交的 `vX.Y.Z` 标签 `iOS Release` 的 `Build` / `Publish unsigned IPA`、OTA 逐目标验签及 HTTPS 回验。OTA `--plan` 只表示本地验签，不代表线上发布通过。
+- 自 2026-10-25 起，后续客户端仅发布 unsigned IPA 至 GitHub Release，并保留 SHA-256 / 元数据附件；停止本机发布构建、私有签名和 OTA 上传、激活、固定入口更新。用户要求“发布”也不包含这些步骤，不要求签名验签、OTA HTTPS 回验或 OTA receipt。已有签名与 OTA 版本、产物和凭证保留为历史记录；必要的本地功能验证和开发安装继续执行。
+- 涉及客户端时，仍须确认最终提交的日常 GitHub Actions `iOS Build` 的 `Build` 通过；普通主分支提交不要求发布冻结清单。只有明确要求 App/Widget 发布时，才执行第 6.4 节的标签发布要求：统一版本 / Build、同一提交的 `vX.Y.Z` 标签 `iOS Release` 的 `Build` / `Publish unsigned IPA`、Release 附件与冻结来源核对。
 
 - 后续改动不涉及客户端时，不触发本地 iOS 构建、测试目标编译或 GitHub Actions `iOS Build`，只执行与改动相称的服务端、数据、脚本或文档验证，也不要求该提交提供未签名 IPA Release 或发布 OTA。
 - 客户端范围包括主 App、Widget、Shared、客户端测试、资源和工程 / 编译配置。纯后端、schema、metadata、crawler、部署包、文档、运维或发布工具改动，不因现有 iOS 交付条款而要求客户端构建；同时包含客户端改动时，继续执行对应 iOS 验证，发布仍以用户明确要求为前提。
@@ -57,7 +58,7 @@
 
 - 2026-10-10 移除桌面组号角标：常规版在默认 `iPhone 17 Pro` / iOS 26.5 构建、安装、启动通过；兼容版在 `MuseumMuse Widget Groups` / iOS 27 构建、安装、启动通过。第 1 组定向刷新成功并停止候选推进，小尺寸桌面成功态确认无组号；现有第 1 组小、中、大、超大和第 2 组中尺寸均生成成功 timeline。相关 Widget/SpringBoard/chronod 日志未命中 `imageTooLarge`、归档失败、`CHSErrorDomain`、`Fatal error` 或 `No AppIntent`。证据在 `build/verification/widget-hide-group-number/`；随后已发布 OTA `1.1.2 (8)`，设备 Release、逐目标验签及 HTTPS 回验通过，发布证据在 `build/verification/ios-ota-1.1.2/`。本次未安装真机，未逐尺寸截图及重测自动调度。
 
-- 私有 OTA 按 [OTA 文档](ios-adhoc-ota.md) 构建与签名；真实小组件、点击刷新打开 App、共享日志与详情链接必须实机验证。所有构建需验证 10 个 kind 的注册、四种尺寸（超大须 iOS 27）、同组跨尺寸同步和不同组独立选馆/刷新、组 1 升级迁移、选择持久化及无实例不刷新。日志以 `compat:<组号>|<scope>` 区分同馆不同组；选馆在 App 中验收。用户指定模拟器时按其要求验证，实机/整点自动刷新等未覆盖项如实记录。
+- 真机补验使用现有本地开发构建与安装链路，已有私有签名与历史真机覆盖范围见 [历史 OTA 文档](ios-adhoc-ota.md)，不触发 OTA 发布；真实小组件、点击刷新打开 App、共享日志与详情链接必须实机验证。所有构建需验证 10 个 kind 的注册、四种尺寸（超大须 iOS 27）、同组跨尺寸同步和不同组独立选馆/刷新、组 1 升级迁移、选择持久化及无实例不刷新。日志以 `compat:<组号>|<scope>` 区分同馆不同组；选馆在 App 中验收。用户指定模拟器时按其要求验证，实机/整点自动刷新等未覆盖项如实记录。
 
 - 验证小组件问题时，默认要形成“构建 / 安装 / 启动 + 日志 + 桌面截图 + 系统日志”的闭环，不接受只看 provider 日志就下结论。
 - 模拟器推荐链路：
@@ -114,7 +115,7 @@
 - 使用已提交的 Xcode 工程和共享 scheme，不在 CI 中重新生成工程；检出代码和递归子模块。继续使用 `xcode-27` arm64 runner，固定 `DEVELOPER_DIR=/Applications/Xcode_27.0.app/Contents/Developer`。runner / 工具链原有依据见 [GitHub runner 说明](https://github.blog/changelog/2026-09-10-xcode-27-runner-image-now-runs-on-macos-27/) 与 [软件清单](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md)；镜像变动时显式更新配置。
 - 唯一的 `Build` 任务运行 [`scripts/check_ios_build.sh`](../scripts/check_ios_build.sh)：检查 Xcode 和 iOS SDK，随后仅调用一次 `xcodebuild ... -scheme DailyMuseum -configuration Release -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build`，编译 App 和嵌入的 10 组静态 Widget。使用占位鉴权值，无需正式后端 Secret、证书或 provisioning profile。
 - **CI 成功只表示编译、链接通过。** 不运行 Swift / Python 回归、模拟器测试目标编译、模拟器启动 / 安装 / 运行，不进行 IPA 打包、版本检查、校验和、元数据或产物上传；成功时不上传诊断。失败时仅上传 `build/ci/*.log`，保留 7 天。日志在输出前隐去鉴权值，`pipefail` 保证构建失败不会被日志管道吞掉。
-- 功能按改动范围在本地验证，继续遵守第 6.1–6.3 节；构建检查不能替代安装、Widget 桌面截图、系统日志或 OTA 签名验证。本次用户报告的模拟器回归耗时为 8 分 16 秒，精简主要省去这一段，依赖下载和 Release 编译仍需时间；新流程总耗时尚未实测。
+- 功能按改动范围在本地验证，继续遵守第 6.1–6.3 节；构建检查不能替代安装、Widget 桌面截图或系统日志。本次用户报告的模拟器回归耗时为 8 分 16 秒，精简主要省去这一段，依赖下载和 Release 编译仍需时间；新流程总耗时尚未实测。
 - 本地复现：`bash scripts/check_ios_build.sh`，设备构建和日志位于忽略目录 `build/ci/`；不产生 IPA。任务仅有 `contents: read`。主分支使用稳定 `museummuse-production-build` group，开发/PR使用独立的ref group；均 `cancel-in-progress: false`、`queue: max`。普通分支提交（含 `main`）可在没有新发布冻结清单时构建，并记录实际提交与源码树；正式冻结批次仍检查精确引入提交和任务祖先，工具/后端批次跳过客户端编译，且不会仅因 manifest 变化自动触发此流程。日常构建上下文不构成发布凭证，标签发布仍强制校验客户端冻结批次。
 
 #### 标签发布：保留 IPA 和 Release 附件
@@ -123,9 +124,15 @@
 - `Build` 先复用设备 Release 构建，再运行 [`scripts/package_ios_release.sh`](../scripts/package_ios_release.sh)，检查标签、App / Widget 版本和可执行文件，保留嵌入 Widget，封装 `Payload/DailyMuseum.app`，校验 ZIP 完整性及包内版本，生成唯一的 `MuseumMuse-unsigned.ipa`、`.ipa.sha256` 和 `MuseumMuse-unsigned.json`。元数据记录版本、Build、commit、bundle IDs、10 组标记、大小、SHA-256 和鉴权配置状态。
 - 标签构建可从同名 GitHub Actions Secret 注入 `MUSEUMMUSE_SIMPLE_AUTH_SECRET`，未配置时仍用占位值，并在 Release 说明中标明不能连接正式后端。无需私有签名材料；上传真实 Secret 仍需用户明确授权。构建脚本在输出及持久化日志前隐去鉴权值。
 - 成功后上传发布包 Actions artifact，保留 7 天；`Publish unsigned IPA` 下载并重新核对 SHA-256，使用已存在的版本标签创建或更新 GitHub Release，上传 IPA、校验文件和元数据。日常主分支 push / 手动构建不再创建 `build-<SHA>` prerelease，历史 Release 不删除。发布器将三附件绑定批次/任务/冻结SHA/版本/runId；相同附件真实下载核对后一致则幂等复用，缺失才补上传，不一致即保留原资产并失败，不用 `--clobber` 覆盖。
-- 构建任务权限为 `contents: read`，发布任务单独授权 `contents: write`；concurrency为稳定 `museummuse-production-release` group，`cancel-in-progress: false`、`queue: max`；不同标签在同一客户端发布环境排队，不替换已有pending。发布流程不跑回归；仅失败时上传日志。未签名 IPA 安装前需自行签名，流水线不修改版本 / Build，也不替代私有 OTA 发布。
+- 构建任务权限为 `contents: read`，发布任务单独授权 `contents: write`；concurrency为稳定 `museummuse-production-release` group，`cancel-in-progress: false`、`queue: max`；不同标签在同一客户端发布环境排队，不替换已有pending。发布流程不跑回归；仅失败时上传日志。未签名 IPA 安装前需自行签名，流水线不修改版本 / Build，后续不再追加 OTA 发布。
 - 本地复现打包：先运行构建脚本，再执行 `RELEASE_TAG=vX.Y.Z bash scripts/package_ios_release.sh`；仅打包现有产物，不再次编译。
 - App/Widget 发布交付前确认批次最终提交已推送，日常 `Build` 与指向该提交的版本标签 `Build` / `Publish unsigned IPA` 都成功，标签 Release 的 IPA、校验文件和元数据齐全；记录最终 commit SHA、两个 Actions run URL 与 Release URL，每个任务再核对自身改动已包含并读取该批共享凭证。待执行、失败、取消、本地成功或未推送配置不能宣称 GitHub 已通过。
+
+#### 软件源更新日志
+
+- 每个客户端发布版本在 `Config/ReleaseNotes/<版本>.md` 保存中文更新说明，供 GitHub Release 使用；缺失或没有中文内容时停止发布，不能只写批次号替代实际更新内容。
+- 更新说明须用具体中文描述该版本实际交付的新增功能、体验调整和问题修复；合批时汇总实际改动，不包含未交付或计划中的功能，不只写“常规更新”“优化体验”“修复若干问题”。产品名、API 名称等必要专有名词可以保留原文。
+- 发布前核对版本号与最终发布内容，确认对应中文日志已随 GitHub Release 更新写入。
 
 #### 手动按需回归
 
@@ -139,9 +146,11 @@
 
 本节仅在用户明确要求发布时启用。默认代码交付按第 6.1 节完成，不进入发布队列、不提交 `ready`，也不以发布 receipt 作为日常交付的完成条件。
 
-客户端目标为 `tech.zh0ngtian.MuseumMuse` / production，保持主App+Widget、main、原版本/Build规则、日常 `iOS Build`、标签 `iOS Release`、私有签名和既有OTA。后端目标为 `museummuse-api` / production，保持全量SQLite、Python/腾讯SCF、COS版本化对象和原线上验收；两者分开协调，只有promote阶段写同一main时共用短锁。涉及两侧的任务分别登记子任务和依赖，等待各自必要验收，不借用另一目标的成功结果。
+`scripts/museum_release_adapter.py` 的客户端阶段为 `promote → build → github → verify`；旧协调器配置若仍请求 `device`、`sign`、`ota`，返回 `required=false` / `reason=unsigned-ipa-only`，不构建本机发布包、不读取私有签名或 OTA 配置、不访问旧 OTA 渠道。版本准备只依据工程版本和 GitHub 版本标签，Build 在工程值基础上递增；工具批次保持原值，最终只核对主分支提交，不再验签或回验历史 OTA。
 
-客户端各任务验证记录保存 `baseSha` 与真实证据，冻结提交包含所有任务SHA；功能批次仍执行第6.1–6.3节完整要求，client-local和Widget桌面证据不能用CI代替。正式CI的稳定作用域group关闭抢占并使用 `queue: max`，全历史校验批次引入提交/版本/任务祖先，三附件和私有签名包绑定同一冻结来源。纯文档、纯工具和纯后端批次不编译客户端、不递增App版本、不触发IPA Release或OTA。
+客户端目标为 `tech.zh0ngtian.MuseumMuse` / production，保持主App+Widget、main、日常 `iOS Build` 和标签 `iOS Release`，仅交付 unsigned IPA、SHA-256 和元数据。后端目标为 `museummuse-api` / production，保持全量SQLite、Python/腾讯SCF、COS版本化对象和原线上验收；两者分开协调，只有promote阶段写同一main时共用短锁。涉及两侧的任务分别登记子任务和依赖，等待各自必要验收，不借用另一目标的成功结果。
+
+客户端各任务验证记录保存 `baseSha` 与真实证据，冻结提交包含所有任务SHA；功能批次仍执行第6.1–6.3节完整要求，client-local和Widget桌面证据不能用CI代替。正式CI的稳定作用域group关闭抢占并使用 `queue: max`，全历史校验批次引入提交/版本/任务祖先，Release 三附件绑定同一冻结来源。纯文档、纯工具和纯后端批次不编译客户端、不递增App版本、不触发IPA Release。
 
 SCF新包的marker和真实代码包checksum必须与冻结来源、SQLite/manifest及线上health相符；只读probe通过不能代替新包部署。2026-10-13已通过适配器与恢复替身、现役GitHub/OTA与六馆API只读核验；原云凭证与全量输入已恢复；SCF成功关联修复批次已实际核对云端包、673文件、输入及线上完整接口，原failed历史保持不变；真实状态与同一recovered receipt见接入文档。用户登录启动和系统开机启动、多机SSH授权、已实现机制和真实新版本验收需分别报告。详细证据与待办见接入文档。
 

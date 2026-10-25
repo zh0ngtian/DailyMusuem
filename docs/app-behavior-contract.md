@@ -275,4 +275,4 @@
 
 `dailymuseum://widget/refresh?group=<1...10>` 打开首页并通过 `WidgetManualRefreshRunner` 刷新指定组；缺少 group 的旧链接归入组 1，重复/越界/非法 group 不刷新。手动和自动入口都从共享偏好读取该组选馆，不解析 AppIntent 配置。展品主体继续使用既有详情深链接。
 
-全局自动刷新时间规则、馆内 source/类别、network-only 候选推进和降采样约束保持适用；每组独立保存下一次自动计划。已展示历史仍按博物馆共享，避免不同组重复命中同一展品。配置导入导出包含全部 10 组选馆项。缺失/非法值、metadata 已移除或不支持 Widget 的馆回退全部；暂缺 metadata 时保留合法已存标识。发布与实际覆盖范围见 [OTA 文档](ios-adhoc-ota.md)。
+全局自动刷新时间规则、馆内 source/类别、network-only 候选推进和降采样约束保持适用；每组独立保存下一次自动计划。已展示历史仍按博物馆共享，避免不同组重复命中同一展品。配置导入导出包含全部 10 组选馆项。缺失/非法值、metadata 已移除或不支持 Widget 的馆回退全部；暂缺 metadata 时保留合法已存标识。当前发布要求见 [验证与交付](verification-and-delivery.md)，历史真机覆盖范围见 [历史 OTA 文档](ios-adhoc-ota.md)。

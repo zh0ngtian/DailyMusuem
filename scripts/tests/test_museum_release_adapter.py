@@ -7,19 +7,15 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
-import zipfile
-from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import museum_release_adapter as module
 from museum_release_adapter import Adapter
 
 
 SHA = 'a' * 40
 BASE = 'b' * 40
 OTHER = 'c' * 40
-REAL_LIVE_OTA = Adapter.live_ota
 
 
 class MuseumClientAdapterTests(unittest.TestCase):
@@ -39,18 +35,10 @@ class MuseumClientAdapterTests(unittest.TestCase):
         notes.write_text('本版本修复小组件刷新问题\n')
         manifest = self.workspace / '.release-batch.json'
         manifest.write_text('{"batchId":"batch-test"}\n')
-        self.config = {'skillDir': str(self.root / 'fake-skill'), 'localRoot': str(self.root / 'ota'), 'baseURL': 'https://unused.example.invalid',
-                       'appGroup': 'group.acceptance', 'udid': 'fake-device',
-                       'profiles': {}, 'signer': '/never-invoked'}
-        config_path = self.root / 'ota-config.json'
-        config_path.write_text(json.dumps(self.config))
-        secret_path = self.root / 'Secrets.local.xcconfig'
-        secret_path.write_text('MUSEUMMUSE_SIMPLE_AUTH_SECRET = fake-secret\n')
         self.context = {
             'id': 'batch-test', 'workspace': str(self.workspace), 'progressPath': str(self.progress),
             'config': {'repository': str(self.workspace), 'branch': 'main', 'options': {
-                'github_repository': 'example/acceptance', 'ota_config': str(config_path),
-                'secret_config': str(secret_path)}},
+                'github_repository': 'example/acceptance'}},
             'tasks': [{'id': 'change', 'sha': SHA, 'validation': {
                 'baseSha': BASE, 'checks': [{'name': 'local', 'status': 'passed'}]}}],
             'results': {'prepare': {'localValidation': {'mode': 'client'}}},
@@ -64,18 +52,11 @@ class MuseumClientAdapterTests(unittest.TestCase):
         self.head = SHA
         self.paths = 'DailyMuseum/Views/Example.swift\n'
         self.tags = SHA + '\trefs/tags/v1.1.3\n'
-        self.live = {'batchId': 'older', 'sourceCommit': BASE, 'version': '1.1.3',
-                     'buildNumber': '9'}
-        previous = Path(self.config['localRoot']) / 'current/latest-ios.json'
-        previous.parent.mkdir(parents=True)
-        previous.write_text(json.dumps(self.live))
         self.command_calls = []
         self.json_calls = []
         self.command_patch = patch.object(Adapter, 'command', autospec=True, side_effect=self.command)
         self.json_patch = patch.object(Adapter, 'json_command', autospec=True, side_effect=self.json_command)
-        self.config_patch = patch.object(Adapter, 'ota_config', return_value=self.config)
-        self.live_patch = patch.object(Adapter, 'live_ota', side_effect=lambda *args, **kwargs: copy.deepcopy(self.live))
-        for mocking in (self.command_patch, self.json_patch, self.config_patch, self.live_patch):
+        for mocking in (self.command_patch, self.json_patch):
             mocking.start()
             self.addCleanup(mocking.stop)
         self.runs_payload = []
@@ -163,18 +144,6 @@ class MuseumClientAdapterTests(unittest.TestCase):
         result.update(updates)
         return result
 
-    def signed_fixture(self, source=SHA):
-        signed = self.directory / 'MuseumMuse-signed.ipa'
-        with zipfile.ZipFile(signed, 'w') as archive:
-            for name in ('Payload/DailyMuseum.app/Info.plist',
-                         'Payload/DailyMuseum.app/PlugIns/DailyMuseumWidgetExtension.appex/Info.plist'):
-                archive.writestr(name, plistlib.dumps({'MuseumReleaseSourceCommit': source,
-                    'MuseumReleaseBatchID': 'batch-test', 'CFBundleShortVersionString': '1.1.4', 'CFBundleVersion': '10'}))
-        proof = {'sha256': hashlib.sha256(signed.read_bytes()).hexdigest(), 'targets': {'app': {}, 'widget': {}}}
-        signing = SimpleNamespace(load_signer=lambda directory: object(),
-                                  validate_release=lambda signer, ipa, config: proof)
-        return signed, signing
-
     def test_client_version_is_reserved_once_across_repeated_calls(self):
         adapter = self.adapter()
         first = adapter.reserve('client')
@@ -189,7 +158,6 @@ class MuseumClientAdapterTests(unittest.TestCase):
         first = self.adapter().reserve('client')
         self.version_files(first['version'], first['buildNumber'])
         self.tags += OTHER + '\trefs/tags/v1.1.4\n'
-        self.live = {'version': '1.1.4', 'buildNumber': '10', 'sourceCommit': OTHER}
         resumed = self.adapter().reserve('client')
         self.assertEqual(resumed, first)
         self.assertEqual(resumed['version'], '1.1.4')
@@ -330,109 +298,12 @@ class MuseumClientAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'frozen batch'):
             self.adapter().check_github()
 
-    def device_fixture(self, adapter, source=SHA, completed_marker=True):
-        for target in (adapter.app, adapter.app / 'PlugIns/DailyMuseumWidgetExtension.appex'):
-            target.mkdir(parents=True, exist_ok=True)
-            (target / 'Info.plist').write_bytes(plistlib.dumps({
-                'CFBundleShortVersionString': '1.1.4', 'CFBundleVersion': '10',
-                'CFBundleExecutable': 'controlled-executable'}))
-            (target / 'controlled-executable').write_bytes(b'controlled binary')
-        (self.directory / 'device.log').write_text('** BUILD SUCCEEDED **\n')
-        (self.directory / 'device-source.json').write_text(json.dumps({
-            'sourceCommit': SHA, 'batchId': 'batch-test'}))
-        if completed_marker:
-            (self.directory / 'build-source.json').write_text(json.dumps({
-                'sha': source, 'batchId': 'batch-test', 'sourceClean': True,
-                'sourceTree': 'd' * 40, 'authConfigured': True,
-                'version': '1.1.4', 'buildNumber': '10', 'runId': 'local-device:batch-test'}))
-
-    def test_completed_exact_device_build_is_reused_without_build_command(self):
-        adapter = self.adapter()
-        self.device_fixture(adapter)
-        response = adapter.run_device()
-        self.assertTrue(response['done'])
-        self.assertEqual(response['result']['sourceCommit'], SHA)
-        self.assertFalse(any(call[0] != 'git' for call in self.command_calls))
-
-    def test_device_success_log_without_completed_source_proof_is_not_reused(self):
-        adapter = self.adapter()
-        self.device_fixture(adapter, completed_marker=False)
-        self.assertFalse(adapter.check_device()['done'],
-                         'Build intent and success text cannot substitute for compiler source proof')
-
-    def test_device_build_for_foreign_source_is_rejected(self):
-        adapter = self.adapter()
-        self.device_fixture(adapter, source=OTHER)
-        with self.assertRaises(ValueError):
-            adapter.check_device()
-
-    def test_completed_compiler_input_recovers_marker_without_another_build(self):
-        adapter = self.adapter()
-        self.device_fixture(adapter, completed_marker=False)
-        expected = {'sha': SHA, 'batchId': 'batch-test', 'sourceClean': True,
-                    'sourceTree': 'd' * 40, 'authConfigured': True,
-                    'version': '1.1.4', 'buildNumber': '10', 'runId': 'local-device:batch-test'}
-        (self.directory / 'build-input.json').write_text(json.dumps(expected))
-        response = adapter.run_device()
-        self.assertTrue(response['done'])
-        recovered = json.loads((self.directory / 'build-source.json').read_text())
-        for key, value in expected.items():
-            self.assertEqual(recovered[key], value)
-        self.assertFalse(any(call[0] != 'git' for call in self.command_calls))
-
-    def test_untrusted_compiler_input_cannot_become_completed_source_proof(self):
-        for bad in ({'sha': OTHER}, {'batchId': 'another-batch'}, {'authConfigured': False},
-                    {'sourceClean': False}, {'sourceTree': OTHER}, {'runId': 'foreign-run'}):
-            with self.subTest(bad=bad):
-                adapter = self.adapter()
-                self.device_fixture(adapter, completed_marker=False)
-                expected = {'sha': SHA, 'batchId': 'batch-test', 'sourceClean': True,
-                            'sourceTree': 'd' * 40, 'authConfigured': True,
-                            'version': '1.1.4', 'buildNumber': '10', 'runId': 'local-device:batch-test'}
-                (self.directory / 'build-input.json').write_text(json.dumps({**expected, **bad}))
-                with self.assertRaises(ValueError):
-                    adapter.check_device()
-                self.assertFalse((self.directory / 'build-source.json').exists())
-
-    def test_signed_artifact_with_exact_provenance_is_reused_without_signer(self):
-        signed, signing = self.signed_fixture()
-        adapter = self.adapter()
-        with patch.object(module, 'load_module', return_value=signing) as verification:
-            response = adapter.run_sign()
-        self.assertTrue(response['done'])
-        verification.assert_called()
-        self.assertEqual(response['result']['sha256'], hashlib.sha256(signed.read_bytes()).hexdigest())
-        self.assertEqual(set(response['result']['targetsVerified']), {'app', 'widget'})
-        self.assertFalse(any('sign_ios_widget_ipa.py' in ' '.join(call) for call in self.command_calls))
-
-    def test_signed_artifact_with_foreign_source_is_rejected(self):
-        _, signing = self.signed_fixture(source=OTHER)
-        adapter = self.adapter()
-        with patch.object(module, 'load_module', return_value=signing):
-            with self.assertRaisesRegex(ValueError, 'provenance'):
-                adapter.run_sign()
-        self.assertFalse(any('sign_ios_widget_ipa.py' in ' '.join(call) for call in self.command_calls))
-
-    def test_current_live_ota_for_exact_batch_is_reconciled_without_publish(self):
-        self.live = {'receipt': {'batchId': 'batch-test', 'sourceCommit': SHA, 'version': '1.1.4',
-                     'buildNumber': '10', 'sha256': 'd' * 64, 'downloadUrl': 'https://unused.example.invalid/ipa',
-                     'installUrl': 'itms-services://unused'}, 'activated': True}
-        adapter = self.adapter()
-        response = adapter.run_ota()
-        self.assertTrue(response['done'])
-        self.assertEqual(response['result']['sourceCommit'], SHA)
-        self.assertFalse(any('publish_ios_widget_ota.py' in ' '.join(call) for call in self.command_calls))
-
-    def test_ota_publisher_receives_versioned_chinese_release_notes(self):
-        self.live = None
-        adapter = self.adapter()
-        with patch.object(adapter, 'check_sign', return_value={'done': True}), \
-             patch.object(adapter, 'check_ota', return_value={'done': True}), \
-             patch.object(adapter, 'command', return_value='') as publish:
-            adapter.run_ota()
-        args = publish.call_args.args[0]
-        self.assertTrue(any('publish_ios_widget_ota.py' in arg for arg in args))
-        self.assertEqual(args[args.index('--notes') + 1], '本版本修复小组件刷新问题')
+    def test_reservation_uses_newest_github_version_without_private_signing_config(self):
+        self.tags += OTHER + '\trefs/tags/v1.2.8\n'
+        result = self.adapter().reserve('client')
+        self.assertEqual(result['version'], '1.2.9')
+        self.assertEqual(result['buildNumber'], '10')
+        self.assertTrue(all(call[0] == 'git' for call in self.command_calls))
 
     def test_missing_release_notes_stops_prepare_before_version_changes(self):
         (self.workspace / 'Config/ReleaseNotes/1.1.4.md').unlink()
@@ -440,36 +311,72 @@ class MuseumClientAdapterTests(unittest.TestCase):
             self.adapter().prepare()
         self.assertIn('MARKETING_VERSION: 1.1.3', (self.workspace / 'Project.yml').read_text())
 
-    def test_live_ota_same_bytes_with_foreign_current_batch_is_not_activated(self):
-        receipt = {'batchId': 'batch-test', 'sourceCommit': SHA, 'version': '1.1.4',
-                   'buildNumber': '10', 'sha256': 'd' * 64,
-                   'downloadUrl': 'https://unused.example.invalid/ipa', 'installUrl': 'itms-services://unused'}
-        folder = Path(self.config['localRoot'])
-        release = folder / 'releases/1.1.4/latest-ios.json'
-        release.parent.mkdir(parents=True)
-        release.write_text(json.dumps(receipt))
-        (folder / 'current/latest-ios.json').write_text(json.dumps({**receipt,
-            'sourceCommit': OTHER, 'batchId': 'another-batch'}))
+    def test_legacy_coordinator_phases_skip_without_signing_or_ota_access(self):
         adapter = self.adapter()
-        with patch.object(adapter, 'check_sign', return_value={'done': True, 'result': {'sha256': 'd' * 64}}), \
-             patch.object(adapter, 'ota_module', return_value=SimpleNamespace(verify_published=lambda *args, **kwargs: None)):
-            checked = REAL_LIVE_OTA(adapter)
-        self.assertFalse(checked['activated'])
-        self.assertFalse(self.command_calls)
+        for action in ('check', 'run'):
+            for phase in ('device', 'sign', 'ota'):
+                with self.subTest(action=action, phase=phase):
+                    response = adapter.phase(action, phase)
+                    self.assertTrue(response['done'])
+                    self.assertIs(response['result']['required'], False)
+                    self.assertEqual(response['result']['reason'], 'unsigned-ipa-only')
+        self.assertFalse(self.json_calls)
+        self.assertTrue(all(call[0] == 'git' for call in self.command_calls))
 
-    def test_ota_channel_failure_preserves_prior_github_evidence(self):
-        self.runs_payload = [self.run_record(401, workflow='iOS Release', headBranch='v1.1.4')]
-        self.jobs_payload = {'jobs': [{'name': 'Build', 'conclusion': 'success'},
-                                     {'name': 'Publish unsigned IPA', 'conclusion': 'success'}]}
-        adapter = self.adapter()
-        before = adapter.phase('check', 'github')
-        self.assertTrue(before['done'])
-        with patch.object(adapter, 'run_ota', side_effect=RuntimeError('controlled OTA channel failure')):
-            with self.assertRaisesRegex(RuntimeError, 'controlled OTA'):
-                adapter.phase('run', 'ota')
-        reopened = self.adapter()
-        after = reopened.phase('check', 'github')
-        self.assertEqual(after, before)
+    def local_acceptance(self, widget=False):
+        self.context['tasks'][0]['validation']['checks'] = [
+            {'name': 'client-local', 'status': 'passed', 'evidence': 'controlled local acceptance'}]
+        if widget:
+            self.context['tasks'][0]['validation']['checks'].append(
+                {'name': 'widget-desktop', 'status': 'passed', 'evidence': 'controlled desktop and logs'})
+
+    def test_client_verification_completes_with_unsigned_github_artifacts_only(self):
+        self.release_fixture()
+        self.local_acceptance()
+        response = self.adapter().check_verify()
+        self.assertTrue(response['done'])
+        result = response['result']
+        self.assertEqual(result['delivery'], 'unsigned-ipa')
+        self.assertEqual(result['sourceCommit'], SHA)
+        self.assertIn('build', result)
+        self.assertIn('github', result)
+        self.assertFalse(set(result) & {'device', 'sign', 'ota', 'httpsFullDownloadVerified'})
+        self.assertTrue(all(call[0] in ('git', 'gh') for call in self.command_calls))
+
+    def test_client_verification_waits_for_missing_build(self):
+        self.local_acceptance()
+        response = self.adapter().check_verify()
+        self.assertFalse(response['done'])
+        self.assertEqual(response['result']['missingPhase'], 'build')
+
+    def test_client_verification_still_requires_local_acceptance(self):
+        self.release_fixture()
+        with self.assertRaisesRegex(ValueError, 'Local client acceptance'):
+            self.adapter().check_verify()
+
+    def test_widget_verification_still_requires_desktop_and_system_logs(self):
+        self.release_fixture()
+        self.local_acceptance()
+        self.paths = 'DailyMuseumWidget/Widget.swift\n'
+        with self.assertRaisesRegex(ValueError, 'Widget desktop/request/system-log'):
+            self.adapter().check_verify()
+        self.local_acceptance(widget=True)
+        self.assertTrue(self.adapter().check_verify()['done'])
+
+    def test_signed_github_release_is_rejected(self):
+        self.release_fixture()
+        self.metadata_overrides = {'signed': True}
+        with self.assertRaisesRegex(ValueError, 'frozen batch'):
+            self.adapter().check_github()
+
+    def test_tooling_verification_does_not_read_signed_or_ota_baselines(self):
+        self.context['results']['prepare']['localValidation']['mode'] = 'tooling'
+        response = self.adapter().check_verify()
+        self.assertTrue(response['done'])
+        self.assertEqual(response['result']['mode'], 'tooling')
+        self.assertIs(response['result']['newClientBuildRequired'], False)
+        self.assertFalse(self.json_calls)
+        self.assertTrue(all(call[0] == 'git' for call in self.command_calls))
 
     def test_tooling_only_phases_never_build_sign_install_or_publish(self):
         self.context['results']['prepare']['localValidation']['mode'] = 'tooling'

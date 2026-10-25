@@ -10,6 +10,8 @@ MuseumMuse 是一个最低支持 iOS 18 的 SwiftUI App，提供博物馆展品�
 
 默认交付为验证通过后合入 `main`；若修改期间主分支有新提交，合入后再按改动范围回归，否则复用已通过的验证，再提交并推送代码。默认不递增版本 / Build、不发布 OTA 或 GitHub Release、不部署 SCF；仅在用户明确要求发布时启用发布协调器。起点记录与比较规则见 [默认验证策略](docs/verification-and-delivery.md#61-默认验证策略)。
 
+自 2026-10-25 起，后续客户端仅发布 GitHub Release 的 unsigned IPA 及 SHA-256 / 元数据附件，停止本机发布构建、私有签名和 OTA 发布。客户端协调器阶段为 `promote → build → github → verify`，旧配置中的 `device` / `sign` / `ota` 请求直接跳过，详见 [协调器接入](docs/release-coordinator-integration.md)。已有签名与 OTA 版本、产物和凭证保留作历史记录；必要的本地功能验证和开发安装继续按改动范围执行。
+
 - 用 Xcode 打开 `DailyMuseum.xcodeproj`，主 App scheme 为 `DailyMuseum`，测试 scheme 为 `DailyMuseumTests`；默认验证模拟器为 `iPhone 17 Pro`，单元测试关闭 parallel testing。
 - `Project.yml` 是 XcodeGen 工程配置；鉴权值通过未提交的 `Config/Secrets.local.xcconfig` 注入，变量名为 `MUSEUMMUSE_SIMPLE_AUTH_SECRET`。
 - 本地 Python 环境安装 `server/requirements.txt` 后，按 [后端本地启动示例](docs/frontend-backend-separation-design.md#4-总体架构) 生成离线样本并启动 API。样本只用于功能验证，全量库需另行准备。
@@ -31,7 +33,7 @@ MuseumMuse 是一个最低支持 iOS 18 的 SwiftUI App，提供博物馆展品�
 | [动态 metadata 契约](docs/client-dynamic-museum-metadata-refactor.md) | metadata 字段、客户端模型与通用配置 |
 | [腾讯云 SCF 运维](server/tencent_scf/README.md) | 打包、配置、签名 probe 和发布验收 |
 | [验证与交付](docs/verification-and-delivery.md) | 模拟器、真机、Widget 截图与日志闭环 |
-| [Ad Hoc / OTA 发布](docs/ios-adhoc-ota.md) | 私有 OTA 签名、发布和 GitHub 构建检查 |
+| [历史 Ad Hoc / OTA](docs/ios-adhoc-ota.md) | 已有 OTA 版本、签名与真机验收记录；后续不再发布 OTA |
 | [每晚安装到真机](docs/ios-nightly-installer.md) | macOS 状态栏安装程序、签名续期和诊断 |
 
 当前展品流缓存只在 App 进程内恢复；重启恢复页面缓存仍待实现。生产 App Attest 校验尚未完成，现有过渡鉴权为 simple HMAC。代码已实现、线上已发布、桌面已验收须分别核实。

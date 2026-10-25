@@ -4,6 +4,8 @@
 
 本接入仅用于用户明确要求的发布。默认代码交付按 [默认验证策略](verification-and-delivery.md#61-默认验证策略) 验证、合入 `main`，按主分支是否推进决定合入后回归，再提交和推送；不登记发布任务、不提交 `ready`，不要求发布 receipt。以下 CLI 与适配器合同均以已有明确发布请求为前提。
 
+自 2026-10-25 起，后续客户端仅发布 GitHub Release 的 unsigned IPA 及 SHA-256 / 元数据附件，停止本机发布构建、私有签名和 OTA 发布。`museum_release_adapter.py` 当前阶段为 `promote → build → github → verify`，旧配置中的 `device` / `sign` / `ota` 请求返回跳过，不读取签名材料、不访问 OTA 渠道。当前交付要求见 [GitHub iOS 构建检查](verification-and-delivery.md#64-github-ios-构建检查)；下文实际验收中的签名 / OTA 内容保留为历史记录。SCF 协调流程保持适用。
+
 ## 本机部署与启动
 
 2026-10-13 已复用本机现有 `releasectl` 0.1.3：`~/.local/bin/releasectl`，状态目录 `~/Library/Application Support/ReleaseCoordinator/`，同一个 `service.sock` 与 SQLite 注册表。未安装第二份服务或数据库。`installation.json` 的 `startup=login`，`launchctl print gui/501/local.release-coordinator` 确认现有 LaunchAgent 正在运行，带 `RunAtLoad` / `KeepAlive`；health 返回同一运行进程。
@@ -27,12 +29,14 @@ launchctl print "gui/$(id -u)/local.release-coordinator"
 
 | 配置 | 目标与环境 | 私有配置位置 | 适配阶段 |
 | --- | --- | --- | --- |
-| `museummuse-ios-production` | `tech.zh0ngtian.MuseumMuse` / `production`；主 App + Widget、GitHub 未签名 IPA、既有私有 Ad Hoc OTA | `~/Library/Application Support/ReleaseCoordinator/projects/museummuse-ios-production.json` | `scripts/museum_release_adapter.py`：prepare、promote、build、github、device、sign、ota、verify |
+| `museummuse-ios-production` | `tech.zh0ngtian.MuseumMuse` / `production`；主 App + Widget、GitHub unsigned IPA 及校验 / 元数据附件 | `~/Library/Application Support/ReleaseCoordinator/projects/museummuse-ios-production.json` | `scripts/museum_release_adapter.py`：prepare、promote、build、github、verify；旧 device / sign / ota 请求仅返回跳过 |
 | `museummuse-scf-production` | `museummuse-api` / `production`；腾讯云广州 SCF / COS | `~/Library/Application Support/ReleaseCoordinator/projects/museummuse-scf-production.json` | `scripts/museum_scf_release_adapter.py`：prepare、promote、package、deploy、verify |
 
 两配置已登记同一服务，scope 分别为 `a1252c8bffd4c2d0c5198fc924fda6198c32c160a3397cd877531bd06f252a51` 和 `67d175829b8ba6280c636deaabf082d35d15f31ea10c26cc4592f4b1507ec39a`。不设共同 `lock_scope`，不因复用主机或只读证书而把不同发布目标串行。两作用域只在实际写同一远端 main 的 promote 阶段，使用共享 `museum-main-locks/<remote哈希>` 短文件锁，并仅允许 fast-forward；不能改变已冻结提交。若远端 main 分叉，保留失败批次，通过明确关联修复解决。
 
-客户端继续使用项目原有 Xcode/scheme、10 组静态 Widget、现有 P12/profile、固定升级身份、共享组和 `IOSAdHocOTA/museummuse/release.local.json` 渠道。私有设备构建读取原 `Config/Secrets.local.xcconfig`，签名配置只在批次私有目录派生版本及冻结目标 entitlements 路径，不改原材料或身份。后端继续用现有 Python、只读 SQLite、`build_package.sh`、版本化 COS `deployments/` key 和 `UpdateFunctionCode`；不启用旧 Cloudflare。Python验证环境位于项目忽略目录 `build/release-coordinator-venv`，安装的只是仓库现有 `server/requirements.txt`。
+2026-10-25 已通过 `releasectl project --config` 更新现有客户端项目配置为 `promote`、`build`、`github`、`verify`，并移除 `options.ota_config` / `options.secret_config` 引用；服务回读一致，scope 保持原值。当时无进行中的客户端任务或租约，本次未登记发布任务或提交 `ready`，未签名或发布新版本。93 项发布机制测试及文档本地链接检查通过；测试使用隔离仓库和可控渠道，不能据此宣称新 unsigned IPA 已发布。
+
+历史客户端适配器使用项目原有 Xcode/scheme、10 组静态 Widget、现有 P12/profile、固定升级身份、共享组和 `IOSAdHocOTA/museummuse/release.local.json` 渠道。其私有设备构建读取原 `Config/Secrets.local.xcconfig`，签名配置只在批次私有目录派生版本及冻结目标 entitlements 路径；这些材料与历史产物保留，不再据此发布 OTA。后端继续用现有 Python、只读 SQLite、`build_package.sh`、版本化 COS `deployments/` key 和 `UpdateFunctionCode`；不启用旧 Cloudflare。Python验证环境位于项目忽略目录 `build/release-coordinator-venv`，安装的只是仓库现有 `server/requirements.txt`。
 
 ## 登记、验证和交付
 
@@ -70,11 +74,13 @@ git diff --check
 
 ## 适配器验收合同
 
-`prepare` 在批次私有目录以原子保留文件登记一次版本/数据输入，进程中断重试沿用同一保留。客户端功能批次统一递增 patch 和 Build，同步工程、Project.yml 与 App/Widget Info.plist；工具批次保留版本，不编译或发布客户端。整合后重跑对应机制检查，客户端还构建默认模拟器并要求任务功能/Widget验收证据。后端原子复制与校验全量 SQLite/manifest，继续使用 manifest dataVersion，不递增 App版本。
+客户端发布只执行 GitHub unsigned IPA 链路；本机设备发布构建、签名及 OTA 均已从适配器移除，旧阶段名只保留无副作用的跳过响应。原本机配置中的 `ota_config` / `secret_config` 已不被适配器读取；签名材料和历史产物继续保留。
+
+`prepare` 在批次私有目录以原子保留文件登记一次版本/数据输入，进程中断重试沿用同一保留。客户端功能批次依据工程版本和 GitHub 版本标签统一递增 patch，Build 在工程值基础上递增，同步工程、Project.yml 与 App/Widget Info.plist，不再读取历史 OTA 版本；工具批次保留版本，不编译或发布客户端。整合后重跑对应机制检查，客户端还构建默认模拟器并要求任务功能/Widget验收证据。后端原子复制与校验全量 SQLite/manifest，继续使用 manifest dataVersion，不递增 App版本。
 
 冻结 manifest `.release-batch.json` 不包含其自身SHA，发布校验与适配器从精确引入该文件的 Git提交获得最终SHA。日常 `iOS Build` 允许普通分支（含 `main`）提交不带新的冻结清单；正式发布仍须全历史 checkout 核对冻结来源、任务祖先、版本和已通过检查。主分支客户端检查与标签发布分别使用稳定 `museummuse-production-build` / `museummuse-production-release` concurrency，`cancel-in-progress: false`、`queue: max`；开发/PR 用另一组。保留客户端paths，纯工具/纯后端不会因manifest改动触发 iOS Build。
 
-每阶段先读取真实状态再执行缺失动作；progress保存 CI run ID/attempt 或部署RequestId。GitHub SHA/run/三附件元数据与校验和绑定冻结批次，已有附件一致就复用，缺失才补，不同则保留并失败。私有设备构建隔离批次目录，用编译输入、完成日志及真实两目标核对来源；已完工但响应丢失时补凭证，已验签IPA不再签。最终签名包两目标保存 `MuseumReleaseSourceCommit` / `MuseumReleaseBatchID`，发布器独立验签并把包内已核对字段写入 OTA receipt，保留原末端锁和 staged/current HTTPS完整回验。已暂存版本只验收并激活，不重新发包。
+每阶段先读取真实状态再执行缺失动作；progress保存 CI run ID/attempt 或部署RequestId。GitHub SHA/run/三附件元数据与校验和绑定冻结批次，已有附件一致就复用，缺失才补，不同则保留并失败。客户端最终验收核对 main、日常构建、标签 Release 三附件及本地功能 / Widget 证据，记录 `delivery=unsigned-ipa`；工具批次只核对 main，不再验签或回验历史 OTA。旧配置请求已退役阶段时记录 `required=false` / `reason=unsigned-ipa-only`，不生成签名包或 OTA 凭证。
 
 后端包内 `data/release-marker.json` 保存冻结SHA、批次、SQLite/manifest校验和与dataVersion，`/health` 可选返回同一 `releaseMarker`，旧部署无文件时原字段不变。check从腾讯云下载实际代码包，用GetFunctionAddress的CodeSha256核对下载ZIP自身，再与已验证上传包比较每个文件的路径、内容SHA、大小和权限；不要求两个ZIP容器的压缩字节完全相同。共同凭证分别记录uploadedZipSha256、deployedZipSha256、codeContentsSha256与文件数；marker、数据校验和及Active/health/runtime权限仍须一致，任一文件新增、缺失、改内容或改权限均拒绝。COS既有对象不可覆盖且需完整读取核对。未知更新响应只等来源收敛，不重复UpdateFunctionCode。最终 `probe_backend_release.py` 验证原六馆metadata/列表/详情、Widget候选、无签名拒绝和同一headers二次nonce401。
 

@@ -5,12 +5,13 @@
 - 进行任何功能性修改后，必须同步检查 `AGENTS.md` 是否需要修改或补充。
 - 如果本次改动影响了功能范围、交互规则、数据接入、分类映射、Widget 行为、验证方式或已知约束，必须在交付前把对应内容回填到 `AGENTS.md`。
 - 不允许代码已经修改完成，但 `AGENTS.md` 仍停留在旧行为描述。
-- 后续向软件源发布更新时，更新日志必须使用中文，清楚说明该版本实际交付的更新内容，并保存到 `Config/ReleaseNotes/<版本>.md` 供 OTA 和 GitHub Release 共用；具体要求见 [软件源更新日志](docs/ios-adhoc-ota.md#软件源更新日志)。
+- 后续向软件源发布更新时，更新日志必须使用中文，清楚说明该版本实际交付的更新内容，并保存到 `Config/ReleaseNotes/<版本>.md` 供 GitHub Release 使用；具体要求见 [软件源更新日志](docs/verification-and-delivery.md#软件源更新日志)。
 - 默认交付为：完成改动并通过相应验证后，合入主分支 `main`；若主分支在本次修改期间有新提交，合入后须按改动范围再做回归，通过后提交并推送最终代码；若没有新提交，可复用本次验证结果，不重复回归。主分支起点、合入前比较与交付记录见 [默认验证策略](docs/verification-and-delivery.md#61-默认验证策略)。
-- 默认不发布，不因日常交付递增 App 版本或 Build，不创建发布标签、GitHub Release，不发布 OTA 或部署 SCF，也不向发布协调器提交 `ready`。仅在用户明确要求发布时启用对应发布流程；App/Widget 发布的版本、双 CI、逐目标验签与 HTTPS 回验要求见 [发布与构建检查](docs/ios-adhoc-ota.md#发布与构建检查)。此前后续改动自动发布 OTA 的授权不再适用。
+- 默认不发布，不因日常交付递增 App 版本或 Build，不创建发布标签、GitHub Release，不部署 SCF，也不向发布协调器提交 `ready`。仅在用户明确要求发布时启用对应发布流程；App/Widget 发布的版本、双 CI 和附件核对要求见 [GitHub iOS 构建检查](docs/verification-and-delivery.md#64-github-ios-构建检查)。
+- 自 2026-10-25 起，后续客户端发布仅发布 unsigned IPA 至 GitHub Release，不再执行本机发布构建、私有签名或 OTA 上传、激活、固定入口更新；用户要求“发布”也不包含这些步骤，不以签名验签、OTA HTTPS 回验或 OTA receipt 作为交付条件。保留 IPA 的 SHA-256 与元数据附件，以及必要的本地功能验证和开发安装。此前本机签名 / OTA 发布授权和必经要求均已撤销；已有版本、产物和凭证保留为历史记录。
 - 第 3、4、6 章的详细合同分别维护在 `docs/data-ingestion-contract.md`、`docs/app-behavior-contract.md` 和 `docs/verification-and-delivery.md`；功能修改时同时检查本文件的摘要/入口与对应合同。保留单一详细解释，不复制成平行规范。
 - 后续改动不涉及客户端时，不触发客户端构建（包括本地 iOS 构建 / 测试目标编译及 GitHub Actions `iOS Build`），只执行与改动相称的验证。客户端范围包括主 App、Widget、Shared、客户端测试、资源和工程 / 编译配置；纯后端、数据、文档、运维或发布工具改动不要求客户端构建、未签名 IPA Release 或 OTA 发布。详细验证与 CI 触发范围见 [验证与交付](docs/verification-and-delivery.md#61-默认验证策略)。
-- 用户明确要求发布时，通用多任务协调、合批窗口、冻结、互斥和恢复原则以当前生效的 canonical 全局 `AGENTS.md` 为准，本项目不复制正文。本项目的客户端 OTA / GitHub Release 与腾讯云 SCF 分属不同发布目标，项目补充、适配器和共享凭证要求统一见 [多任务发布协调](docs/verification-and-delivery.md#65-多任务发布协调)。已复用本机 ReleaseCoordinator 0.1.3 的共享服务，客户端与 SCF 分别登记 `museummuse-ios-production` / `museummuse-scf-production`；适配器入口、配置、登记/ready/共同 receipt 核对及真实验收限制见 [协调器接入](docs/release-coordinator-integration.md)。现有服务为登录启动；SCF 部署须使用有效原凭证和已验证完整输入，云端下载ZIP自身checksum及与上传包逐文件来源均需核对；替身测试、只读probe或更新已提交不等于部署完成。
+- 用户明确要求发布时，通用多任务协调、合批窗口、冻结、互斥和恢复原则以当前生效的 canonical 全局 `AGENTS.md` 为准，本项目不复制正文。本项目的客户端 GitHub Release 与腾讯云 SCF 分属不同发布目标，项目补充、适配器和共享凭证要求统一见 [多任务发布协调](docs/verification-and-delivery.md#65-多任务发布协调)。已复用本机 ReleaseCoordinator 0.1.3 的共享服务，客户端与 SCF 分别登记 `museummuse-ios-production` / `museummuse-scf-production`；客户端阶段为 `promote → build → github → verify`，旧配置请求 `device` / `sign` / `ota` 时跳过，不读取私有签名或 OTA 配置。适配器现状、配置及真实验收限制见 [协调器接入](docs/release-coordinator-integration.md)。现有服务为登录启动；SCF 部署须使用有效原凭证和已验证完整输入，云端下载ZIP自身checksum及与上传包逐文件来源均需核对；替身测试、只读probe或更新已提交不等于部署完成。
 
 ## 目录
 
@@ -168,7 +169,7 @@
 
 ### 5.1 总体要求
 
-- 全部构建统一提供 10 组静态小组件，由主 App 设置 → 小组件 →“分组与展示博物馆”分别选馆（默认所有博物馆，可选 metadata 支持 Widget 的单馆）。同组各尺寸同步，组间内容和刷新独立，即使选同馆也不合并；刷新通过链接打开主 App 完成，主体继续跳转展品详情。使用 `StaticConfiguration` / `TimelineProvider`，选馆与按钮刷新统一由主 App 完成。发布与真实验证限制见 [OTA 文档](docs/ios-adhoc-ota.md)。
+- 全部构建统一提供 10 组静态小组件，由主 App 设置 → 小组件 →“分组与展示博物馆”分别选馆（默认所有博物馆，可选 metadata 支持 Widget 的单馆）。同组各尺寸同步，组间内容和刷新独立，即使选同馆也不合并；刷新通过链接打开主 App 完成，主体继续跳转展品详情。使用 `StaticConfiguration` / `TimelineProvider`，选馆与按钮刷新统一由主 App 完成。当前发布要求见 [验证与交付](docs/verification-and-delivery.md)，历史真机覆盖范围见 [历史 OTA 文档](docs/ios-adhoc-ota.md)。
 
 - 需要提供 WidgetKit 小组件。
 - 支持三种尺寸：
@@ -331,7 +332,7 @@
   - 底层日志字段仍沿用 `instanceToken`
   - 值为 `compat:<组号>|<scope>`，例如 `compat:2|single:met`。日志需同时包含共享键、scope 和尺寸，不能把同馆不同组折叠。
 - Widget 的 request logs、实例状态和主 App 日志页依赖主 App 与 Widget Extension 共享同一个 App Group：
-  - 构建必须同时保留 `DailyMuseum/DailyMuseum.entitlements` 和 `DailyMuseumWidget/DailyMuseumWidgetAppGroup.entitlements` 中的 `group.tech.zh0ngtian.MuseumMuse`；私有 OTA 允许签名器同时写入已获 profile 授权的共享组，运行时读取两个目标一致的 `MuseumAppGroupIdentifier`，具体命名空间、迁移与隔离限制见 OTA 文档。
+  - 构建必须同时保留 `DailyMuseum/DailyMuseum.entitlements` 和 `DailyMuseumWidget/DailyMuseumWidgetAppGroup.entitlements` 中的 `group.tech.zh0ngtian.MuseumMuse`；历史私有 OTA 曾由签名器同时写入已获 profile 授权的共享组，运行时读取两个目标一致的 `MuseumAppGroupIdentifier`，具体命名空间、迁移与隔离限制见历史 OTA 文档，后续发布不再执行该签名步骤。
   - 任一 target 丢失该 App Group 后，主 App 将无法读取 widget 写入的 request logs 与实例状态
 - SpringBoard 和 WidgetKit 都存在快照缓存：
   - 代码修好后，桌面仍可能短时间继续显示旧占位态或旧快照。
@@ -353,4 +354,4 @@
 - 夜间真机安装修改还需阅读 [夜间安装文档](docs/ios-nightly-installer.md)，保持只构建安装、不主动启动，以及描述文件续签失败时恢复缓存。
 - 纯文档修改检查链接、代码依据和 `git diff --check`；不将未执行的模拟器、真机或线上验证写成已通过。
 - 日常 push / PR CI 只执行一次 `generic/platform=iOS` 无签名 Release 构建；CI 成功只表示编译、链接通过，功能按改动范围在本地验证。Swift / Python 和模拟器回归仅手动按需运行 `iOS Regression`；IPA 打包、版本检查、校验和、元数据及附件上传只在 `vX.Y.Z` 标签的 `iOS Release` 执行，日常构建只在失败时上传日志。
-- 日常客户端交付须确认对应最终提交的 [GitHub iOS 构建检查](docs/verification-and-delivery.md#64-github-ios-构建检查) 通过；非客户端改动不主动触发。仅在用户明确要求发布时，执行 [Ad Hoc 发布文档](docs/ios-adhoc-ota.md) 的签名前置检查，并由 `scripts/publish_ios_widget_ota.py` 完成 OTA 验签与发布。各版本的真机覆盖范围以 OTA 文档的实际记录为准。默认 profile 不授权项目原始身份，不能将私有兼容渠道描述为原始身份的正式 Ad Hoc 导出。不得删除 Widget、移除必要 App Group 或将主 App profile 自动套给扩展以绕过签名缺项。
+- 日常客户端交付须确认对应最终提交的 [GitHub iOS 构建检查](docs/verification-and-delivery.md#64-github-ios-构建检查) 通过；非客户端改动不主动触发。用户明确要求 App/Widget 发布时，完成该节的标签 Release 和附件核对，不运行 `scripts/publish_ios_widget_ota.py`。各历史版本的真机覆盖范围以 [历史 Ad Hoc / OTA 文档](docs/ios-adhoc-ota.md) 的实际记录为准。默认 profile 不授权项目原始身份，不能将私有兼容渠道描述为原始身份的正式 Ad Hoc 导出。不得删除 Widget、移除必要 App Group 或将主 App profile 自动套给扩展以绕过签名缺项。

@@ -1,6 +1,6 @@
-# MuseumMuse Ad Hoc / OTA
+# MuseumMuse 历史 Ad Hoc / OTA
 
-默认交付规则见 [默认验证策略](verification-and-delivery.md#61-默认验证策略)：验证通过后合入 `main`，仅在修改期间主分支有新提交时追加合入后回归，再提交和推送代码。默认不发布、不递增版本 / Build；本文发布流程仅在用户明确要求发布时执行。
+自 2026-10-25 起，后续客户端仅发布 unsigned IPA 至 GitHub Release，停止本机发布构建、私有签名和 OTA 发布；用户要求“发布”也不包含这些旧步骤。本文保留已有版本、签名方式、发布机制与实际验收记录供历史核对；其中签名 / OTA 命令不再作为后续发布步骤执行，不上传、激活或更新 OTA 固定入口。当前客户端发布要求见 [GitHub iOS 构建检查](verification-and-delivery.md#64-github-ios-构建检查)，日常交付见 [默认验证策略](verification-and-delivery.md#61-默认验证策略)。
 
 ## 当前版本 1.1.4（2026-10-20）
 
@@ -106,7 +106,7 @@
 
 所有构建统一为 10 组静态 Widget，无需编译条件切换。App 与 Widget 的 `MuseumWidgetCompatibilityBuild=YES` 是保留给既有签名校验器的固定产物标记，私有配置继续设置 `widgetCompatibilityMode: true`；这两个历史字段不再选择另一套实现。每个发布批次统一使用新的版本号和递增 Build，参与任务共用该版本，禁止覆盖历史版本。
 
-用户明确要求发布后，各发布任务按 [协调器接入](release-coordinator-integration.md#登记验证和交付) 登记、本地验证、push固定SHA后ready。正式构建/签名/发布由 `scripts/museum_release_adapter.py` 的对应阶段执行；开发任务不分别运行这些发布步骤。设备构建继续使用原Xcode Release，批次私有目录记录冻结来源；已有完整产物经核对后复用。
+以下为历史 OTA 协调方式：各发布任务登记、本地验证、push固定SHA后ready，正式构建/签名/发布由当时的 `scripts/museum_release_adapter.py` 执行。现适配器已移除本机发布构建、签名和 OTA 链路，后续流程见 [协调器接入](release-coordinator-integration.md#登记验证和交付)。历史设备构建使用原Xcode Release，批次私有目录记录冻结来源。
 
 `sign_ios_widget_ipa.py` 仍按原身份逐目标签名和独立验签；适配器在签名前为两目标Info写入已冻结 `MuseumReleaseSourceCommit` / `MuseumReleaseBatchID`。`publish_ios_widget_ota.py` 正式发布必须同时传 `--source-commit` 和 `--batch-id`，读取最终签名包的两目标字段核对，验证后写入OTA receipt。参数和额外字段不改变签名身份、profile、共享组或渠道。仅本地预检 `--plan` 可不传来源参数，不代表发布成功。
 
@@ -122,22 +122,13 @@ python3 -B -m unittest discover -s scripts/tests -p 'test_widget_ota_release_sou
 
 ## 软件源更新日志
 
-- 每个客户端发布版本在 `Config/ReleaseNotes/<版本>.md` 保存中文更新说明；协调器准备阶段检查该文件，OTA 安装页与 GitHub Release 读取同一份说明。缺失或没有中文内容时停止发布，不能只写批次号替代实际更新内容。
-- 后续每次向软件源发布更新，面向用户的更新日志必须使用中文，清楚说明该版本实际交付的新增功能、体验调整和问题修复（按本次改动涉及的内容填写）。
-- 更新日志必须与对应版本的最终发布内容一致；合批发布时汇总该批次的实际改动，不把未交付或计划中的功能写成已完成。
-- 使用用户能理解的具体描述，说明改动涉及的功能及更新后的行为，避免只写“常规更新”“优化体验”“修复若干问题”等笼统内容。产品名、API 名称等必要专有名词可以保留原文。
-- 发布前核对软件源中的版本号与更新日志，确认中文日志已随该版本更新写入。
+当前要求统一维护在 [软件源更新日志](verification-and-delivery.md#软件源更新日志)：继续保存 `Config/ReleaseNotes/<版本>.md` 中文说明，供 GitHub Release 使用。历史 OTA 安装页与 GitHub Release 曾共用该文件；后续不再更新 OTA 安装页。
 
 ## 发布与构建检查
 
-本节仅用于用户明确要求的 App/Widget 发布；日常验证、合入与提交按 [默认验证策略](verification-and-delivery.md#61-默认验证策略) 完成，不触发以下发布步骤。
+当前 App/Widget 发布统一按 [GitHub iOS 构建检查](verification-and-delivery.md#64-github-ios-构建检查) 核对同一冻结提交的日常构建、标签构建、GitHub Release 三附件和发布凭证，并完成改动范围所需本地 / Widget 验收。不再追加 OTA 签名发布、HTTPS 回验或 OTA receipt；现有客户端协调器的使用限制见 [多任务发布协调](verification-and-delivery.md#65-多任务发布协调)。
 
-1. 各任务完成对应变更的本地验证和文档回填，登记确定的提交 SHA 与结果；由统一协调入口按 canonical 全局合批规则整合，按影响完成必要检查，统一递增版本与 Build 并冻结批次。项目协调要求与未落地部分见 [多任务发布协调](verification-and-delivery.md#65-多任务发布协调)。不涉及客户端的改动不触发客户端构建、不要求未签名 IPA Release、不递增 App 版本、不重新发布 OTA，只执行对应验证；客户端范围见 [默认验证策略](verification-and-delivery.md#61-默认验证策略)。
-2. 协调入口将批次最终提交推进 main 并推送 GitHub，确认该提交日常 `iOS Build` 的 `Build` 通过；推送指向同一 SHA 且匹配 App / Widget 版本的 `vX.Y.Z` 标签，统一触发一轮独立 `iOS Release` 的 `Build` 与 `Publish unsigned IPA`。确认两任务通过，标签 GitHub Release 中唯一的 `MuseumMuse-unsigned.ipa`、SHA-256 校验文件和元数据齐全，核对标签、run 的提交与产物 metadata commit 一致，在共享凭证记录最终 SHA、两个 Actions run URL 和 Release URL。日常 CI 成功只表示编译、链接通过，功能按改动范围在本地验证；主分支 push 不再自动生成 Release。工作流和本地复现入口见 [GitHub iOS 构建检查](verification-and-delivery.md#64-github-ios-构建检查)。
-3. 协调入口按现有构建入口从该冻结提交统一构建设备版本，使用现有私有配置逐目标签名和独立验签，然后发布 OTA；登记本地构建来源与产物校验和，不复用其他 SHA 的成功构建。完成版本目录与固定入口 HTTPS HEAD、完整 GET、大小与 SHA-256 回验，把 `channel/releases/<version>/latest-ios.json`、验签和回验记录关联到同一批次共享凭证。新OTA JSON记录已从最终两目标验证的sourceCommit/batchId，并在共同receipt关联CI；历史JSON缺这些字段时明确作为历史基线，不补造来源。
-4. 批次最终提交的构建检查、Release 上传与 OTA 回验，以及改动范围所需本地 / Widget 验收都成功后，每个任务核对自己的改动包含于最终提交，并读取同一发布凭证，才算 App/Widget 交付完成。标签发布流水线构建并发布未签名 IPA，实际签名、安装和 Widget 桌面验收继续走现有本地链路；进入队列或加入批次不算交付。
-
-冻结后到达的任务和失败恢复遵守 canonical 全局规则；不得追加到在建批次、抢占发布或重复签名发包。现有 OTA 版本目录仍不可覆盖；GitHub Release附件先真实下载核对，一致幂等、缺失补传，不一致保留并失败。历史版本、产物、凭证与实际验收范围继续保留。
+日常验证、合入与提交按 [默认验证策略](verification-and-delivery.md#61-默认验证策略) 完成。历史 OTA 版本目录、产物、凭证与实际验收范围保留，不覆盖或删除。
 
 ## 首次兼容修复的验证与限制
 
