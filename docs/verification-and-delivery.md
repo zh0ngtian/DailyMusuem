@@ -54,13 +54,15 @@
 
 ### 6.3 小组件截图闭环测试
 
+- 2026-10-31 桌面原地刷新：刷新按钮由 Link 改为 `Button(intent:)`，使用 `openAppWhenRun=false` 的 `WidgetRefreshIntent`，仅传当前组号并等待共享刷新服务完成；保留 44 × 44 pt 点击区与旧刷新 URL 兼容。默认 `iPhone 17 Pro` / iOS 27 模拟器构建、安装、启动通过；实际点击按钮后停留桌面并成功换展品，边缘及连续点击日志确认 nonce=7 抢占 nonce=6。小、中、大、超大竖排四尺寸桌面截图确认同组内容，主体点击进入对应详情。52 项 Widget 状态/设置回归全部通过，覆盖同组跨尺寸共享、同馆不同组隔离、无实例不刷新与抢占；系统日志未命中 `imageTooLarge`、归档失败、`CHSErrorDomain`、`Fatal error` 或 `No AppIntent`。证据在 `build/verification/widget-inline-refresh/`。未安装真机、未重测整点自动调度或十组逐项 UI；既有重签安装身份约束不变。此轮不递增版本/Build、不发布。
+
 - 2026-10-31 修复刷新按钮边缘误入详情：在 `Yao iPhone 17 Pro` / iOS 27 的既有 `1.1.4 (10)` 重签安装版复现，图标中心可刷新，偏左下边缘打开详情；将刷新 Link label 内的矩形点击区统一扩大为 `44 × 44 pt`，保持图标大小与中心位置。在默认 `iPhone 17 Pro` / iOS 27 模拟器完成构建、安装、启动，小尺寸成功态相同偏移的边缘点击触发第 1 组刷新并更新桌面展品，主体点击仍进入对应详情；小、中、大、超大竖排四尺寸桌面截图显示同组相同展品与正常按钮布局。请求日志确认首个成功候选后停止推进，相关系统日志未命中 `imageTooLarge`、归档失败、`CHSErrorDomain` 或 `Fatal error`。证据在 `build/verification/widget-refresh-hit-target/`。设备 Debug 与本地 unsigned Release 构建通过；修复版未装入真机，因既有重签 App 的 application-identifier 与本地开发身份不匹配而被 iOS 拒绝覆盖。用户选择保留原 App，自行重签安装本地修复包；未发布、未递增版本/Build，也未重测十组全部状态、组间并发或整点自动调度。
 
 - 2026-10-11 统一为唯一的 10 组静态 Widget：72 项分组/状态/设置/自动刷新测试、7 项 profile 测试和 4 项签名边界测试通过；设备 Release 与模拟器构建通过。在默认 `iPhone 17 Pro` / iOS 26.5 以及 `MuseumMuse Widget Groups` / iOS 27 安装、启动并定向刷新成功，成功候选后停止继续拉取。两台模拟器的小尺寸 SpringBoard 截图显示新展品；iOS 27 第 1 组四尺寸生成成功 timeline，第 2 组保留独立内容；实际点击桌面刷新打开 App 并完成指定组刷新，十组设置页保留既有选馆。相关系统日志未命中 `imageTooLarge`、归档失败、`CHSErrorDomain`、`Fatal error` 或 `No AppIntent`。证据在 `build/verification/widget-groups-only/`。本轮未安装真机、未逐尺寸截图或重测整点自动调度；分组键/同馆不同组隔离及旧状态迁移由回归测试覆盖。
 
 - 2026-10-10 移除桌面组号角标：常规版在默认 `iPhone 17 Pro` / iOS 26.5 构建、安装、启动通过；兼容版在 `MuseumMuse Widget Groups` / iOS 27 构建、安装、启动通过。第 1 组定向刷新成功并停止候选推进，小尺寸桌面成功态确认无组号；现有第 1 组小、中、大、超大和第 2 组中尺寸均生成成功 timeline。相关 Widget/SpringBoard/chronod 日志未命中 `imageTooLarge`、归档失败、`CHSErrorDomain`、`Fatal error` 或 `No AppIntent`。证据在 `build/verification/widget-hide-group-number/`；随后已发布 OTA `1.1.2 (8)`，设备 Release、逐目标验签及 HTTPS 回验通过，发布证据在 `build/verification/ios-ota-1.1.2/`。本次未安装真机，未逐尺寸截图及重测自动调度。
 
-- 真机补验使用现有本地开发构建与安装链路，已有私有签名与历史真机覆盖范围见 [历史 OTA 文档](ios-adhoc-ota.md)，不触发 OTA 发布；真实小组件、点击刷新打开 App、共享日志与详情链接必须实机验证。所有构建需验证 10 个 kind 的注册、四种尺寸（超大须 iOS 27）、同组跨尺寸同步和不同组独立选馆/刷新、组 1 升级迁移、选择持久化及无实例不刷新。日志以 `compat:<组号>|<scope>` 区分同馆不同组；选馆在 App 中验收。用户指定模拟器时按其要求验证，实机/整点自动刷新等未覆盖项如实记录。
+- 真机补验使用现有本地开发构建与安装链路，已有私有签名与历史真机覆盖范围见 [历史 OTA 文档](ios-adhoc-ota.md)，不触发 OTA 发布；真实小组件、点击刷新停留桌面、共享日志与详情链接需按真机补验范围验证。所有构建需验证 10 个 kind 的注册、四种尺寸（超大须 iOS 27）、同组跨尺寸同步和不同组独立选馆/刷新、组 1 升级迁移、选择持久化及无实例不刷新。日志以 `compat:<组号>|<scope>` 区分同馆不同组；选馆在 App 中验收。用户指定模拟器时按其要求验证，实机/整点自动刷新等未覆盖项如实记录。
 
 - 验证小组件问题时，默认要形成“构建 / 安装 / 启动 + 日志 + 桌面截图 + 系统日志”的闭环，不接受只看 provider 日志就下结论。
 - 模拟器推荐链路：

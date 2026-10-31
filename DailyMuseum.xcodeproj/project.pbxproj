@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		014375A5D184F881FD7070C1 /* WidgetManualRefreshRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5BCD57FB86FC7D9454A8587 /* WidgetManualRefreshRunner.swift */; };
+		0F3100010000000000000001 /* WidgetRefreshIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F3100030000000000000003 /* WidgetRefreshIntent.swift */; };
 		0221CE15D7D3E4EDE27D79FC /* ArtworkListRowCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B534D07A84678EB11A2A0F5 /* ArtworkListRowCardView.swift */; };
 		048A14DA9BBF5DC796231307 /* MuseumListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB101B5E24D3739851DC6A22 /* MuseumListView.swift */; };
 		076F9714F7BD5FF4BB3C9548 /* DailyMuseumWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 677E368A7DD1F542B480E2C3 /* DailyMuseumWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -39,6 +40,7 @@
 		2DF453C26258E1256FC88944 /* SettingsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD5690663479FBDA165A96B /* SettingsKeys.swift */; };
 		39EF46DCBA1A93ADAB139396 /* RequestLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0773F3ED0D9C2C7D00381424 /* RequestLogger.swift */; };
 		3C76032D89CE9DB40E9A91B5 /* WidgetManualRefreshRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5BCD57FB86FC7D9454A8587 /* WidgetManualRefreshRunner.swift */; };
+		0F3100020000000000000002 /* WidgetRefreshIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F3100030000000000000003 /* WidgetRefreshIntent.swift */; };
 		3CEB39B09A6657F163706A4B /* MuseumRequestCachePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B261DB738D9FD5711A2D6ED /* MuseumRequestCachePolicy.swift */; };
 		3E9E2BDFE01616ACE8B45CE8 /* DailyMuseumApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66FE9D0B5E8CBC6277FA891B /* DailyMuseumApp.swift */; };
 		42F38059E7BA230261005062 /* RequestLoggerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DDA86A50855406853C9B17B /* RequestLoggerTests.swift */; };
@@ -197,6 +199,7 @@
 		BE9F9F5A9C19616F19DCE43E /* DailyMuseumWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyMuseumWidget.swift; sourceTree = "<group>"; };
 		C48CE0EBDA0C27F939506A95 /* met-meta-fallback.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "met-meta-fallback.html"; sourceTree = "<group>"; };
 		C5BCD57FB86FC7D9454A8587 /* WidgetManualRefreshRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetManualRefreshRunner.swift; sourceTree = "<group>"; };
+		0F3100030000000000000003 /* WidgetRefreshIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetRefreshIntent.swift; sourceTree = "<group>"; };
 		CE050719A8E48E3DE4D76BBB /* DailyMuseum.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DailyMuseum.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CFBFD7C33C4CE48C10423B05 /* ImageMemoryCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageMemoryCache.swift; sourceTree = "<group>"; };
 		D2E9FEFE6D6787330AAA0104 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -320,6 +323,7 @@
 				0D1200010000000000000001 /* MuseumMetadataStore.swift */,
 				6B261DB738D9FD5711A2D6ED /* MuseumRequestCachePolicy.swift */,
 				C5BCD57FB86FC7D9454A8587 /* WidgetManualRefreshRunner.swift */,
+				0F3100030000000000000003 /* WidgetRefreshIntent.swift */,
 				5225386D7CA9D444567A323F /* ArtworkFeed */,
 				0CBE000E0000000000000000 /* Backend */,
 				A68417A79F9D150D53ED0C41 /* Images */,
@@ -626,6 +630,7 @@
 				EDB9E6F8888D36C995A222B3 /* WidgetArtworkService.swift in Sources */,
 				E6F45083BBEDF96C8635C070 /* WidgetArtworkSnapshotStore.swift in Sources */,
 				3C76032D89CE9DB40E9A91B5 /* WidgetManualRefreshRunner.swift in Sources */,
+				0F3100020000000000000002 /* WidgetRefreshIntent.swift in Sources */,
 				BE339BFB1CB1E63EA1C63F84 /* WidgetMuseumScope.swift in Sources */,
 				C807F84E57178E093DE6064D /* WidgetRefreshDeliveryTracker.swift in Sources */,
 				FA61C66FE799EE5EE5329728 /* WidgetSettingsReader.swift in Sources */,
@@ -671,6 +676,7 @@
 				F0AE0A1C3CC1749CBE7B804F /* WaterfallGrid.swift in Sources */,
 				4763B0241317625657255B1E /* WidgetArtworkSnapshotStore.swift in Sources */,
 				014375A5D184F881FD7070C1 /* WidgetManualRefreshRunner.swift in Sources */,
+				0F3100010000000000000001 /* WidgetRefreshIntent.swift in Sources */,
 				D8DA575A29B99005AD6A590F /* WidgetManualRefreshSupport.swift in Sources */,
 				D7688FF2CCD4DDF0F7F6544D /* WidgetMuseumScope.swift in Sources */,
 				2504A1D7A159B9476755E503 /* WidgetRefreshDeliveryTracker.swift in Sources */,

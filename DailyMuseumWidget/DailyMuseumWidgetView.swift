@@ -69,7 +69,7 @@ struct DailyMuseumWidgetView: View {
     }
 
     private var refreshControl: some View {
-        Link(destination: groupRefreshURL) {
+        Button(intent: WidgetRefreshIntent(groupID: entry.groupID)) {
             refreshIcon
                 .frame(width: refreshControlSize, height: refreshControlSize)
                 .frame(width: 44, height: 44)
@@ -80,7 +80,7 @@ struct DailyMuseumWidgetView: View {
     }
 
     private var refreshControlPadding: CGFloat {
-        // Expand the link around the icon without moving its visible center.
+        // Expand the button around the icon without moving its visible center.
         max(0, contentPadding - (44 - refreshControlSize) / 2)
     }
 

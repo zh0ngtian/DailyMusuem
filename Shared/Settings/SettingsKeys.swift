@@ -44,7 +44,7 @@ enum SettingsKeys {
         return storagePrefix.isEmpty ? root : root.appendingPathComponent("MuseumMuse", isDirectory: true)
     }
     static let widgetRefreshURL = URL(string: "dailymuseum://widget/refresh")!
-    static let widgetIdleSubtitle = "点击刷新，在 App 中获取展品"
+    static let widgetIdleSubtitle = "点击右上角刷新获取展品"
     static let widgetKind = "DailyMuseumWidget"
     static let feedPreferences = storageKey("feed.preferences.v2")
     static let feedDisplayModePrefix = storageKey("feed.displayMode.")
