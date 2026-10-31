@@ -14,11 +14,6 @@ struct DailyMuseumWidgetView: View {
                 backgroundView(size: proxy.size, image: backgroundImage)
 
                 VStack {
-                    HStack {
-                        Spacer()
-                        refreshControl
-                    }
-
                     Spacer(minLength: 0)
 
                     HStack(alignment: .bottom) {
@@ -53,6 +48,10 @@ struct DailyMuseumWidgetView: View {
                 .padding(contentPadding)
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
+            .overlay(alignment: .topTrailing) {
+                refreshControl
+                    .padding(refreshControlPadding)
+            }
         }
         .containerBackground(for: .widget) {
             Color.black
@@ -70,11 +69,19 @@ struct DailyMuseumWidgetView: View {
     }
 
     private var refreshControl: some View {
-        Group {
-            Link(destination: groupRefreshURL) { refreshIcon }
+        Link(destination: groupRefreshURL) {
+            refreshIcon
+                .frame(width: refreshControlSize, height: refreshControlSize)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .frame(width: refreshControlSize, height: refreshControlSize)
+        .accessibilityLabel("刷新展品")
+    }
+
+    private var refreshControlPadding: CGFloat {
+        // Expand the link around the icon without moving its visible center.
+        max(0, contentPadding - (44 - refreshControlSize) / 2)
     }
 
     private var refreshIcon: some View {
