@@ -54,6 +54,8 @@
 
 ### 6.3 小组件截图闭环测试
 
+- 2026-10-31 刷新图标两秒反馈：`Toggle(isOn: false, intent:)` 与自定义样式利用 WidgetKit 临时状态旋转，最长两秒，结果返回时重置；不额外延迟 intent。默认 iOS 27 模拟器构建、安装、启动通过，桌面点击生成成功刷新日志；模拟器点击实例的动画和快照更新不稳定，动画与最终换图以真机验收为准。独立开发测试 App `tech.zh0ngtian.MuseumRefreshTest` 在 `Yao iPhone 17 Pro` / iOS 27.0 安装、启动，通过录屏确认两秒旋转后停止、刷新停留桌面并换展品；44 pt 区域左下边缘点击成功，连续两次点击后最终换为大都会水罐，主体点击进入相同展品详情。App 内共享日志确认 `compat:1|all` 刷新成功、候选 1 命中后停止、图片降采样至 669 × 1024；系统日志确认 intent 成功完成，最终点击区间未出现图片超限、归档失败或动作 metadata 缺失。首次安装时系统 `linkd` 动作索引因 `GRDB.DatabaseError Code=8` 阻止动作，用户重启设备后恢复。原 MuseumMuse 安装未覆盖。本轮仅验 iOS 27；未重测十组逐项 UI、四尺寸完整闭环、整点自动调度或减弱动态效果的系统开关，相关业务逻辑沿用上一轮回归。本轮证据在 `build/verification/widget-refresh-feedback/`；不递增版本/Build、不发布。
+
 - 2026-10-31 桌面原地刷新：刷新按钮由 Link 改为 `Button(intent:)`，使用 `openAppWhenRun=false` 的 `WidgetRefreshIntent`，仅传当前组号并等待共享刷新服务完成；保留 44 × 44 pt 点击区与旧刷新 URL 兼容。默认 `iPhone 17 Pro` / iOS 27 模拟器构建、安装、启动通过；实际点击按钮后停留桌面并成功换展品，边缘及连续点击日志确认 nonce=7 抢占 nonce=6。小、中、大、超大竖排四尺寸桌面截图确认同组内容，主体点击进入对应详情。52 项 Widget 状态/设置回归全部通过，覆盖同组跨尺寸共享、同馆不同组隔离、无实例不刷新与抢占；系统日志未命中 `imageTooLarge`、归档失败、`CHSErrorDomain`、`Fatal error` 或 `No AppIntent`。证据在 `build/verification/widget-inline-refresh/`。未安装真机、未重测整点自动调度或十组逐项 UI；既有重签安装身份约束不变。此轮不递增版本/Build、不发布。
 
 - 2026-10-31 修复刷新按钮边缘误入详情：在 `Yao iPhone 17 Pro` / iOS 27 的既有 `1.1.4 (10)` 重签安装版复现，图标中心可刷新，偏左下边缘打开详情；将刷新 Link label 内的矩形点击区统一扩大为 `44 × 44 pt`，保持图标大小与中心位置。在默认 `iPhone 17 Pro` / iOS 27 模拟器完成构建、安装、启动，小尺寸成功态相同偏移的边缘点击触发第 1 组刷新并更新桌面展品，主体点击仍进入对应详情；小、中、大、超大竖排四尺寸桌面截图显示同组相同展品与正常按钮布局。请求日志确认首个成功候选后停止推进，相关系统日志未命中 `imageTooLarge`、归档失败、`CHSErrorDomain` 或 `Fatal error`。证据在 `build/verification/widget-refresh-hit-target/`。设备 Debug 与本地 unsigned Release 构建通过；修复版未装入真机，因既有重签 App 的 application-identifier 与本地开发身份不匹配而被 iOS 拒绝覆盖。用户选择保留原 App，自行重签安装本地修复包；未发布、未递增版本/Build，也未重测十组全部状态、组间并发或整点自动调度。

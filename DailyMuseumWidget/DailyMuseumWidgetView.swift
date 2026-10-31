@@ -69,13 +69,13 @@ struct DailyMuseumWidgetView: View {
     }
 
     private var refreshControl: some View {
-        Button(intent: WidgetRefreshIntent(groupID: entry.groupID)) {
+        Toggle(isOn: false, intent: WidgetRefreshIntent(groupID: entry.groupID)) {
             refreshIcon
                 .frame(width: refreshControlSize, height: refreshControlSize)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .toggleStyle(WidgetRefreshToggleStyle())
         .accessibilityLabel("刷新展品")
     }
 

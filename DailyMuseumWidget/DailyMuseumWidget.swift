@@ -23,7 +23,7 @@ struct MuseumWidget<Slot: WidgetSlot>: Widget {
             DailyMuseumWidgetView(entry: $0)
         }
         .configurationDisplayName(Text(verbatim: "博物女神 · \(group.name)"))
-        .description("在 App 中为本组选馆，同组尺寸同步，点击刷新打开 App")
+        .description("在 App 中为本组选馆，同组尺寸同步，点击刷新切换展品")
         .supportedFamilies(WidgetGroup.supportedFamilies)
         .contentMarginsDisabled()
     }

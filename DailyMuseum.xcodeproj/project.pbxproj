@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0F3100110000000000000011 /* WidgetRefreshToggleStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F3100120000000000000012 /* WidgetRefreshToggleStyle.swift */; };
 		014375A5D184F881FD7070C1 /* WidgetManualRefreshRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5BCD57FB86FC7D9454A8587 /* WidgetManualRefreshRunner.swift */; };
 		0F3100010000000000000001 /* WidgetRefreshIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F3100030000000000000003 /* WidgetRefreshIntent.swift */; };
 		0221CE15D7D3E4EDE27D79FC /* ArtworkListRowCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B534D07A84678EB11A2A0F5 /* ArtworkListRowCardView.swift */; };
@@ -144,6 +145,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		0F3100120000000000000012 /* WidgetRefreshToggleStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetRefreshToggleStyle.swift; sourceTree = "<group>"; };
 		0773F3ED0D9C2C7D00381424 /* RequestLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestLogger.swift; sourceTree = "<group>"; };
 		090F116BD2F05BC2CB7C3DC7 /* FavoritesStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesStoreTests.swift; sourceTree = "<group>"; };
 		0ACA67A0EFEEB5748BD15991 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -412,6 +414,7 @@
 				D8FB41405B2CD9B79DB7E63A /* DailyMuseumWidgetAppGroup.entitlements */,
 				DA2C496990992A4623A8A9C9 /* DailyMuseumWidgetBundle.swift */,
 				41E30B7CB5F9A6C88D27C0C2 /* DailyMuseumWidgetView.swift */,
+				0F3100120000000000000012 /* WidgetRefreshToggleStyle.swift */,
 				24DBCD6E661D8383B4C5F9E3 /* Info.plist */,
 				BDB91ABFDF5059FE1FCE0687 /* WidgetArtworkService.swift */,
 				7C479641DC62C47615D086EE /* WidgetArtworkSnapshotStore.swift */,
@@ -616,6 +619,7 @@
 				EE309BCCC53ECF316CA57CF3 /* DailyMuseumWidget.swift in Sources */,
 				D196A25010220D77782341EC /* DailyMuseumWidgetBundle.swift in Sources */,
 				A9A3F24657BDD51957EA848B /* DailyMuseumWidgetView.swift in Sources */,
+				0F3100110000000000000011 /* WidgetRefreshToggleStyle.swift in Sources */,
 				4A52AADAA05E981E758DC0CB /* FavoritesStore.swift in Sources */,
 				BCB4A26C7A84A6F6DA20EF02 /* ImageLoader.swift in Sources */,
 				6E98875786462837438D5333 /* ImageMemoryCache.swift in Sources */,
